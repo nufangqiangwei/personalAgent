@@ -119,7 +119,13 @@ class MockRuntime:
                 category=ErrorCategory.INTERRUPTED,
                 status=409,
             )
-        scenario = str(task.validated_input.get("mock_scenario") or self._default_scenario)
+        scenario = str(task.validated_input.get("mock_scenario") or "")
+        if not scenario:
+            scenario = (
+                "engine.tech.directions"
+                if "ops" in task.direction_ids
+                else "engine.topic.directions"
+            )
         observation = self._scenario(scenario)
         submission_id = new_id()
         self._scenario_by_submission[submission_id] = scenario

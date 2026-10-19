@@ -33,7 +33,7 @@ async def test_health_and_policies_never_leak_secrets(client: httpx.AsyncClient)
     document = policies.json()
     assert document["hash"].startswith("sha256:")
     assert document["retention"]["business_content_days"] == 90
-    assert document["budget_defaults"]["max_model_requests"] == 30
+    assert document["budget_defaults"]["model_requests"] == 30
 
 
 def _idempotent_app(database: Any, clock: Any) -> tuple[FastAPI, dict[str, int]]:
