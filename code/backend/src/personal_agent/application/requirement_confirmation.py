@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from personal_agent.adapters.persistence.budget_models import BudgetLedger
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.persistence.requirement_models import (
     Confirmation,
@@ -148,16 +149,7 @@ class RequirementService:
             ).all()
         )
         ledger = await session.scalar(
-            select(BudgetLedgerRow := __import__(
-                "personal_agent.adapters.persistence.budget_models",
-                fromlist=["BudgetLedger"],
-            ).BudgetLedger).where(
-                __import__(
-                    "personal_agent.adapters.persistence.budget_models",
-                    fromlist=["BudgetLedger"],
-                ).BudgetLedger.draft_id
-                == draft.id
-            )
+            select(BudgetLedger).where(BudgetLedger.draft_id == draft.id)
         )
         budget_summary = None
         if ledger is not None:
@@ -526,7 +518,7 @@ class RequirementService:
                     session, draft_id=draft.id, limits=self._draft_limits
                 )
                 await session.flush()
-            entry, snapshot = await self._budget.grant_draft_budget(
+            entry, _snapshot = await self._budget.grant_draft_budget(
                 session,
                 draft_id=draft.id,
                 draft_status=draft.status,
@@ -556,6 +548,66 @@ class RequirementService:
                     {"action": "RETRY_ANALYSIS", "enabled": True, "disabled_reason": None}
                 ],
             }
+
+    # ------------------------------------------------------------------
+    # Public helpers used by the analysis service
+    # ------------------------------------------------------------------
+    async def load(self, session: AsyncSession, draft_id: str) -> RequirementDraft:
+        return await self._require(session, draft_id)
+
+    async def recompute(
+        self,
+        session: AsyncSession,
+        draft: RequirementDraft,
+        definition: WorkflowDefinition | None = None,
+    ) -> None:
+        if definition is None:
+            version = await session.get(WorkflowVersion, draft.selected_version_id)
+            if version is None:
+                return
+            definition = WorkflowDefinition.model_validate(version.definition_json)
+        await self._recompute(session, draft, definition)
+
+    async def reserve_analysis_budget(
+        self,
+        session: AsyncSession,
+        *,
+        ledger: BudgetLedger,
+        worst_case: dict[str, int],
+        operation_id: str,
+    ) -> None:
+        await self._budget.reserve(
+            session, ledger=ledger, worst_case=worst_case, operation_id=operation_id
+        )
+
+    async def settle_analysis_budget(
+        self,
+        session: AsyncSession,
+        *,
+        ledger: BudgetLedger,
+        reserved: dict[str, int],
+        actual: dict[str, int],
+        operation_id: str,
+    ) -> None:
+        await self._budget.settle(
+            session,
+            ledger=ledger,
+            reserved=reserved,
+            actual=actual,
+            operation_id=operation_id,
+        )
+
+    async def release_analysis_budget(
+        self,
+        session: AsyncSession,
+        *,
+        ledger: BudgetLedger,
+        reserved: dict[str, int],
+        operation_id: str,
+    ) -> None:
+        await self._budget.release(
+            session, ledger=ledger, reserved=reserved, operation_id=operation_id
+        )
 
     # ------------------------------------------------------------------
     # Internals
