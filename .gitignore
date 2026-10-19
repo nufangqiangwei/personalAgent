@@ -26,8 +26,8 @@ htmlcov/
 
 # Node / 前端
 node_modules/
-frontend/dist/
-runtime-policy/dist/
+code/frontend/dist/
+code/runtime-policy/dist/
 *.tsbuildinfo
 test-results/
 playwright-report/

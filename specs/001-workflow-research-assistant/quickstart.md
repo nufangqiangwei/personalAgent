@@ -11,13 +11,13 @@ Windows x64、Python3.12、Node24/npm11、uv（版本要求见plan）。SQLite�
 实施后首次开发环境准备（在仓库根PowerShell，锁文件应已提交）：
 
 ```powershell
-uv sync --project backend --python 3.12 --frozen --all-extras
-uv run --project backend python -m playwright install chromium
-npm ci --prefix frontend
-npm ci --prefix runtime-policy
-npm run build --prefix runtime-policy
-uv run --project backend alembic -c backend/alembic.ini upgrade head
-uv run --project backend python -m personal_agent.bootstrap.seed
+uv sync --project code/backend --python 3.12 --frozen --all-extras
+uv run --project code/backend python -m playwright install chromium
+npm ci --prefix code/frontend
+npm ci --prefix code/runtime-policy
+npm run build --prefix code/runtime-policy
+uv run --project code/backend alembic -c code/backend/alembic.ini upgrade head
+uv run --project code/backend python -m personal_agent.bootstrap.seed
 ```
 
 种子加载幂等，提供“技术选型对比”和“公开主题资料研究”两个固定流程；空库验收通过单独临时工作区，不删除日常数据。首次设置界面显示数据目录、保留政策、外部传输范围、模型/搜索配置健康状态及上限；用户无需注册。初始配置完成的判据（同 spec.md 假设 14）：迁移已至 head、数据目录可写、`/health` 的 `execution_available` 为真、保留与上限政策已展示并保存。
@@ -25,25 +25,25 @@ uv run --project backend python -m personal_agent.bootstrap.seed
 目标启动入口：
 
 ```powershell
-uv run --project backend python -m personal_agent.bootstrap.run --mode mock
-npm run dev --prefix frontend -- --host 127.0.0.1
+uv run --project code/backend python -m personal_agent.bootstrap.run --mode mock
+npm run dev --prefix code/frontend -- --host 127.0.0.1
 ```
 
-后端默认127.0.0.1:8000，前端开发127.0.0.1:5173且代理/api到后端；生产构建 `npm run build --prefix frontend` 后由后端同源提供静态资源，`bootstrap.run --mode live` 启用已验证runtime。入口必须设置并自检Windows Proactor、单实例锁、迁移版本、受限profile与模型网关。运行中禁止reload；第二启动应明确拒绝。
+后端默认127.0.0.1:8000，前端开发127.0.0.1:5173且代理/api到后端；生产构建 `npm run build --prefix code/frontend` 后由后端同源提供静态资源，`bootstrap.run --mode live` 启用已验证runtime。入口必须设置并自检Windows Proactor、单实例锁、迁移版本、受限profile与模型网关。运行中禁止reload；第二启动应明确拒绝。
 
 ## 自动化验证入口（实施时建立）
 
 ```powershell
-uv run --project backend ruff check backend
-uv run --project backend mypy backend/src
-uv run --project backend pytest backend/tests/unit backend/tests/contract backend/tests/integration
-npm run typecheck --prefix frontend
-npm run test --prefix frontend -- --run
-npm run test:e2e --prefix frontend
-npm run test --prefix runtime-policy -- --run
+uv run --project code/backend ruff check code/backend
+uv run --project code/backend mypy code/backend/src
+uv run --project code/backend pytest code/backend/tests/unit code/backend/tests/contract code/backend/tests/integration
+npm run typecheck --prefix code/frontend
+npm run test --prefix code/frontend -- --run
+npm run test:e2e --prefix code/frontend
+npm run test --prefix code/runtime-policy -- --run
 ```
 
-默认测试使用固定clock/random/HTTP/model fixtures和临时数据目录，禁止访问真实供应商。真实接入测试另运行 `uv run --project backend pytest backend/tests/live -m live`，只在用户明确启用live、已配置凭据且确认费用范围时执行；其结果不能从Mock推断。所有模型调用仍受同一单请求门。
+默认测试使用固定clock/random/HTTP/model fixtures和临时数据目录，禁止访问真实供应商。真实接入测试另运行 `uv run --project code/backend pytest code/backend/tests/live -m live`，只在用户明确启用live、已配置凭据且确认费用范围时执行；其结果不能从Mock推断。所有模型调用仍受同一单请求门。
 
 ## UI端到端场景与预期
 

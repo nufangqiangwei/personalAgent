@@ -112,36 +112,37 @@ specs/001-workflow-research-assistant/
     └── runtime-adapter.md
 ```
 
-### Source Code (repository root，拟建目录)
+### Source Code (code/，拟建目录)
 
 ```text
-backend/
-├── pyproject.toml / uv.lock / alembic.ini
-├── migrations/
-├── src/personal_agent/
-│   ├── api/                     # DTO、路由、SSE、安全
-│   ├── domain/                  # 状态、确认、版本、预算、影响分析
-│   ├── application/             # requirements、registry、engine、coordinator
-│   ├── ports/                   # runtime、tool、repository、renderer、clock
-│   ├── adapters/
-│   │   ├── harness/             # Python SDK、事件、会话
-│   │   ├── tools/               # MCP、Brave、httpx、Playwright
-│   │   ├── persistence/         # SQLAlchemy、UoW、blob
-│   │   └── rendering/           # Markdown
-│   └── bootstrap/               # 配置、实例锁、lifespan、自检
-├── workflows/                   # 技术选型对比、公开主题资料研究
-└── tests/{unit,contract,integration,live,fixtures}/
-runtime-policy/                  # 受限profile、最小TS guard/provider挂接、锁文件
-frontend/
-├── package.json / package-lock.json
-├── src/{api,components,pages,router,stores}/
-└── tests/{unit,e2e}/
-scripts/                         # 启动、备份恢复与验收入口
+code/
+├── backend/
+│   ├── pyproject.toml / uv.lock / alembic.ini
+│   ├── migrations/
+│   ├── src/personal_agent/
+│   │   ├── api/                     # DTO、路由、SSE、安全
+│   │   ├── domain/                  # 状态、确认、版本、预算、影响分析
+│   │   ├── application/             # requirements、registry、engine、coordinator
+│   │   ├── ports/                   # runtime、tool、repository、renderer、clock
+│   │   ├── adapters/
+│   │   │   ├── harness/             # Python SDK、事件、会话
+│   │   │   ├── tools/               # MCP、Brave、httpx、Playwright
+│   │   │   ├── persistence/         # SQLAlchemy、UoW、blob
+│   │   │   └── rendering/           # Markdown
+│   │   └── bootstrap/               # 配置、实例锁、lifespan、自检
+│   ├── workflows/                   # 技术选型对比、公开主题资料研究
+│   └── tests/{unit,contract,integration,live,fixtures}/
+├── frontend/
+│   ├── package.json / package-lock.json
+│   ├── src/{api,components,pages,router,stores}/
+│   └── tests/{unit,e2e}/
+├── runtime-policy/                  # 受限profile、最小TS guard/provider挂接、锁文件
+└── scripts/                         # 启动、备份恢复与验收入口
 ```
 
 工作数据位于 `%LOCALAPPDATA%/Personal-Agent/{db,artifacts,cache,runtime,logs,backups}`，不进入版本库，使用本机文件ACL保护。
 
-**Structure Decision**: backend/frontend为开发边界，生产一个本地应用；Harness进程及MCP服务是受管适配器，不是业务微服务。两份种子流程适用范围不同，各至少两个查询方向，不限旅游。
+**Structure Decision**: code/backend 与 code/frontend 为开发边界，生产一个本地应用；Harness进程及MCP服务是受管适配器，不是业务微服务。两份种子流程适用范围不同，各至少两个查询方向，不限旅游。
 
 ## Design Stage Outputs and Coverage
 
