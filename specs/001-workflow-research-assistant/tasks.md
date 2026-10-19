@@ -120,11 +120,11 @@ description: "一期工作流研究助理的依赖有序实施任务"
 ### Tests → Models → Services → Interfaces → Integration
 
 - [x] T051 [P] [US3] 在 code/backend/tests/unit/test_engine.py 编写六节点调度、表达式边界、必需路径、错误输出、有界重试、规则不受模型文本影响及控制决策重放用例。
-- [ ] T052 [P] [US3] 在 code/backend/tests/contract/test_tools.py 编写搜索/HTTP/浏览器/提取契约，覆盖scope/epoch/预算、私网与重定向、DNS rebinding、子资源、恶意页面和停止收敛。
+- [x] T052 [P] [US3] 在 code/backend/tests/contract/test_tools.py 编写搜索/HTTP/浏览器/提取契约，覆盖scope/epoch/预算、私网与重定向、DNS rebinding、子资源、恶意页面和停止收敛。
 - [x] T053 [US3] 在 code/backend/src/personal_agent/domain/research.py、code/backend/src/personal_agent/adapters/persistence/research_models.py 和 code/backend/migrations/versions/0008_research.py 建立 ResearchAction、Source、Evidence；原文约束“每个定义方向都有动作结果或缺口；参数先脱敏，外部内容标untrusted”“获取时间必填；无法确认的发布时间为空，不从获取时间推断；内容hash用于去重，不抹去不同获取时间”“classification=FACT/OPINION/INFERENCE；validity=VERIFIED/UNVERIFIED/OUTDATED/CONFLICTED；重要外部事实须来源或未证实标记”；Source的published_at/updated_at/blob_id/deleted_at可空。
-- [ ] T054 [US3] 在 code/backend/src/personal_agent/adapters/tools/scope.py 和 code/backend/src/personal_agent/adapters/tools/mcp_service.py 实现握手令牌、节点scope、epoch、参数Schema、停止标志和预算校验；仅受管stdio/loopback，禁止管理操作和任意脚本，域名空列表拒绝网络，URL/DNS/重定向/子资源均验证且TLS开启。
-- [ ] T055 [US3] 在 code/backend/src/personal_agent/adapters/tools/search.py 和 code/backend/src/personal_agent/adapters/tools/http_fetch.py 实现Brave与共享httpx适配，读取受控凭据、不自动回退抓搜索引擎，超时或受限来源返回SOURCE_UNAVAILABLE并保留来源时间/缺口。
-- [ ] T056 [US3] 在 code/backend/src/personal_agent/adapters/tools/browser_read.py 和 code/backend/src/personal_agent/adapters/tools/extract.py 实现按run隔离的Playwright context与纯解析提取；采用原生timeout/协作停止，不以Task.cancel伪称结束，不复用用户浏览器cookies、不绕登录/验证码，需要模型提取时显式经网关。
+- [x] T054 [US3] 在 code/backend/src/personal_agent/adapters/tools/scope.py 和 code/backend/src/personal_agent/adapters/tools/mcp_service.py 实现握手令牌、节点scope、epoch、参数Schema、停止标志和预算校验；仅受管stdio/loopback，禁止管理操作和任意脚本，域名空列表拒绝网络，URL/DNS/重定向/子资源均验证且TLS开启。
+- [x] T055 [US3] 在 code/backend/src/personal_agent/adapters/tools/search.py 和 code/backend/src/personal_agent/adapters/tools/http_fetch.py 实现Brave与共享httpx适配，读取受控凭据、不自动回退抓搜索引擎，超时或受限来源返回SOURCE_UNAVAILABLE并保留来源时间/缺口。
+- [x] T056 [US3] 在 code/backend/src/personal_agent/adapters/tools/browser_read.py 和 code/backend/src/personal_agent/adapters/tools/extract.py 实现按run隔离的Playwright context与纯解析提取；采用原生timeout/协作停止，不以Task.cancel伪称结束，不复用用户浏览器cookies、不绕登录/验证码，需要模型提取时显式经网关。
 - [x] T057 [US3] 在 code/backend/src/personal_agent/application/research_evidence.py 实现每方向结果/缺口、来源去重与不同获取时间、冲突/过期/未证实标记、硬约束SATISFIED/VIOLATED/UNKNOWN及最终确认偏好排序，缺依据信息不进入合格推荐。
 - [x] T058 [US3] 在 code/backend/src/personal_agent/application/coordinator.py 实现START确认校验、确认唯一消费、单执行槽CAS、模型未知/未收敛写入阻塞与显式启动，不自动排队切换；冻结输入/版本/配置/运行时指纹。
 - [x] T059 [US3] 在 code/backend/src/personal_agent/application/engine.py 和 code/backend/src/personal_agent/domain/expressions.py 实现DAG串行调度、绑定与依赖检查、六节点派发、结构/语义验证、显式exhausted路径、SKIPPED依据、预留/结算与epoch检查；HumanReview先进入WAITING_USER，Output使用受管写入端口，专门交付实现由US4接入。
