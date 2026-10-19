@@ -158,7 +158,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 ### Tests → Models → Services → Interfaces → Integration
 
 - [x] T071 [P] [US9] 在 code/backend/tests/contract/test_run_controls.py 编写pause/cancel/resume/assistance/side-effects/branch-proposals/history接口用例，包括错误状态、过期revision、重复授权及分支确认唯一性。
-- [ ] T072 [P] [US9] 在 code/backend/tests/integration/test_recovery.py 编写节点完成/未完成、文件已生效未记账/未生效/部分/未知/后来改动、资料过期删除、版本不兼容、cancel_requested和迟到结果的恢复用例。
+- [x] T072 [P] [US9] 在 code/backend/tests/integration/test_recovery.py 编写节点完成/未完成、文件已生效未记账/未生效/部分/未知/后来改动、资料过期删除、版本不兼容、cancel_requested和迟到结果的恢复用例。
 - [ ] T073 [P] [US9] 在 code/backend/tests/integration/test_serial_execution.py 编写双击/跨任务/分支切换/运行中聊天/超时重试/停止仍在途六例及重启UNKNOWN，用下游请求计数证明执行分支≤1、实际模型请求≤1。
 - [x] T074 [US9] 在 code/backend/src/personal_agent/domain/assistance.py、code/backend/src/personal_agent/adapters/persistence/assistance_models.py 和 code/backend/migrations/versions/0009_assistance.py 建立 AssistanceRequest、UserDecision；原文约束“kind=BUDGET_LIMIT/WRITE_RECONCILIATION/HUMAN_REVIEW/RUNTIME_UNCERTAIN；OPEN/RESOLVED/CANCELLED；必须提供实质求助信息”“聊天讨论可记录但不解除阻塞；追加额度和继续为不同显式字段；不可只凭用户声称成功跳过写入核验”；保存全部limit/consumed/步骤/问题/未知/已尝试字段，kind与status分开枚举。
 - [ ] T075 [US9] 在 code/backend/src/personal_agent/domain/branches.py、code/backend/src/personal_agent/adapters/persistence/branch_models.py 和 code/backend/migrations/versions/0010_branches.py 建立 BranchProposal/ReusedResult；原文约束“DRAFT/BLOCKED/READY/CONFIRMED；确认新输入及最终起点后才创建run；影响不明标BLOCKED，不自动前移”“UNIQUE(run_id,step_id,artifact_id)；只允许起点前有效依赖成果；不是新执行的成功attempt；来源可追溯至父链”“proposal对应创建的run唯一”；原输入/hash与历史只追加。

@@ -240,37 +240,61 @@ class RecoveryService:
             )
         )
 
-        blobs = list(
-            (
-                await session.scalars(
-                    select(Blob)
-                    .join(Artifact, Artifact.blob_id == Blob.id)
-                    .where(Artifact.run_id == run.id)
-                )
-            ).all()
-        )
+        stored_rows = (
+            await session.execute(
+                select(Artifact, Blob)
+                .join(Blob, Artifact.blob_id == Blob.id)
+                .where(Artifact.run_id == run.id)
+            )
+        ).all()
         integrity_ok = True
-        for blob in blobs:
+        integrity_detail = "stored artifacts match their hashes"
+        for artifact, blob in stored_rows:
+            # An expired or deleted material stays on disk for the retention window,
+            # but it is no longer a usable dependency and must not unlock a resume.
+            if artifact.access_state != "AVAILABLE":
+                integrity_ok = False
+                integrity_detail = (
+                    f"artifact {artifact.id} is {artifact.access_state}, not available"
+                )
+                break
+            if blob.deleted_at is not None:
+                integrity_ok = False
+                integrity_detail = f"blob {blob.id} was deleted"
+                break
+            if blob.expires_at is not None and blob.expires_at <= self._clock.now():
+                integrity_ok = False
+                integrity_detail = f"blob {blob.id} has expired"
+                break
             try:
                 data = await self._store.get(blob.managed_relative_path)
             except FileNotFoundError:
                 integrity_ok = False
+                integrity_detail = f"blob {blob.id} is missing"
                 break
             if hashlib.sha256(data).hexdigest() != blob.sha256:
                 integrity_ok = False
+                integrity_detail = f"blob {blob.id} does not match its hash"
                 break
+        checks.append(_check("ARTIFACTS", integrity_ok, integrity_detail))
+
+        # A pending cancel may only be completed as a cancellation; it can never be
+        # turned into a resume, not even after a restart.
+        cancel_pending = bool(run.cancel_requested)
         checks.append(
             _check(
-                "ARTIFACTS",
-                integrity_ok,
-                "stored artifacts match their hashes"
-                if integrity_ok
-                else "a stored artifact is missing or does not match its hash",
+                "CANCEL",
+                not cancel_pending,
+                "no cancellation is pending"
+                if not cancel_pending
+                else "a cancellation is pending; only cancelling can complete it",
             )
         )
 
         blocker: str | None = None
-        if not executable:
+        if cancel_pending:
+            blocker = "CANCEL_PENDING"
+        elif not executable:
             blocker = "VERSION_CHANGED"
         elif not runtime_ok:
             blocker = "RUNTIME_INCOMPATIBLE"
