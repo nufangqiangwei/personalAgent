@@ -31,6 +31,7 @@ from personal_agent.adapters.tools.mock_service import (
 from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.api.context import AppContext
 from personal_agent.api.security import OriginPolicy, SessionManager
+from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import EngineDeps, WorkflowEngine
@@ -173,7 +174,9 @@ async def build_context(
         _transport_for(config, runtime),
         runtime_id=config.mode,
     )
-    writer = ManagedWriter(database, BlobStore(config.artifacts_dir), clock)
+    store = BlobStore(config.artifacts_dir)
+    writer = ManagedWriter(database, store, clock)
+    artifacts = ArtifactService(database, writer, store, clock)
     budget = BudgetService(clock)
     observations = _observations()
     tools = (
@@ -198,7 +201,7 @@ async def build_context(
             clock=clock,
             runtime=runtime,
             tools=tools,
-            writer=writer,
+            artifacts=artifacts,
             budget=budget,
             evidence=evidence,
             policy=config.policy,
@@ -229,6 +232,7 @@ async def build_context(
         gateway=gateway,
         budget=budget,
         writer=writer,
+        artifacts=artifacts,
         evidence=evidence,
         engine=engine,
         coordinator=coordinator,

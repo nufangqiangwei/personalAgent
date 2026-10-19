@@ -180,7 +180,7 @@ async def test_technology_workflow_completes_with_a_qualified_candidate(
     assert state.run.completeness == "COMPLETE"
     assert state.artifacts and state.artifacts[0].format == "markdown"
     assert "候选 A" in state.markdown
-    assert "满足全部硬约束" in state.markdown
+    assert "QUALIFIED" in state.markdown
     step_ids = [step.step_id for step in state.steps]
     assert "collect_official" in step_ids and "write_comparison" in step_ids
     assert "review_gaps" not in step_ids or next(

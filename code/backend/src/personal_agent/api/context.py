@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from personal_agent.adapters.harness.model_gateway import ModelGateway
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.api.security import OriginPolicy, SessionManager
+from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import WorkflowEngine
@@ -27,6 +28,7 @@ class AppContext:
     gateway: ModelGateway
     budget: BudgetService
     writer: ManagedWriter
+    artifacts: ArtifactService
     evidence: EvidenceService
     engine: WorkflowEngine
     coordinator: ExecutionCoordinator

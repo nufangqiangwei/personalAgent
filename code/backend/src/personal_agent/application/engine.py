@@ -29,12 +29,10 @@ from personal_agent.adapters.persistence.execution_models import (
     WorkflowRun,
 )
 from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
-from personal_agent.adapters.rendering.markdown import render_research_document
 from personal_agent.adapters.tools.scope import ToolScopeRegistry
+from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
-from personal_agent.application.managed_writes import ArtifactDraft, ManagedWriter
 from personal_agent.application.research_evidence import EvidenceService
-from personal_agent.domain.artifacts import ArtifactStructure
 from personal_agent.domain.assistance import AssistanceKind
 from personal_agent.domain.common import (
     AppError,
@@ -43,7 +41,6 @@ from personal_agent.domain.common import (
     stable_hash,
 )
 from personal_agent.domain.execution import (
-    Completeness,
     EventKind,
     RunStatus,
     StepStatus,
@@ -89,7 +86,7 @@ class EngineDeps:
     clock: Clock
     runtime: RuntimePort
     tools: ToolPort
-    writer: ManagedWriter
+    artifacts: ArtifactService
     budget: BudgetService
     evidence: EvidenceService
     policy: Any
@@ -182,7 +179,7 @@ class WorkflowEngine:
     ) -> StepOutcome:
         if step.type == "Output":
             attempt = await self._start_attempt(run, step, attempt_no=1)
-            outcome = self._deliver_candidate(run, definition, step, inputs, outputs)
+            outcome = StepOutcome(terminal=True)
             await self._finish_attempt(attempt, outcome, Usage())
             return outcome
 
@@ -253,7 +250,7 @@ class WorkflowEngine:
         if isinstance(config, AgentTaskConfig):
             return await self._run_agent(run, definition, step, config, inputs)
         if isinstance(config, OutputConfig):
-            return self._deliver_candidate(run, definition, step, inputs, outputs)
+            return StepOutcome(terminal=True)
         raise AppError(
             code="STEP_CONFIG_INVALID", message="unknown step configuration", status=422
         )
@@ -485,73 +482,6 @@ class WorkflowEngine:
         )
 
     # -- Output ---------------------------------------------------------
-    def _deliver_candidate(
-        self,
-        run: WorkflowRun,
-        definition: WorkflowDefinition,
-        step: Step,
-        inputs: dict[str, Any],
-        outputs: dict[str, dict[str, Any]],
-    ) -> StepOutcome:
-        config = step.config
-        structure = config.structure if isinstance(config, OutputConfig) else "report"
-        summary = self._evidence_summary
-        required_directions = definition.completion_policy.required_direction_ids
-        covered = {
-            direction.get("id")
-            for direction in summary.get("directions") or []
-            if direction.get("status") == "covered"
-        }
-        missing_directions = [item for item in required_directions if item not in covered]
-        gaps = list(summary.get("gaps") or [])
-        if missing_directions or gaps:
-            completeness = Completeness.PARTIAL
-        elif summary.get("rejected_candidates") and not summary.get("qualified"):
-            completeness = Completeness.NO_QUALIFIED_RESULT
-        else:
-            completeness = Completeness.COMPLETE
-        allow_partial = definition.completion_policy.allow_partial_document
-        if completeness is not Completeness.COMPLETE and not allow_partial:
-            completeness = Completeness.NO_QUALIFIED_RESULT
-        sources = [
-            {
-                "url": source.get("url") or source.get("normalized_url", ""),
-                "title": source.get("title", ""),
-                "fetched_at": _iso(source.get("fetched_at", self._deps.clock.now())),
-            }
-            for source in self._sources
-        ]
-        markdown, document = render_research_document(
-            title=definition.name,
-            structure=structure,
-            inputs=inputs,
-            evidence=summary,
-            sources=sources,
-            completeness=completeness.value,
-            direction_titles={
-                direction.id: direction.title for direction in definition.directions
-            },
-        )
-        operation_id = f"{run.id}:{step.id}:output"
-        draft = ArtifactDraft(
-            workflow_version_id=run.workflow_version_id,
-            completeness=completeness.value,
-            manifest_hash=stable_hash(document),
-            document=document,
-            structure=ArtifactStructure(structure),
-        )
-        return StepOutcome(
-            output={
-                "__output__": {
-                    "operation_id": operation_id,
-                    "markdown": markdown,
-                    "draft": draft,
-                    "completeness": completeness.value,
-                }
-            },
-            terminal=True,
-        )
-
     async def _deliver(
         self,
         run: WorkflowRun,
@@ -560,62 +490,13 @@ class WorkflowEngine:
         outcome: StepOutcome,
         inputs: dict[str, Any],
     ) -> None:
-        payload = outcome.output["__output__"]
-        draft: ArtifactDraft = payload["draft"]
-        completeness = str(payload["completeness"])
-        content = str(payload["markdown"]).encode("utf-8")
-        operation = await self._deps.writer.begin(
-            root_run_id=run.root_run_id,
-            run_id=run.id,
-            attempt_id=None,
-            logical_effect_key=f"output:{run.id}:{step.id}",
-            target_ref=f"{run.root_run_id}/{run.id}-{step.id}.md",
-            intended_content=content,
-        )
-
-        async def attach(session: Any, artifact: Any) -> None:
-            row = await session.get(WorkflowRun, run.id)
-            if row is None:
-                return
-            row.completeness = completeness
-            row.status = (
-                RunStatus.SUCCEEDED.value
-                if completeness in {Completeness.COMPLETE.value, Completeness.PARTIAL.value}
-                else RunStatus.FAILED.value
-            )
-            row.reason_code = (
-                None if row.status == RunStatus.SUCCEEDED.value else "NO_QUALIFIED_RESULT"
-            )
-            row.current_step_id = step.id
-            row.revision += 1
-            session.add(
-                ExecutionEvent(
-                    id=new_id(),
-                    run_id=row.id,
-                    draft_id=None,
-                    sequence=await self._next_sequence(session, row.id),
-                    step_run_id=None,
-                    attempt_id=None,
-                    workflow_version_id=row.workflow_version_id,
-                    occurred_at=self._deps.clock.now(),
-                    kind=EventKind.ARTIFACT_AVAILABLE.value,
-                    status=row.status,
-                    reason_code=None,
-                    payload_json={"artifact_id": artifact.id, "completeness": completeness},
-                    payload_ref=None,
-                    schema_version=1,
-                    provider_event_key=None,
-                )
-            )
-            await self._release_slot(session, row)
-
-        await self._deps.writer.publish(
-            operation_id=operation.id,
-            run_id=run.id,
-            workflow_version_id=run.workflow_version_id,
-            content=content,
-            draft=draft,
-            attach=attach,
+        await self._deps.artifacts.deliver(
+            run=run,
+            definition=definition,
+            step=step,
+            inputs=inputs,
+            evidence=self._evidence_summary,
+            sources=self._sources,
         )
         await self._set_step_status(run, step, StepStatus.SUCCEEDED)
 
