@@ -8,24 +8,59 @@
   "input_schema": {
     "type": "object",
     "properties": {
-      "topic": { "type": "string", "minLength": 1 },
-      "hard_constraints": { "type": "array", "items": { "type": "string" } },
-      "preference_order": { "type": "array", "items": { "type": "string" } },
-      "output_structure": { "type": "string", "enum": ["comparison", "report", "checklist"] }
+      "topic": {
+        "type": "string",
+        "minLength": 1
+      },
+      "hard_constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "preference_order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "output_structure": {
+        "type": "string",
+        "enum": [
+          "comparison",
+          "report",
+          "checklist"
+        ]
+      }
     },
-    "required": ["topic"],
+    "required": [
+      "topic"
+    ],
     "additionalProperties": false
   },
   "output_schema": {
     "type": "object",
     "properties": {
-      "title": { "type": "string" },
-      "directions": { "type": "array" },
-      "candidates": { "type": "array" },
-      "sources": { "type": "array" },
-      "gaps": { "type": "array" }
+      "title": {
+        "type": "string"
+      },
+      "directions": {
+        "type": "array"
+      },
+      "candidates": {
+        "type": "array"
+      },
+      "sources": {
+        "type": "array"
+      },
+      "gaps": {
+        "type": "array"
+      }
     },
-    "required": ["title", "directions"],
+    "required": [
+      "title",
+      "directions"
+    ],
     "additionalProperties": false
   },
   "entry_step": "collect_official",
@@ -49,19 +84,33 @@
       "input_schema": {},
       "output_schema": {},
       "bindings": {},
-      "input_reads": ["/topic", "/hard_constraints"],
+      "input_reads": [
+        "/topic",
+        "/hard_constraints"
+      ],
       "depends_on": [],
       "policy": {
-        "allowed_tools": ["search.web", "http.fetch"],
-        "allowed_domains": ["vendor.example", "example.org"],
+        "allowed_tools": [
+          "search.web",
+          "http.fetch"
+        ],
+        "allowed_domains": [
+          "vendor.example",
+          "example.org"
+        ],
         "max_attempts": 3,
         "timeout_seconds": 120,
         "side_effect_mode": "none"
       },
       "config": {
         "goal_template": "研究 {topic} 的官方能力与许可边界；硬约束：{hard_constraints}",
-        "context_bindings": ["/topic", "/hard_constraints"],
-        "direction_ids": ["official"]
+        "context_bindings": [
+          "/topic",
+          "/hard_constraints"
+        ],
+        "direction_ids": [
+          "official"
+        ]
       }
     },
     {
@@ -71,19 +120,34 @@
       "input_schema": {},
       "output_schema": {},
       "bindings": {},
-      "input_reads": ["/topic"],
-      "depends_on": ["collect_official"],
+      "input_reads": [
+        "/topic"
+      ],
+      "depends_on": [
+        "collect_official"
+      ],
       "policy": {
-        "allowed_tools": ["search.web", "http.fetch", "browser.read"],
-        "allowed_domains": ["vendor.example", "example.org"],
+        "allowed_tools": [
+          "search.web",
+          "http.fetch",
+          "browser.read"
+        ],
+        "allowed_domains": [
+          "vendor.example",
+          "example.org"
+        ],
         "max_attempts": 3,
         "timeout_seconds": 120,
         "side_effect_mode": "none"
       },
       "config": {
         "goal_template": "研究 {topic} 的部署方式、运维成本与配额限制",
-        "context_bindings": ["/topic"],
-        "direction_ids": ["ops"]
+        "context_bindings": [
+          "/topic"
+        ],
+        "direction_ids": [
+          "ops"
+        ]
       }
     },
     {
@@ -94,9 +158,15 @@
       "output_schema": {},
       "bindings": {},
       "input_reads": [],
-      "depends_on": ["collect_official", "collect_ops"],
+      "depends_on": [
+        "collect_official",
+        "collect_ops"
+      ],
       "policy": {},
-      "config": { "transform_id": "dedupe", "parameters": {} }
+      "config": {
+        "transform_id": "dedupe",
+        "parameters": {}
+      }
     },
     {
       "id": "check_gaps",
@@ -106,13 +176,23 @@
       "output_schema": {},
       "bindings": {},
       "input_reads": [],
-      "depends_on": ["merge_evidence"],
+      "depends_on": [
+        "merge_evidence"
+      ],
       "policy": {},
       "config": {
         "expression": {
           "op": "eq",
-          "left": { "ref": { "source": "step", "step_id": "merge_evidence", "pointer": "/has_gaps" } },
-          "right": { "literal": false }
+          "left": {
+            "ref": {
+              "source": "step",
+              "step_id": "merge_evidence",
+              "pointer": "/has_gaps"
+            }
+          },
+          "right": {
+            "literal": false
+          }
         }
       }
     },
@@ -123,18 +203,28 @@
       "input_schema": {},
       "output_schema": {},
       "bindings": {},
-      "input_reads": ["/topic"],
-      "depends_on": ["merge_evidence"],
+      "input_reads": [
+        "/topic"
+      ],
+      "depends_on": [
+        "merge_evidence"
+      ],
       "policy": {
-        "allowed_tools": ["http.fetch"],
-        "allowed_domains": ["vendor.example"],
+        "allowed_tools": [
+          "http.fetch"
+        ],
+        "allowed_domains": [
+          "vendor.example"
+        ],
         "max_attempts": 2,
         "timeout_seconds": 60,
         "side_effect_mode": "none"
       },
       "config": {
         "tool_name": "http.fetch",
-        "arguments_bindings": { "url": "/pricing_url" }
+        "arguments_bindings": {
+          "url": "/pricing_url"
+        }
       }
     },
     {
@@ -145,14 +235,26 @@
       "output_schema": {},
       "bindings": {},
       "input_reads": [],
-      "depends_on": ["merge_evidence"],
+      "depends_on": [
+        "merge_evidence"
+      ],
       "policy": {},
       "config": {
         "prompt": "关键条件仍未知或证据冲突，是否继续生成带缺口的对比？",
         "decision_schema": {
           "type": "object",
-          "properties": { "decision": { "type": "string", "enum": ["CONTINUE", "STOP"] } },
-          "required": ["decision"]
+          "properties": {
+            "decision": {
+              "type": "string",
+              "enum": [
+                "CONTINUE",
+                "STOP"
+              ]
+            }
+          },
+          "required": [
+            "decision"
+          ]
         },
         "reason_code": "MISSING_KEY_CONDITION"
       }
@@ -165,24 +267,68 @@
       "output_schema": {},
       "bindings": {},
       "input_reads": [],
-      "depends_on": ["merge_evidence"],
+      "depends_on": [
+        "merge_evidence"
+      ],
       "policy": {},
       "config": {
         "renderer": "markdown",
         "structure": "comparison",
-        "content_bindings": ["/directions", "/candidates", "/sources", "/gaps"]
+        "content_bindings": [
+          "/directions",
+          "/candidates",
+          "/sources",
+          "/gaps"
+        ]
       }
     }
   ],
   "transition_rules": [
-    { "from": "collect_official", "to": "collect_ops", "on": "success" },
-    { "from": "collect_ops", "to": "merge_evidence", "on": "success" },
-    { "from": "merge_evidence", "to": "review_gaps", "on": "exhausted" },
-    { "from": "merge_evidence", "to": "check_gaps", "on": "success" },
-    { "from": "check_gaps", "to": "fetch_pricing", "on": "true" },
-    { "from": "check_gaps", "to": "review_gaps", "on": "false" },
-    { "from": "fetch_pricing", "to": "write_comparison", "on": "success" },
-    { "from": "review_gaps", "to": "write_comparison", "on": "success" }
+    {
+      "from": "collect_official",
+      "to": "collect_ops",
+      "on": "success"
+    },
+    {
+      "from": "collect_ops",
+      "to": "merge_evidence",
+      "on": "success"
+    },
+    {
+      "from": "merge_evidence",
+      "to": "review_gaps",
+      "on": "exhausted"
+    },
+    {
+      "from": "merge_evidence",
+      "to": "check_gaps",
+      "on": "success"
+    },
+    {
+      "from": "check_gaps",
+      "to": "fetch_pricing",
+      "on": "true"
+    },
+    {
+      "from": "check_gaps",
+      "to": "review_gaps",
+      "on": "false"
+    },
+    {
+      "from": "fetch_pricing",
+      "to": "write_comparison",
+      "on": "success"
+    },
+    {
+      "from": "review_gaps",
+      "to": "write_comparison",
+      "on": "success"
+    },
+    {
+      "from": "collect_official",
+      "to": "review_gaps",
+      "on": "exhausted"
+    }
   ],
   "execution_policy": {
     "max_active_seconds": 1200,
@@ -196,8 +342,13 @@
     "tool_timeout_seconds": 120
   },
   "completion_policy": {
-    "required_output_step_ids": ["write_comparison"],
-    "required_direction_ids": ["official", "ops"],
+    "required_output_step_ids": [
+      "write_comparison"
+    ],
+    "required_direction_ids": [
+      "official",
+      "ops"
+    ],
     "allow_partial_document": true
   }
 }

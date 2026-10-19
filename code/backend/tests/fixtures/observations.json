@@ -20,7 +20,10 @@
     "scenarios": {
       "requirement.analysis.complete": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 420, "output_tokens": 180 },
+        "usage": {
+          "input_tokens": 420,
+          "output_tokens": 180
+        },
         "output": {
           "summary": "调研生成式 AI 编程助手选型，用于 12 人团队，预算有限。",
           "fields": [
@@ -38,13 +41,20 @@
             },
             {
               "path": "hard_constraints",
-              "value": ["支持私有化部署", "单人月成本不超过 40 元"],
+              "value": [
+                "支持私有化部署",
+                "单人月成本不超过 40 元"
+              ],
               "source": "user",
               "evidence": "用户明确预算与部署要求"
             },
             {
               "path": "preference_order",
-              "value": ["代码补全准确度", "成本", "中文文档支持"],
+              "value": [
+                "代码补全准确度",
+                "成本",
+                "中文文档支持"
+              ],
               "source": "user",
               "evidence": "用户确认的优先顺序"
             }
@@ -56,7 +66,10 @@
       },
       "requirement.analysis.needs_clarification": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 300, "output_tokens": 120 },
+        "usage": {
+          "input_tokens": 300,
+          "output_tokens": 120
+        },
         "output": {
           "summary": "用户希望对比几个 AI 编程工具。",
           "fields": [
@@ -67,7 +80,11 @@
               "evidence": "用户首条消息"
             }
           ],
-          "missing_fields": ["audience", "hard_constraints", "output_spec"],
+          "missing_fields": [
+            "audience",
+            "hard_constraints",
+            "output_spec"
+          ],
           "conflicts": [],
           "suggestions": [
             {
@@ -84,7 +101,10 @@
       },
       "requirement.analysis.no_preference": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 260, "output_tokens": 90 },
+        "usage": {
+          "input_tokens": 260,
+          "output_tokens": 90
+        },
         "output": {
           "summary": "公开主题资料研究：城市公共图书馆夜间开放。",
           "fields": [
@@ -103,7 +123,10 @@
       },
       "engine.topic.directions": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 640, "output_tokens": 420 },
+        "usage": {
+          "input_tokens": 640,
+          "output_tokens": 420
+        },
         "output": {
           "directions": [
             {
@@ -112,12 +135,16 @@
               "findings": [
                 {
                   "claim": "多个城市自 2023 年起试点公共图书馆夜间开放。",
-                  "source_ids": ["src-background-1"],
+                  "source_ids": [
+                    "src-background-1"
+                  ],
                   "classification": "FACT",
                   "validity": "VERIFIED"
                 }
               ],
-              "source_ids": ["src-background-1"],
+              "source_ids": [
+                "src-background-1"
+              ],
               "gaps": []
             },
             {
@@ -126,43 +153,75 @@
               "findings": [
                 {
                   "claim": "2026 年新增夜间开放试点的城市数量继续增加。",
-                  "source_ids": ["src-latest-1"],
+                  "source_ids": [
+                    "src-latest-1"
+                  ],
                   "classification": "FACT",
                   "validity": "VERIFIED"
                 }
               ],
-              "source_ids": ["src-latest-1"],
+              "source_ids": [
+                "src-latest-1"
+              ],
               "gaps": []
             }
           ],
-          "unverified_claims": []
+          "unverified_claims": [],
+          "sources": [
+            {
+              "source_id": "src-background-1",
+              "url": "https://example.org/library/night-opening",
+              "normalized_url": "https://example.org/library/night-opening",
+              "title": "公共图书馆夜间开放试点扩大",
+              "fetched_at": "2026-10-19T12:00:01Z",
+              "published_at": "2026-03-02",
+              "content_hash": "sha256:background-1"
+            },
+            {
+              "source_id": "src-latest-1",
+              "url": "https://example.org/library/latest",
+              "normalized_url": "https://example.org/library/latest",
+              "title": "2026 年新增夜间开放城市",
+              "fetched_at": "2026-10-19T12:00:02Z",
+              "content_hash": "sha256:latest-1"
+            }
+          ]
         }
       },
       "engine.tech.directions": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 780, "output_tokens": 560 },
+        "usage": {
+          "input_tokens": 780,
+          "output_tokens": 560
+        },
         "output": {
           "directions": [
             {
-              "id": "official_capabilities",
+              "id": "official",
               "status": "covered",
               "findings": [
                 {
                   "claim": "候选 A 支持私有化部署与仓库级补全。",
-                  "source_ids": ["src-vendor-a"],
+                  "source_ids": [
+                    "src-vendor-a"
+                  ],
                   "classification": "FACT",
                   "validity": "VERIFIED"
                 }
               ],
-              "source_ids": ["src-vendor-a"],
+              "source_ids": [
+                "src-vendor-a"
+              ],
               "gaps": []
             },
             {
-              "id": "operations_limits",
+              "id": "ops",
               "status": "missing",
               "findings": [],
               "source_ids": [],
-              "gaps": ["未能从公开来源确认候选 B 的私有化部署运维成本"]
+              "gaps": [
+                "未能从公开来源确认候选 B 的私有化部署运维成本"
+              ]
             }
           ],
           "candidates": [
@@ -170,26 +229,82 @@
               "id": "candidate-a",
               "name": "候选 A",
               "constraints": [
-                { "constraint": "支持私有化部署", "result": "SATISFIED", "evidence": ["src-vendor-a"] },
-                { "constraint": "单人月成本不超过 40 元", "result": "SATISFIED", "evidence": ["src-pricing-a"] }
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-vendor-a"
+                  ]
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-a"
+                  ]
+                }
               ],
-              "source_ids": ["src-vendor-a", "src-pricing-a"]
+              "source_ids": [
+                "src-vendor-a",
+                "src-pricing-a"
+              ]
             },
             {
               "id": "candidate-b",
               "name": "候选 B",
               "constraints": [
-                { "constraint": "支持私有化部署", "result": "UNKNOWN", "evidence": [] },
-                { "constraint": "单人月成本不超过 40 元", "result": "SATISFIED", "evidence": ["src-pricing-b"] }
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "UNKNOWN",
+                  "evidence": []
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-b"
+                  ]
+                }
               ],
-              "source_ids": ["src-pricing-b"]
+              "source_ids": [
+                "src-pricing-b"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "source_id": "src-vendor-a",
+              "url": "https://vendor.example/a/docs",
+              "normalized_url": "https://vendor.example/a/docs",
+              "title": "候选 A 私有化部署说明",
+              "fetched_at": "2026-10-19T12:00:03Z",
+              "content_hash": "sha256:vendor-a"
+            },
+            {
+              "source_id": "src-pricing-a",
+              "url": "https://vendor.example/a/pricing",
+              "normalized_url": "https://vendor.example/a/pricing",
+              "title": "候选 A 定价",
+              "fetched_at": "2026-10-19T12:00:04Z",
+              "content_hash": "sha256:pricing-a"
+            },
+            {
+              "source_id": "src-pricing-b",
+              "url": "https://vendor.example/b/pricing",
+              "normalized_url": "https://vendor.example/b/pricing",
+              "title": "候选 B 定价",
+              "fetched_at": "2026-10-19T12:00:05Z",
+              "content_hash": "sha256:pricing-b"
             }
           ]
         }
       },
       "engine.output.no_qualified": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 320, "output_tokens": 210 },
+        "usage": {
+          "input_tokens": 320,
+          "output_tokens": 210
+        },
         "output": {
           "completeness": "NO_QUALIFIED_RESULT",
           "sections": [
@@ -203,7 +318,10 @@
       },
       "engine.output.partial": {
         "finish_reason": "completed",
-        "usage": { "input_tokens": 360, "output_tokens": 240 },
+        "usage": {
+          "input_tokens": 360,
+          "output_tokens": 240
+        },
         "output": {
           "completeness": "PARTIAL",
           "sections": [
@@ -218,7 +336,10 @@
       "runtime.timeout.unknown": {
         "finish_reason": null,
         "status": "unknown",
-        "usage": { "input_tokens": 128, "output_tokens": 0 },
+        "usage": {
+          "input_tokens": 128,
+          "output_tokens": 0
+        },
         "error": {
           "category": "TIMEOUT",
           "code": "MODEL_TIMEOUT",
@@ -229,9 +350,310 @@
       "runtime.late_result.after_cancel": {
         "finish_reason": "completed",
         "status": "completed",
-        "usage": { "input_tokens": 150, "output_tokens": 60 },
-        "output": { "completeness": "COMPLETE", "sections": [] },
+        "usage": {
+          "input_tokens": 150,
+          "output_tokens": 60
+        },
+        "output": {
+          "completeness": "COMPLETE",
+          "sections": []
+        },
         "note": "Arrives after a cancel request; must be appended as a quarantined fact and must not turn CANCELLED into SUCCEEDED."
+      },
+      "runtime.dependency_failure": {
+        "finish_reason": null,
+        "status": "failed",
+        "usage": {
+          "input_tokens": 50,
+          "output_tokens": 0
+        },
+        "error": {
+          "category": "DEPENDENCY",
+          "code": "SOURCE_UNAVAILABLE",
+          "message": "the upstream source is unavailable",
+          "retryable": true
+        }
+      },
+      "engine.topic.missing_direction": {
+        "finish_reason": "completed",
+        "usage": {
+          "input_tokens": 300,
+          "output_tokens": 120
+        },
+        "output": {
+          "directions": [
+            {
+              "id": "background",
+              "status": "covered",
+              "findings": [
+                {
+                  "claim": "公共图书馆夜间开放已有试点。",
+                  "source_ids": [
+                    "src-background-1"
+                  ],
+                  "classification": "FACT",
+                  "validity": "VERIFIED"
+                }
+              ],
+              "source_ids": [
+                "src-background-1"
+              ],
+              "gaps": []
+            }
+          ],
+          "sources": [
+            {
+              "source_id": "src-background-1",
+              "url": "https://example.org/library/night-opening",
+              "normalized_url": "https://example.org/library/night-opening",
+              "title": "公共图书馆夜间开放试点扩大",
+              "fetched_at": "2026-10-19T12:00:01Z",
+              "content_hash": "sha256:background-1"
+            }
+          ]
+        }
+      },
+      "engine.tech.redirect": {
+        "finish_reason": "completed",
+        "usage": {
+          "input_tokens": 780,
+          "output_tokens": 560
+        },
+        "output": {
+          "directions": [
+            {
+              "id": "official",
+              "status": "covered",
+              "findings": [
+                {
+                  "claim": "候选 A 支持私有化部署与仓库级补全。",
+                  "source_ids": [
+                    "src-vendor-a"
+                  ],
+                  "classification": "FACT",
+                  "validity": "VERIFIED"
+                }
+              ],
+              "source_ids": [
+                "src-vendor-a"
+              ],
+              "gaps": []
+            },
+            {
+              "id": "ops",
+              "status": "covered",
+              "findings": [
+                {
+                  "claim": "候选 A 的运维成本可由公开定价页核对。",
+                  "source_ids": [
+                    "src-pricing-a"
+                  ],
+                  "classification": "FACT",
+                  "validity": "VERIFIED"
+                }
+              ],
+              "source_ids": [
+                "src-pricing-a"
+              ],
+              "gaps": []
+            }
+          ],
+          "candidates": [
+            {
+              "id": "candidate-a",
+              "name": "候选 A",
+              "constraints": [
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-vendor-a"
+                  ]
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-a"
+                  ]
+                }
+              ],
+              "source_ids": [
+                "src-vendor-a",
+                "src-pricing-a"
+              ]
+            },
+            {
+              "id": "candidate-b",
+              "name": "候选 B",
+              "constraints": [
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "UNKNOWN",
+                  "evidence": []
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-b"
+                  ]
+                }
+              ],
+              "source_ids": [
+                "src-pricing-b"
+              ]
+            }
+          ],
+          "next_step": "skip_to_output",
+          "authorization": "grant_all",
+          "sources": [
+            {
+              "source_id": "src-vendor-a",
+              "url": "https://vendor.example/a/docs",
+              "normalized_url": "https://vendor.example/a/docs",
+              "title": "候选 A 私有化部署说明",
+              "fetched_at": "2026-10-19T12:00:03Z",
+              "content_hash": "sha256:vendor-a"
+            },
+            {
+              "source_id": "src-pricing-a",
+              "url": "https://vendor.example/a/pricing",
+              "normalized_url": "https://vendor.example/a/pricing",
+              "title": "候选 A 定价",
+              "fetched_at": "2026-10-19T12:00:04Z",
+              "content_hash": "sha256:pricing-a"
+            },
+            {
+              "source_id": "src-pricing-b",
+              "url": "https://vendor.example/b/pricing",
+              "normalized_url": "https://vendor.example/b/pricing",
+              "title": "候选 B 定价",
+              "fetched_at": "2026-10-19T12:00:05Z",
+              "content_hash": "sha256:pricing-b"
+            }
+          ]
+        }
+      },
+      "engine.tech.complete": {
+        "finish_reason": "completed",
+        "usage": {
+          "input_tokens": 780,
+          "output_tokens": 560
+        },
+        "output": {
+          "directions": [
+            {
+              "id": "official",
+              "status": "covered",
+              "findings": [
+                {
+                  "claim": "候选 A 支持私有化部署与仓库级补全。",
+                  "source_ids": [
+                    "src-vendor-a"
+                  ],
+                  "classification": "FACT",
+                  "validity": "VERIFIED"
+                }
+              ],
+              "source_ids": [
+                "src-vendor-a"
+              ],
+              "gaps": []
+            },
+            {
+              "id": "ops",
+              "status": "covered",
+              "findings": [
+                {
+                  "claim": "候选 A 的运维成本可由公开定价页核对。",
+                  "source_ids": [
+                    "src-pricing-a"
+                  ],
+                  "classification": "FACT",
+                  "validity": "VERIFIED"
+                }
+              ],
+              "source_ids": [
+                "src-pricing-a"
+              ],
+              "gaps": []
+            }
+          ],
+          "candidates": [
+            {
+              "id": "candidate-a",
+              "name": "候选 A",
+              "constraints": [
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-vendor-a"
+                  ]
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-a"
+                  ]
+                }
+              ],
+              "source_ids": [
+                "src-vendor-a",
+                "src-pricing-a"
+              ]
+            },
+            {
+              "id": "candidate-b",
+              "name": "候选 B",
+              "constraints": [
+                {
+                  "constraint": "支持私有化部署",
+                  "result": "UNKNOWN",
+                  "evidence": []
+                },
+                {
+                  "constraint": "单人月成本不超过 40 元",
+                  "result": "SATISFIED",
+                  "evidence": [
+                    "src-pricing-b"
+                  ]
+                }
+              ],
+              "source_ids": [
+                "src-pricing-b"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "source_id": "src-vendor-a",
+              "url": "https://vendor.example/a/docs",
+              "normalized_url": "https://vendor.example/a/docs",
+              "title": "候选 A 私有化部署说明",
+              "fetched_at": "2026-10-19T12:00:03Z",
+              "content_hash": "sha256:vendor-a"
+            },
+            {
+              "source_id": "src-pricing-a",
+              "url": "https://vendor.example/a/pricing",
+              "normalized_url": "https://vendor.example/a/pricing",
+              "title": "候选 A 定价",
+              "fetched_at": "2026-10-19T12:00:04Z",
+              "content_hash": "sha256:pricing-a"
+            },
+            {
+              "source_id": "src-pricing-b",
+              "url": "https://vendor.example/b/pricing",
+              "normalized_url": "https://vendor.example/b/pricing",
+              "title": "候选 B 定价",
+              "fetched_at": "2026-10-19T12:00:05Z",
+              "content_hash": "sha256:pricing-b"
+            }
+          ]
+        }
       }
     }
   },
@@ -355,7 +777,9 @@
         ]
       }
     },
-    "empty_queries": ["不存在的主题 xyzzy"]
+    "empty_queries": [
+      "不存在的主题 xyzzy"
+    ]
   },
   "untrusted_page": {
     "url": "https://malicious.example/injection",
