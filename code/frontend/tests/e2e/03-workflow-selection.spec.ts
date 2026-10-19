@@ -50,7 +50,7 @@ test('shows applicability, directions and the version on the detail page', async
     .click()
 
   await expect(page.getByRole('heading', { name: '技术选型对比' })).toBeVisible()
-  await expect(page.getByText('适用边界')).toBeVisible()
+  await expect(page.getByText('适用边界').first()).toBeVisible()
   await expect(page.getByText('官方能力').first()).toBeVisible()
   await expect(page.getByText(/实际使用版本 v\d+/)).toBeVisible()
 })
