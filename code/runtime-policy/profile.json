@@ -1,0 +1,36 @@
+{
+  "$schema": "https://personal-agent.invalid/schemas/runtime-profile-v1.json",
+  "profile": "personal-agent-restricted",
+  "description": "Empty workspace, official Loop only, restricted MCP, restrict+guard. No shell/fs, no plugin autodiscovery, no sub-agents, no self-modification, no implicit SDK retries.",
+  "workspace": {
+    "mode": "empty-managed",
+    "autodiscoverPlugins": false,
+    "allowUserPlugins": false
+  },
+  "runtime": {
+    "loop": "official",
+    "subAgents": false,
+    "selfModification": false,
+    "implicitRetries": false,
+    "persistReasoning": false
+  },
+  "tools": {
+    "allow": ["search.web", "http.fetch", "browser.read", "content.extract"],
+    "denyPrefixes": ["shell", "fs.", "file.", "plugin.", "agent.", "subagent.", "mcp.admin", "web.form", "payment"],
+    "denyManagementApi": true,
+    "emptyDomainListDeniesNetwork": true
+  },
+  "mcp": {
+    "transport": ["managed-stdio", "loopback"],
+    "handshakeTokenRequired": true,
+    "maxInflight": 1,
+    "tools": ["search.web", "http.fetch", "browser.read", "content.extract"]
+  },
+  "modelGateway": {
+    "mode": "local-gateway-token",
+    "providers": ["deepseek-official"],
+    "allowArbitraryProxyTargets": false,
+    "maxInflight": 1,
+    "credentialScope": "gateway-only"
+  }
+}

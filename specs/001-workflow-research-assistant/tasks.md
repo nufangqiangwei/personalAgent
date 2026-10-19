@@ -1,4 +1,4 @@
----
+﻿---
 description: "一期工作流研究助理的依赖有序实施任务"
 ---
 
@@ -26,13 +26,13 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 **Independent Test / Checkpoint**：依赖范围可解析，三个项目入口和离线测试入口可用；候选 SDK 尚不视为已验证。
 
-- [ ] T001 核对一期范围及现有契约，补齐草稿额度追加（独立于 run 求助）、首次配置和 UI 备份恢复的请求/响应、授权及错误契约，在 specs/001-workflow-research-assistant/contracts/rest-api.md 中定义对应端点，并同步 specs/001-workflow-research-assistant/data-model.md 的关联约束；保持显式追加、不自动研究、不以用户声明替代核验，不引入二期实体。
-- [ ] T002 建立 Python 3.12 后端包与开发工具配置，在 code/backend/pyproject.toml 中声明 plan.md 的 FastAPI/Pydantic/SQLAlchemy/Alembic/httpx/Playwright/pytest/ruff/mypy 范围及匹配的 Harness SDK/runtime 0.2.1rc2 候选，设置 mock 默认和 live 可选依赖，创建 code/backend/src/personal_agent/__init__.py。
-- [ ] T003 [P] 建立 Vue 3、TypeScript 5、Vite 7、Router 4、Vitest 3 和 Playwright 项目，在 code/frontend/package.json、code/frontend/tsconfig.json、code/frontend/vite.config.ts 中配置 Node24/npm11、开发 /api 代理及 build/typecheck/test/test:e2e 入口。
-- [ ] T004 [P] 建立最小 TS 策略插件项目，在 code/runtime-policy/package.json、code/runtime-policy/tsconfig.json 中配置 guard/provider 挂接构建与测试入口，声明不包含业务 Loop。
-- [ ] T005 在 code/backend/tests/conftest.py 和 code/backend/tests/fixtures/observations.json 建立固定时钟、随机源、模型/HTTP 响应及临时工作区；默认测试阻止真实网络，live marker 必须显式启用并核对凭据和费用边界。
-- [ ] T006 解析依赖并生成 code/backend/uv.lock、code/frontend/package-lock.json、code/runtime-policy/package-lock.json，在 docs/dependency-baseline.md 记录 Python/Node/npm/uv、浏览器 revision 和候选 SDK 指纹；后续真实采用门禁失败保持 live 禁用，调整依赖必须重新锁定。
-- [ ] T007 在 .gitignore 和 .env.example 配置数据/凭据/日志排除与无秘密配置示例，在 code/scripts/check.ps1 汇总类型检查、静态检查、离线测试及策略插件测试入口；初始化 Git 仓库（main）并提交规格基线（.gitignore 与首批提交已于 2026-10-19 完成，见 origin/main `ab4229e`）。
+- [x] T001 核对一期范围及现有契约，补齐草稿额度追加（独立于 run 求助）、首次配置和 UI 备份恢复的请求/响应、授权及错误契约，在 specs/001-workflow-research-assistant/contracts/rest-api.md 中定义对应端点，并同步 specs/001-workflow-research-assistant/data-model.md 的关联约束；保持显式追加、不自动研究、不以用户声明替代核验，不引入二期实体。
+- [x] T002 建立 Python 3.12 后端包与开发工具配置，在 code/backend/pyproject.toml 中声明 plan.md 的 FastAPI/Pydantic/SQLAlchemy/Alembic/httpx/Playwright/pytest/ruff/mypy 范围及匹配的 Harness SDK/runtime 0.2.1rc2 候选，设置 mock 默认和 live 可选依赖，创建 code/backend/src/personal_agent/__init__.py。
+- [x] T003 [P] 建立 Vue 3、TypeScript 5、Vite 7、Router 4、Vitest 3 和 Playwright 项目，在 code/frontend/package.json、code/frontend/tsconfig.json、code/frontend/vite.config.ts 中配置 Node24/npm11、开发 /api 代理及 build/typecheck/test/test:e2e 入口。
+- [x] T004 [P] 建立最小 TS 策略插件项目，在 code/runtime-policy/package.json、code/runtime-policy/tsconfig.json 中配置 guard/provider 挂接构建与测试入口，声明不包含业务 Loop。
+- [x] T005 在 code/backend/tests/conftest.py 和 code/backend/tests/fixtures/observations.json 建立固定时钟、随机源、模型/HTTP 响应及临时工作区；默认测试阻止真实网络，live marker 必须显式启用并核对凭据和费用边界。
+- [x] T006 解析依赖并生成 code/backend/uv.lock、code/frontend/package-lock.json、code/runtime-policy/package-lock.json，在 docs/dependency-baseline.md 记录 Python/Node/npm/uv、浏览器 revision 和候选 SDK 指纹；后续真实采用门禁失败保持 live 禁用，调整依赖必须重新锁定。
+- [x] T007 在 .gitignore 和 .env.example 配置数据/凭据/日志排除与无秘密配置示例，在 code/scripts/check.ps1 汇总类型检查、静态检查、离线测试及策略插件测试入口；初始化 Git 仓库（main）并提交规格基线（.gitignore 与首批提交已于 2026-10-19 完成，见 origin/main `ab4229e`）。
 
 ## Phase 2: Foundational — 共享阻塞基础
 
@@ -40,26 +40,26 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 **Independent Test / Checkpoint**：用固定观测验证端口、状态、事务、幂等、模型 UNKNOWN、权限和写入一致性；真实接入门禁单独记录。
 
-- [ ] T008 [P] 在 code/backend/tests/contract/test_foundation.py 编写运行时 accepted≠completed、未知输出、错误规范化、幂等键冲突、If-Match、状态事件同事务及单模型槽重启保留的失败用例。
-- [ ] T009 [P] 在 code/backend/tests/integration/test_managed_writes.py 编写 intent 前后、文件发布后提交前后、未知/部分/冲突与迟到结果的故障注入用例，全部使用临时目录，验证未完整保存不能成功、重复操作不重复写入。
-- [ ] T010 在 code/backend/src/personal_agent/domain/common.py 和 code/backend/src/personal_agent/ports/contracts.py 定义运行时、工具、仓储/UoW、渲染、时钟 DTO/协议及结构化错误；逐字落实“所有业务ID使用UUID，时间UTC RFC3339，UI以本地时区显示”“JSON列在写入和读取时按版本校验；所有可变聚合带 `revision`，更新采用CAS”，可空字段按 data-model.md 的 ? 标记，拒绝未知字段。
-- [ ] T011 在 code/backend/src/personal_agent/bootstrap/config.py 固定版本化政策：研究20分钟/30模型/60工具/20搜索/40页面/100000 tokens，单模型120秒/8192输出，节点3次尝试与1秒/4秒退避，HTTP10秒/30秒、浏览器30秒、收敛15秒，draft20模型/30000 tokens；保存政策hash，落实1MiB定义/64KiB事件/20MiB产物上限。
-- [ ] T012 在 code/backend/src/personal_agent/adapters/persistence/database.py、code/backend/src/personal_agent/adapters/persistence/uow.py 和 code/backend/alembic.ini 建立 SQLite WAL/FULL/外键/5000ms busy_timeout、独立短事务与CAS；创建 code/backend/migrations/env.py，各故事迁移按序追加，所有外键默认 RESTRICT，网络调用不持有数据库事务。
-- [ ] T013 在 code/backend/src/personal_agent/domain/execution.py、code/backend/src/personal_agent/adapters/persistence/execution_models.py 和 code/backend/migrations/versions/0001_execution_core.py 建立 WorkflowRun、StepRun、StepAttempt、ExecutionSlot、ExecutionEvent（后续实体引用暂存 UUID，相关实体迁移时补外键）；原文约束：“根parent为空，root=self；分支root与父一致；phase1 mode固定FIXED。版本、输入不可变；completeness=COMPLETE/PARTIAL/NO_QUALIFIED_RESULT，不能用SUCCEEDED掩盖缺口”“UNIQUE(run_id,step_id)”“UNIQUE(step_run_id,attempt_no)”“singleton_id=1”“唯一行+OS实例锁；只有收敛且无未知写入时释放；崩溃不直接把槽当空闲”“UNIQUE(owner,sequence)，provider key有值时去重；重要变更与状态同事务；无模型内部推理”；加入 data-model.md 常用索引与完整状态转换表。
-- [ ] T014 在 code/backend/src/personal_agent/domain/budget.py、code/backend/src/personal_agent/adapters/persistence/budget_models.py 和 code/backend/migrations/versions/0002_budget_model.py 建立 BudgetLedger、BudgetEntry、ModelRequest；逐字落实“根历史共享；预留、结算、额度追加用BudgetEntry记录；各维度非负，不以重试/分支清零”“RESERVE/SETTLE/RELEASE/GRANT；同operation同kind去重；UNKNOWN保留预留，不当零消耗”“RESERVED/IN_FLIGHT/COMPLETED/CANCELLED_CONFIRMED/UNKNOWN；全应用只有一个非终结请求；UNKNOWN不自动过期解锁”；root_run_id 或 draft_id 二选一，actual_tokens/ended_at/completion_evidence_ref 可空。
-- [ ] T015 在 code/backend/src/personal_agent/application/budget_service.py 实现最坏用量预留、幂等结算/释放、显式追加与有效时间计量；未知用量不按零、暂停/等待/中断不计有效时长、追加不重置重试上限，draft 和根研究分别记账并拒绝自动跨账本绕限。
-- [ ] T016 在 code/backend/src/personal_agent/adapters/harness/model_gateway.py 实现唯一受限模型代理及持久事务占槽，只有已配置供应商/模型路径可转发，真实密钥仅网关持有；所有澄清/生成/压缩/重试受预算和epoch检查，超时/断线/取消保留UNKNOWN与预留，仅可信完成证据解锁。
-- [ ] T017 在 code/backend/src/personal_agent/adapters/persistence/session_models.py 和 code/backend/migrations/versions/0003_sessions.py 建立 SessionLink，原文约束“attempt或draft二选一；provider ID允许创建未完成时为空；先存本地关联再提交任务，重复创建依operation去重”；存运行时/profile/capability指纹，补 operation_id 唯一去重记录。
-- [ ] T018 在 code/backend/src/personal_agent/adapters/harness/mock_runtime.py 实现同一运行时端口和可控事件/工具 Mock，覆盖 accepted、completed、failed、unknown、重复事件、迟到结果、缺失会话及兼容性错误，禁止 Mock 暗中访问真实供应商。
-- [ ] T019 在 code/runtime-policy/profile.json 和 code/runtime-policy/src/guard.ts 配置空工作区、官方 Loop、受限 MCP、restrict+guard；禁用 shell/fs、自动插件发现、子Agent、自修改与隐式重试，模型只能使用本地网关令牌，越权工具即使同 scope 新注册也拒绝。
-- [ ] T020 在 code/backend/src/personal_agent/adapters/harness/runtime.py 和 code/backend/src/personal_agent/adapters/harness/events.py 映射 capabilities/create_session/submit/events/wait_result/request_stop/reconcile/restore_session/dispose，依据实际 wheel 接口实现而非假定 cancel；白名单事件和脱敏在落盘前完成，推理仅内存，旧epoch隔离，缺失原session不冒充恢复。
+- [x] T008 [P] 在 code/backend/tests/contract/test_foundation.py 编写运行时 accepted≠completed、未知输出、错误规范化、幂等键冲突、If-Match、状态事件同事务及单模型槽重启保留的失败用例。
+- [x] T009 [P] 在 code/backend/tests/integration/test_managed_writes.py 编写 intent 前后、文件发布后提交前后、未知/部分/冲突与迟到结果的故障注入用例，全部使用临时目录，验证未完整保存不能成功、重复操作不重复写入。
+- [x] T010 在 code/backend/src/personal_agent/domain/common.py 和 code/backend/src/personal_agent/ports/contracts.py 定义运行时、工具、仓储/UoW、渲染、时钟 DTO/协议及结构化错误；逐字落实“所有业务ID使用UUID，时间UTC RFC3339，UI以本地时区显示”“JSON列在写入和读取时按版本校验；所有可变聚合带 `revision`，更新采用CAS”，可空字段按 data-model.md 的 ? 标记，拒绝未知字段。
+- [x] T011 在 code/backend/src/personal_agent/bootstrap/config.py 固定版本化政策：研究20分钟/30模型/60工具/20搜索/40页面/100000 tokens，单模型120秒/8192输出，节点3次尝试与1秒/4秒退避，HTTP10秒/30秒、浏览器30秒、收敛15秒，draft20模型/30000 tokens；保存政策hash，落实1MiB定义/64KiB事件/20MiB产物上限。
+- [x] T012 在 code/backend/src/personal_agent/adapters/persistence/database.py、code/backend/src/personal_agent/adapters/persistence/uow.py 和 code/backend/alembic.ini 建立 SQLite WAL/FULL/外键/5000ms busy_timeout、独立短事务与CAS；创建 code/backend/migrations/env.py，各故事迁移按序追加，所有外键默认 RESTRICT，网络调用不持有数据库事务。
+- [x] T013 在 code/backend/src/personal_agent/domain/execution.py、code/backend/src/personal_agent/adapters/persistence/execution_models.py 和 code/backend/migrations/versions/0001_execution_core.py 建立 WorkflowRun、StepRun、StepAttempt、ExecutionSlot、ExecutionEvent（后续实体引用暂存 UUID，相关实体迁移时补外键）；原文约束：“根parent为空，root=self；分支root与父一致；phase1 mode固定FIXED。版本、输入不可变；completeness=COMPLETE/PARTIAL/NO_QUALIFIED_RESULT，不能用SUCCEEDED掩盖缺口”“UNIQUE(run_id,step_id)”“UNIQUE(step_run_id,attempt_no)”“singleton_id=1”“唯一行+OS实例锁；只有收敛且无未知写入时释放；崩溃不直接把槽当空闲”“UNIQUE(owner,sequence)，provider key有值时去重；重要变更与状态同事务；无模型内部推理”；加入 data-model.md 常用索引与完整状态转换表。
+- [x] T014 在 code/backend/src/personal_agent/domain/budget.py、code/backend/src/personal_agent/adapters/persistence/budget_models.py 和 code/backend/migrations/versions/0002_budget_model.py 建立 BudgetLedger、BudgetEntry、ModelRequest；逐字落实“根历史共享；预留、结算、额度追加用BudgetEntry记录；各维度非负，不以重试/分支清零”“RESERVE/SETTLE/RELEASE/GRANT；同operation同kind去重；UNKNOWN保留预留，不当零消耗”“RESERVED/IN_FLIGHT/COMPLETED/CANCELLED_CONFIRMED/UNKNOWN；全应用只有一个非终结请求；UNKNOWN不自动过期解锁”；root_run_id 或 draft_id 二选一，actual_tokens/ended_at/completion_evidence_ref 可空。
+- [x] T015 在 code/backend/src/personal_agent/application/budget_service.py 实现最坏用量预留、幂等结算/释放、显式追加与有效时间计量；未知用量不按零、暂停/等待/中断不计有效时长、追加不重置重试上限，draft 和根研究分别记账并拒绝自动跨账本绕限。
+- [x] T016 在 code/backend/src/personal_agent/adapters/harness/model_gateway.py 实现唯一受限模型代理及持久事务占槽，只有已配置供应商/模型路径可转发，真实密钥仅网关持有；所有澄清/生成/压缩/重试受预算和epoch检查，超时/断线/取消保留UNKNOWN与预留，仅可信完成证据解锁。
+- [x] T017 在 code/backend/src/personal_agent/adapters/persistence/session_models.py 和 code/backend/migrations/versions/0003_sessions.py 建立 SessionLink，原文约束“attempt或draft二选一；provider ID允许创建未完成时为空；先存本地关联再提交任务，重复创建依operation去重”；存运行时/profile/capability指纹，补 operation_id 唯一去重记录。
+- [x] T018 在 code/backend/src/personal_agent/adapters/harness/mock_runtime.py 实现同一运行时端口和可控事件/工具 Mock，覆盖 accepted、completed、failed、unknown、重复事件、迟到结果、缺失会话及兼容性错误，禁止 Mock 暗中访问真实供应商。
+- [x] T019 在 code/runtime-policy/profile.json 和 code/runtime-policy/src/guard.ts 配置空工作区、官方 Loop、受限 MCP、restrict+guard；禁用 shell/fs、自动插件发现、子Agent、自修改与隐式重试，模型只能使用本地网关令牌，越权工具即使同 scope 新注册也拒绝。
+- [x] T020 在 code/backend/src/personal_agent/adapters/harness/runtime.py 和 code/backend/src/personal_agent/adapters/harness/events.py 映射 capabilities/create_session/submit/events/wait_result/request_stop/reconcile/restore_session/dispose，依据实际 wheel 接口实现而非假定 cancel；白名单事件和脱敏在落盘前完成，推理仅内存，旧epoch隔离，缺失原session不冒充恢复。
 - [ ] T021 在 code/backend/tests/live/test_runtime_adoption.py 和 code/runtime-policy/tests/guard.test.ts 建立并运行允许范围内的 Windows启动、wheel接口、scope越权、网关无旁路、事件脱敏、无推理持久化、UNKNOWN保持/完成解锁及会话恢复契约；结果写 docs/runtime-adoption.md。需要付费调用时仅在显式 live 授权及费用范围内运行；未运行或失败保持真实模式禁用，可继续 Mock 开发但不得发布。
-- [ ] T022 在 code/backend/src/personal_agent/domain/artifacts.py、code/backend/src/personal_agent/adapters/persistence/artifact_models.py 和 code/backend/migrations/versions/0004_artifacts.py 建立 SideEffectOperation、Blob、Artifact；原文约束“INTENT/NOT_APPLIED/APPLIED/PARTIAL/UNKNOWN/CONFLICT；同一逻辑效果跨分支查询；尝试ID不作唯一幂等依据；目标不接受任意客户端绝对路径”“不存任意绝对路径；immutable、同目录rename；访问必须经元数据权限与生命周期检查”“format=markdown；状态AVAILABLE/EXPIRED/DELETED/INTEGRITY_ERROR；内容组织report/checklist/comparison；下载失败不覆盖已生成成果”；按表中 ? 保留可空核验字段，建立 operations(root_run_id,logical_effect_key)、artifacts(run_id)、blobs(expires_at) 索引。
-- [ ] T023 在 code/backend/src/personal_agent/adapters/persistence/blob_store.py 和 code/backend/src/personal_agent/application/managed_writes.py 实现先intent、同目录临时文件flush/fsync、稳定目标发布、hash核验后同事务提交产物/状态/检查点/事件；结合目标历史核验APPLIED/NOT_APPLIED/PARTIAL/UNKNOWN/CONFLICT，跨root去重，孤儿清理不得删除合法引用文件。
-- [ ] T024 在 code/backend/src/personal_agent/api/middleware.py 和 code/backend/src/personal_agent/api/errors.py 实现工作区+路由+请求hash幂等、同键异请求409、If-Match缺失428/过期412、错误脱敏、稳定分页及版本化 DTO；幂等记录随关联业务生命周期保留，加入对应 code/backend/migrations/versions/0005_request_records.py。
-- [ ] T025 在 code/backend/src/personal_agent/api/security.py 和 code/backend/src/personal_agent/bootstrap/logging.py 实现本机引导会话、HttpOnly/SameSite、Host/Origin/CSRF、凭据受控注入、字段白名单日志及ACL自检，无账号/角色/租户；工具服务与管理接口隔离。
-- [ ] T026 在 code/backend/src/personal_agent/bootstrap/run.py、code/backend/src/personal_agent/bootstrap/lifespan.py 和 code/backend/src/personal_agent/api/health.py 建立 Proactor、OS单实例锁、单worker无reload、持久内部执行器、启动诊断和 /health、/policies；遗留运行只标中断不自动研究，真实模式检查接入证据，进程存活与 execution_available 分开。
-- [ ] T027 在 code/frontend/src/api/client.ts、code/frontend/src/router/index.ts、code/frontend/src/App.vue 和 code/frontend/src/components/SafeMarkdown.vue 建立客户端错误/ETag/幂等支持、单用户路由壳、禁止原始HTML及危险链接的Markdown展示；后续页面在各故事独立添加；并在 code/frontend/tests/unit/api-client.spec.ts 覆盖 ETag 取值与 412 处理、Idempotency-Key 生成、错误码到 UI 提示的映射。
+- [x] T022 在 code/backend/src/personal_agent/domain/artifacts.py、code/backend/src/personal_agent/adapters/persistence/artifact_models.py 和 code/backend/migrations/versions/0004_artifacts.py 建立 SideEffectOperation、Blob、Artifact；原文约束“INTENT/NOT_APPLIED/APPLIED/PARTIAL/UNKNOWN/CONFLICT；同一逻辑效果跨分支查询；尝试ID不作唯一幂等依据；目标不接受任意客户端绝对路径”“不存任意绝对路径；immutable、同目录rename；访问必须经元数据权限与生命周期检查”“format=markdown；状态AVAILABLE/EXPIRED/DELETED/INTEGRITY_ERROR；内容组织report/checklist/comparison；下载失败不覆盖已生成成果”；按表中 ? 保留可空核验字段，建立 operations(root_run_id,logical_effect_key)、artifacts(run_id)、blobs(expires_at) 索引。
+- [x] T023 在 code/backend/src/personal_agent/adapters/persistence/blob_store.py 和 code/backend/src/personal_agent/application/managed_writes.py 实现先intent、同目录临时文件flush/fsync、稳定目标发布、hash核验后同事务提交产物/状态/检查点/事件；结合目标历史核验APPLIED/NOT_APPLIED/PARTIAL/UNKNOWN/CONFLICT，跨root去重，孤儿清理不得删除合法引用文件。
+- [x] T024 在 code/backend/src/personal_agent/api/middleware.py 和 code/backend/src/personal_agent/api/errors.py 实现工作区+路由+请求hash幂等、同键异请求409、If-Match缺失428/过期412、错误脱敏、稳定分页及版本化 DTO；幂等记录随关联业务生命周期保留，加入对应 code/backend/migrations/versions/0005_request_records.py。
+- [x] T025 在 code/backend/src/personal_agent/api/security.py 和 code/backend/src/personal_agent/bootstrap/logging.py 实现本机引导会话、HttpOnly/SameSite、Host/Origin/CSRF、凭据受控注入、字段白名单日志及ACL自检，无账号/角色/租户；工具服务与管理接口隔离。
+- [x] T026 在 code/backend/src/personal_agent/bootstrap/run.py、code/backend/src/personal_agent/bootstrap/lifespan.py 和 code/backend/src/personal_agent/api/health.py 建立 Proactor、OS单实例锁、单worker无reload、持久内部执行器、启动诊断和 /health、/policies；遗留运行只标中断不自动研究，真实模式检查接入证据，进程存活与 execution_available 分开。
+- [x] T027 在 code/frontend/src/api/client.ts、code/frontend/src/router/index.ts、code/frontend/src/App.vue 和 code/frontend/src/components/SafeMarkdown.vue 建立客户端错误/ETag/幂等支持、单用户路由壳、禁止原始HTML及危险链接的Markdown展示；后续页面在各故事独立添加；并在 code/frontend/tests/unit/api-client.spec.ts 覆盖 ETag 取值与 412 处理、Idempotency-Key 生成、错误码到 UI 提示的映射。
 
 ## Phase 3: US7 — 修改流程、保留版本并默认查看最新（P1）
 
@@ -69,13 +69,13 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 ### Tests → Models → Services → Interfaces → Integration
 
-- [ ] T028 [P] [US7] 在 code/backend/tests/contract/test_workflows.py 编写版本历史、空库、无变化保存、旧基线409、If-Match412、停用和不可用草稿的接口用例。
-- [ ] T029 [P] [US7] 在 code/backend/tests/unit/test_workflow_validation.py 编写环路/不可达/未声明依赖/条件分支错误/远程引用/权限放宽及表达式越界用例，期望定义不可发布。
-- [ ] T030 [US7] 在 code/backend/src/personal_agent/domain/workflows.py、code/backend/src/personal_agent/adapters/persistence/workflow_models.py 和 code/backend/migrations/versions/0006_workflows.py 建立 Workflow/WorkflowVersion 并补执行外键；逐字落实“1:N WorkflowVersion；latest必须属于自身且validated/confirmed，不从最大版本号盲推”“UNIQUE(workflow_id,version_no)；内容不可变；每次保存内容变化新版本；草稿可保存但不成为最新可执行；停用为另记状态事实”。
-- [ ] T031 [US7] 在 code/backend/src/personal_agent/domain/workflow_schema.py 和 code/backend/src/personal_agent/domain/workflow_validation.py 实现 contracts/workflow-schema.md 完整模型与语义校验：名称/描述/适用性非空且200/4000/4000字符、Schema深度20、步骤1—100、ID字母数字下划线1—64、表达式深度10/100子式；禁止远程ref、任意代码、未执行引用与权限放宽，校验所有正常路径到Output或显式失败及完成策略。
-- [ ] T032 [US7] 在 code/backend/src/personal_agent/application/workflow_registry.py 实现稳定JSON/hash、内容不变复用版本、草稿与确认可执行发布、CAS最新指针、基线冲突、停用事实，版本变更不得改变现有运行。
-- [ ] T033 [US7] 在 code/backend/src/personal_agent/api/workflows.py 实现 REST 契约全部 /workflows 列表、详情、versions读写及disable，返回hash/验证报告/草稿/实际版本；保存失败不伪造新版本。
-- [ ] T034 [US7] 在 code/frontend/src/pages/WorkflowVersionsPage.vue 和 code/frontend/src/components/WorkflowDefinitionEditor.vue 实现可读定义与JSON编辑、验证报告、显式可执行确认、历史与停用，冲突保留待保存内容，不引入可视化编排器。
+- [x] T028 [P] [US7] 在 code/backend/tests/contract/test_workflows.py 编写版本历史、空库、无变化保存、旧基线409、If-Match412、停用和不可用草稿的接口用例。
+- [x] T029 [P] [US7] 在 code/backend/tests/unit/test_workflow_validation.py 编写环路/不可达/未声明依赖/条件分支错误/远程引用/权限放宽及表达式越界用例，期望定义不可发布。
+- [x] T030 [US7] 在 code/backend/src/personal_agent/domain/workflows.py、code/backend/src/personal_agent/adapters/persistence/workflow_models.py 和 code/backend/migrations/versions/0006_workflows.py 建立 Workflow/WorkflowVersion 并补执行外键；逐字落实“1:N WorkflowVersion；latest必须属于自身且validated/confirmed，不从最大版本号盲推”“UNIQUE(workflow_id,version_no)；内容不可变；每次保存内容变化新版本；草稿可保存但不成为最新可执行；停用为另记状态事实”。
+- [x] T031 [US7] 在 code/backend/src/personal_agent/domain/workflow_schema.py 和 code/backend/src/personal_agent/domain/workflow_validation.py 实现 contracts/workflow-schema.md 完整模型与语义校验：名称/描述/适用性非空且200/4000/4000字符、Schema深度20、步骤1—100、ID字母数字下划线1—64、表达式深度10/100子式；禁止远程ref、任意代码、未执行引用与权限放宽，校验所有正常路径到Output或显式失败及完成策略。
+- [x] T032 [US7] 在 code/backend/src/personal_agent/application/workflow_registry.py 实现稳定JSON/hash、内容不变复用版本、草稿与确认可执行发布、CAS最新指针、基线冲突、停用事实，版本变更不得改变现有运行。
+- [x] T033 [US7] 在 code/backend/src/personal_agent/api/workflows.py 实现 REST 契约全部 /workflows 列表、详情、versions读写及disable，返回hash/验证报告/草稿/实际版本；保存失败不伪造新版本。
+- [x] T034 [US7] 在 code/frontend/src/pages/WorkflowVersionsPage.vue 和 code/frontend/src/components/WorkflowDefinitionEditor.vue 实现可读定义与JSON编辑、验证报告、显式可执行确认、历史与停用，冲突保留待保存内容，不引入可视化编排器。
 - [ ] T035 [US7] 在 code/frontend/tests/e2e/workflow-versions.spec.ts 验证双流程各三次保存、草稿隔离、旧编辑冲突与失败内容保留，运行 code/backend/tests/contract/test_workflows.py、code/backend/tests/unit/test_workflow_validation.py 并记录结果。
 
 ## Phase 4: US11 — 先从列表选择固定工作流（P1）
@@ -86,10 +86,10 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 ### Tests → Models → Services → Interfaces → Integration
 
-- [ ] T036 [P] [US11] 在 code/backend/tests/integration/test_seed_workflows.py 编写双流程定义合规、不同适用范围、各至少两方向及种子幂等用例。
-- [ ] T037 [P] [US11] 在 code/frontend/tests/unit/workflow-selection.spec.ts 编写无需输入即可浏览、空库、范围不适用和选择后传递准确版本的组件用例。
-- [ ] T038 [US11] 在 code/backend/workflows/technology-comparison.json、code/backend/workflows/public-topic-research.json 和 code/backend/src/personal_agent/bootstrap/seed.py 建立并幂等导入技术选型对比、公开主题研究定义，包含输入/方向/Agent或Tool/Transform/Condition/HumanReview/Output、预算与input_reads；只经Registry发布有效版本。
-- [ ] T039 [US11] 在 code/frontend/src/pages/WorkflowListPage.vue 和 code/frontend/src/pages/WorkflowDetailPage.vue 实现最新可执行列表、范围/输入/步骤/输出说明、分页及选择准确版本的路由；此阶段传递选中version，draft创建由US1提供，不自动研究。
+- [x] T036 [P] [US11] 在 code/backend/tests/integration/test_seed_workflows.py 编写双流程定义合规、不同适用范围、各至少两方向及种子幂等用例。
+- [x] T037 [P] [US11] 在 code/frontend/tests/unit/workflow-selection.spec.ts 编写无需输入即可浏览、空库、范围不适用和选择后传递准确版本的组件用例。
+- [x] T038 [US11] 在 code/backend/workflows/technology-comparison.json、code/backend/workflows/public-topic-research.json 和 code/backend/src/personal_agent/bootstrap/seed.py 建立并幂等导入技术选型对比、公开主题研究定义，包含输入/方向/Agent或Tool/Transform/Condition/HumanReview/Output、预算与input_reads；只经Registry发布有效版本。
+- [x] T039 [US11] 在 code/frontend/src/pages/WorkflowListPage.vue 和 code/frontend/src/pages/WorkflowDetailPage.vue 实现最新可执行列表、范围/输入/步骤/输出说明、分页及选择准确版本的路由；此阶段传递选中version，draft创建由US1提供，不自动研究。
 - [ ] T040 [US11] 在 code/frontend/tests/e2e/workflow-selection.spec.ts 用正常与独立临时空库验证选流、返回、停用及不适用说明；US1完成后复验聊天入口改选，运行本阶段测试。
 
 ## Phase 5: US1 — 表达并确认研究需求（P1）

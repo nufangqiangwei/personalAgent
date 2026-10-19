@@ -1,0 +1,86 @@
+[project]
+name = "personal-agent"
+version = "0.1.0"
+description = "Personal-Agent phase 1: workflow-driven information research assistant"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "pydantic>=2.12,<3",
+  "sqlalchemy>=2.0,<2.1",
+  "alembic>=1.14,<2",
+  "aiosqlite>=0.20,<1",
+  "httpx>=0.28,<1",
+  "jsonschema>=4.23,<5",
+  "playwright>=1.50,<2",
+]
+
+[project.optional-dependencies]
+# Candidate agent runtime. Adoption is gated by the T021 live contract tests;
+# a failure keeps live mode disabled and Mock remains the only allowed mode.
+live = [
+  "deepseek-harness-sdk==0.2.1rc2",
+]
+dev = [
+  "pytest>=8,<9",
+  "pytest-asyncio>=0.24,<2",
+  "ruff>=0.7,<1",
+  "mypy>=1.13,<2",
+]
+
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/personal_agent"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests/unit", "tests/contract", "tests/integration"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = [
+  "live: requires real provider credentials, network access and explicit user authorization",
+]
+filterwarnings = [
+  "error::DeprecationWarning:personal_agent.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Alembic revisions are generated; they are reviewed as migrations, not as
+# hand-written style-checked modules.
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "RUF"]
+# B008: FastAPI Depends() defaults are the framework idiom.
+# RUF001/2/3: Chinese user-facing text intentionally uses full-width punctuation.
+ignore = ["B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["personal_agent"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["personal_agent.adapters.harness.sdk_bridge"]
+ignore_missing_imports = true

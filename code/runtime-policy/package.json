@@ -1,0 +1,27 @@
+{
+  "name": "personal-agent-runtime-policy",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Thin DeepSeek Harness guard/provider plugin for Personal-Agent. It enforces tool permissions only; it never implements a business Agent Loop.",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11.0.0 <12"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "profile.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -10,6 +10,10 @@
 .agents/
 .specify/presets/.cache/
 
+# 本机构建缓存与沙箱权限修复记录，不进入版本库
+.cache/
+.acl-recovery/
+
 # Python
 __pycache__/
 *.py[cod]
