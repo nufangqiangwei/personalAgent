@@ -98,7 +98,11 @@ def missing_fields(required: list[str], fields: dict[str, FieldValue]) -> list[s
         value = fields.get(path)
         if value is None:
             missing.append(path)
-        elif value.value is None and not value.explicit_none and value.source is not FieldSource.USER:
+        elif (
+            value.value is None
+            and not value.explicit_none
+            and value.source is not FieldSource.USER
+        ):
             missing.append(path)
     return missing
 
@@ -187,7 +191,7 @@ def assert_confirmable(
             status=409,
             details={"conflicts": conflicts},
         )
-    if status not in {DraftStatus.READY, DraftStatus.COLLECTING}:
+    if status not in {DraftStatus.READY, DraftStatus.COLLECTING, DraftStatus.STALE}:
         raise AppError(
             code="DRAFT_STATE_INVALID",
             message="the draft is not in a confirmable state",

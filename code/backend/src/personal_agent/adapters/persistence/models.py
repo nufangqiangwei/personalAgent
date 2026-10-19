@@ -25,6 +25,7 @@ from personal_agent.adapters.persistence.execution_models import (
     StepRun,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.operation_models import AnalysisOperation
 from personal_agent.adapters.persistence.request_models import RequestRecord
 from personal_agent.adapters.persistence.requirement_models import (
     Confirmation,
@@ -36,23 +37,24 @@ from personal_agent.adapters.persistence.session_models import SessionLink
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 
 __all__ = [
+    "AnalysisOperation",
     "Artifact",
     "Base",
     "Blob",
     "BudgetEntry",
     "BudgetLedger",
-    "ExecutionEvent",
-    "ExecutionSlot",
     "Confirmation",
     "ConversationMessage",
+    "ExecutionEvent",
+    "ExecutionSlot",
     "ModelRequest",
-    "RequirementDraft",
-    "Suggestion",
     "RequestRecord",
+    "RequirementDraft",
     "SessionLink",
     "SideEffectOperation",
     "StepAttempt",
     "StepRun",
+    "Suggestion",
     "Workflow",
     "WorkflowRun",
     "WorkflowVersion",
