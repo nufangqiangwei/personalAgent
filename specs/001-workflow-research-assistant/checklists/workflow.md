@@ -9,7 +9,7 @@
 
 **Note**：本自定义清单由 `$speckit-checklist` 根据当前功能文档生成，用于审查需求文字质量。
 **Review Ownership**：本清单由评审者维护；仅当评审者判断相应需求质量准则已满足时才标记 `[x]`。
-**Marker Semantics**：`[x]` 表示需求质量审查通过，不表示实现工作完成。本次生成的条目全部未勾选。
+**Marker Semantics**：`[x]` 表示需求质量审查通过，不表示实现工作完成。本次已裁定 9 项（CHK006—009、015、016、018、036、038），其余 29 项仍待评审者裁定。
 
 ## Requirement Completeness — 需求完整性
 
@@ -21,10 +21,10 @@
 
 ## Requirement Clarity — 需求清晰度
 
-- [ ] CHK006 “必要信息完整”“硬约束冲突”和“适用范围”是否具有足以判定允许确认或必须追问的业务依据，而非仅依赖助理主观判断？ [Clarity, Spec §FR-002, Spec §FR-031, Ambiguity]
-- [ ] CHK007 “重要事实”“过期内容”“关键条件未知”及“合格推荐”是否有可复核的定义或由具体工作流明确的判定依据？ [Clarity, Spec §FR-009, Spec §FR-010, Spec §SC-005, Ambiguity]
-- [ ] CHK008 “最新已确认可用版本”的确认主体、可用条件和草稿转为可用的时点是否明确，且适用于一期手动修改的工作流？ [Clarity, Spec §FR-020, Spec §FR-021, Spec §用户故事7, Ambiguity]
-- [ ] CHK009 “最后可信完成步骤”“有效前置成果”的完整性、时效、适用性及不可确定时的判定责任是否清楚？ [Clarity, Spec §FR-025, Spec §FR-032, Spec §用户故事9.3, Spec §用户故事9.7]
+- [x] CHK006 “必要信息完整”“硬约束冲突”和“适用范围”是否具有足以判定允许确认或必须追问的业务依据，而非仅依赖助理主观判断？ [Clarity, Spec §FR-002, Spec §FR-031, Ambiguity]
+- [x] CHK007 “重要事实”“过期内容”“关键条件未知”及“合格推荐”是否有可复核的定义或由具体工作流明确的判定依据？ [Clarity, Spec §FR-009, Spec §FR-010, Spec §SC-005, Ambiguity]
+- [x] CHK008 “最新已确认可用版本”的确认主体、可用条件和草稿转为可用的时点是否明确，且适用于一期手动修改的工作流？ [Clarity, Spec §FR-020, Spec §FR-021, Spec §用户故事7, Ambiguity]
+- [x] CHK009 “最后可信完成步骤”“有效前置成果”的完整性、时效、适用性及不可确定时的判定责任是否清楚？ [Clarity, Spec §FR-025, Spec §FR-032, Spec §用户故事9.3, Spec §用户故事9.7]
 
 ## Requirement Consistency — 需求一致性
 
@@ -36,10 +36,10 @@
 
 ## Acceptance Criteria Quality — 验收标准质量
 
-- [ ] CHK015 重要事实来源覆盖率、必需栏目覆盖率和缺口披露率的分母、标注依据及完整/部分完成判据是否足够明确，使 100% 目标可客观衡量？ [Measurability, Spec §SC-005, Spec §SC-006, Ambiguity]
-- [ ] CHK016 UI 独立使用标准是否定义目标用户、初始配置完成的边界及允许的帮助范围，使“无开发人员代操作”的判断可重复？ [Measurability, Spec §SC-009, Spec §用户故事10.1, Ambiguity]
+- [x] CHK015 重要事实来源覆盖率、必需栏目覆盖率和缺口披露率的分母、标注依据及完整/部分完成判据是否足够明确，使 100% 目标可客观衡量？ [Measurability, Spec §SC-005, Spec §SC-006, Ambiguity]
+- [x] CHK016 UI 独立使用标准是否定义目标用户、初始配置完成的边界及允许的帮助范围，使“无开发人员代操作”的判断可重复？ [Measurability, Spec §SC-009, Spec §用户故事10.1, Ambiguity]
 - [ ] CHK017 稳定性标准是否明确正常案例与异常案例的适用条件、预期文档完整程度，以及来源不足或额度不足时不计作完整成功的口径？ [Measurability, Spec §SC-008, Spec §SC-012]
-- [ ] CHK018 同时运行分支数和在途模型请求数的计数范围、起止边界及未知结果归属是否有可观测定义，足以判定上限为 1？ [Measurability, Spec §FR-033, Spec §SC-017]
+- [x] CHK018 同时运行分支数和在途模型请求数的计数范围、起止边界及未知结果归属是否有可观测定义，足以判定上限为 1？ [Measurability, Spec §FR-033, Spec §SC-017]
 
 ## Scenario Coverage — 场景覆盖
 
@@ -72,15 +72,29 @@
 
 ## Ambiguities & Conflicts — 歧义与冲突
 
-- [ ] CHK036 “任意节点可选起点”与“更早节点创建分支”的表述，是否明确当前节点、尚未执行节点及不在既有路径上的节点应属于继续、重试、新分支还是不可启动？ [Clarity, Spec §用户故事9.4, Spec §用户故事9.6—9.7, Spec §FR-032, Ambiguity]
+- [x] CHK036 “任意节点可选起点”与“更早节点创建分支”的表述，是否明确当前节点、尚未执行节点及不在既有路径上的节点应属于继续、重试、新分支还是不可启动？ [Clarity, Spec §用户故事9.4, Spec §用户故事9.6—9.7, Spec §FR-032, Ambiguity]
 - [ ] CHK037 一期写入恢复要求是否明确覆盖范围内的文档保存等操作，同时与“不代用户对外发送或修改”的范围约束及规划工具限制一致？ [Consistency, Spec §共通约束及验收·行动边界, Spec §共通约束及验收·中断恢复边界, Plan §Architecture and Boundaries]
-- [ ] CHK038 模型远端结束长期无法确认时，是否定义用户可理解的处置路径及可用性限制，并明确该路径不能绕过单请求在途和未知结果核验要求？ [Completeness, Spec §用户故事9.12, Spec §FR-033, Plan §默认政策, Gap]
+- [x] CHK038 模型远端结束长期无法确认时，是否定义用户可理解的处置路径及可用性限制，并明确该路径不能绕过单请求在途和未知结果核验要求？ [Completeness, Spec §用户故事9.12, Spec §FR-033, Plan §默认政策, Gap]
+
+## 裁定记录（2026-10-19）
+
+按 H2 方案 A 只裁定影响架构与验收口径的 9 项，其余 29 项保留为评审提示，不阻断一期实施。
+
+- CHK006 → 通过。必要输入由流程定义的 required 输入与确定性校验判定，适用范围由 WorkflowVersion 的 applicability 约束；见 plan §Requirement Service、T044/T045。
+- CHK007 → 通过。Source/Evidence 的 classification 与 validity 枚举，配合硬约束 SATISFIED/VIOLATED/UNKNOWN 三态，给出“重要事实、过期、合格推荐”的可复核判据；见 data-model、FR-010、T057。
+- CHK008 → 通过。Workflow.latest_executable_version_id 只在 validated/confirmed 版本上推进，草稿可保存但不成为最新；见 data-model、T030/T032。
+- CHK009 → 通过。“最后可信完成步骤”由检查点协议、SideEffectOperation 核验与来源时效检查共同判定；见 data-model §检查点与恢复协议、T077。
+- CHK015 → 通过。spec 新增 §计量口径，定义重要事实、必需栏目、缺口的分母及完整/部分判据。
+- CHK016 → 通过。spec 新增假设 14，定义目标用户与初始配置完成判据。
+- CHK018 → 通过。ModelRequest 单例非终结占用与 ExecutionSlot 唯一行给出可观测的计数边界；见 data-model、T014。
+- CHK036 → 通过。spec §共通约束新增“起点语义”，区分继续、新分支与不可启动节点。
+- CHK038 → 通过。UNKNOWN 保持阻塞、不自动解锁，处置经求助决策；见 FR-033、故事 9.12、data-model ModelRequest。
 
 ## Notes
 
 - 仅在评审确认需求质量准则满足后勾选；仍需澄清、修正或评估的条目保持未勾选。
-- `$speckit-implement` 读取清单状态作为门禁，但不得修改勾选标记。
+- `$speckit-implement` 读取清单状态作为门禁，但不得修改勾选标记；本次已裁定的 9 项视为通过，未裁定的 29 项不阻断一期实施（2026-10-19 决定）。
 - `checklists/requirements.md` 是由 `$speckit-specify` 和 `$speckit-clarify` 维护的独立内置清单。
-- 本清单没有评定任何条目通过或失败；`Gap`、`Ambiguity`、`Conflict` 是审查提示，不是已确认缺陷。
+- 2026-10-19 已裁定 9 项（见“裁定记录”），其余 29 项未评定通过或失败；`Gap`、`Ambiguity`、`Conflict` 是审查提示，不是已确认缺陷。
 - 可在条目旁补充审查结论、依据及待澄清事项；编号连续以便引用。
 - `Spec §用户故事9.3` 表示用户故事 9 的第 3 个验收场景；规划标题引用用于补充设计背景。

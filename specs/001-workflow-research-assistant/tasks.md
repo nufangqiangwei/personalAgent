@@ -32,7 +32,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [ ] T004 [P] 建立最小 TS 策略插件项目，在 runtime-policy/package.json、runtime-policy/tsconfig.json 中配置 guard/provider 挂接构建与测试入口，声明不包含业务 Loop。
 - [ ] T005 在 backend/tests/conftest.py 和 backend/tests/fixtures/observations.json 建立固定时钟、随机源、模型/HTTP 响应及临时工作区；默认测试阻止真实网络，live marker 必须显式启用并核对凭据和费用边界。
 - [ ] T006 解析依赖并生成 backend/uv.lock、frontend/package-lock.json、runtime-policy/package-lock.json，在 docs/dependency-baseline.md 记录 Python/Node/npm/uv、浏览器 revision 和候选 SDK 指纹；后续真实采用门禁失败保持 live 禁用，调整依赖必须重新锁定。
-- [ ] T007 在 .gitignore 和 .env.example 配置数据/凭据/日志排除与无秘密配置示例，在 scripts/check.ps1 汇总类型检查、静态检查、离线测试及策略插件测试入口。
+- [ ] T007 在 .gitignore 和 .env.example 配置数据/凭据/日志排除与无秘密配置示例，在 scripts/check.ps1 汇总类型检查、静态检查、离线测试及策略插件测试入口；初始化 Git 仓库（main）并提交规格基线（.gitignore 与首批提交已于 2026-10-19 完成，见 origin/main `ab4229e`）。
 
 ## Phase 2: Foundational — 共享阻塞基础
 
@@ -283,6 +283,7 @@ flowchart TD
 | REST通用/工作流/需求/运行/分支/求助/产物/SSE/删除契约 | T024–T027、T028、T033、T041、T047、T060、T063、T068、T071、T081–T083、T089、T091 |
 | 数据实体与约束 | T010–T015、T017、T022、T030、T043、T053、T074–T075、T090及对应迁移 |
 | 迁移、备份与恢复 | T012及各故事迁移、T092–T096、T102 |
+| 工程基线与发布证据 | T006、T007、T101–T103 |
 | 二期FR-003/005/013–019/023及SC-002/004/010/011 | 明确排除，不创建待办或一期发布依赖 |
 
 ## Implementation Strategy — 分步交付

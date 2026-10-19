@@ -20,7 +20,7 @@ uv run --project backend alembic -c backend/alembic.ini upgrade head
 uv run --project backend python -m personal_agent.bootstrap.seed
 ```
 
-种子加载幂等，提供“技术选型对比”和“公开主题资料研究”两个固定流程；空库验收通过单独临时工作区，不删除日常数据。首次设置界面显示数据目录、保留政策、外部传输范围、模型/搜索配置健康状态及上限；用户无需注册。
+种子加载幂等，提供“技术选型对比”和“公开主题资料研究”两个固定流程；空库验收通过单独临时工作区，不删除日常数据。首次设置界面显示数据目录、保留政策、外部传输范围、模型/搜索配置健康状态及上限；用户无需注册。初始配置完成的判据（同 spec.md 假设 14）：迁移已至 head、数据目录可写、`/health` 的 `execution_available` 为真、保留与上限政策已展示并保存。
 
 目标启动入口：
 

@@ -32,7 +32,7 @@
 
 ## Constitution Check
 
-PASS 指设计符合条款，不代表未实现的软件通过测试。研究前检查强制设计义务，Phase 1 后以本次契约复核。
+PASS 指设计符合条款，不代表未实现的软件通过测试。研究前检查强制设计义务，设计阶段 1 后以本次契约复核。
 
 | 门禁 | 研究前 | 设计后 | 依据 |
 |---|---|---|---|
@@ -143,9 +143,9 @@ scripts/                         # 启动、备份恢复与验收入口
 
 **Structure Decision**: backend/frontend为开发边界，生产一个本地应用；Harness进程及MCP服务是受管适配器，不是业务微服务。两份种子流程适用范围不同，各至少两个查询方向，不限旅游。
 
-## Phase Outputs and Coverage
+## Design Stage Outputs and Coverage
 
-Phase 0 见 research.md；Phase 1 见 data-model.md、contracts 和 quickstart.md。FR-001/002/004/010/011 → requirements；006/007/008/009 → engine/tools/evidence；012 → artifact；020/021/022 → registry；024/025/032/033 → coordinator/recovery；026/027 → security/lifecycle；028/029/030/031 → UI。二期 FR-003/005/013—019/023 不作一期门禁。
+设计阶段 0 见 research.md；设计阶段 1 见 data-model.md、contracts 和 quickstart.md。FR-001/002/004/010/011 → requirements；006/007/008/009 → engine/tools/evidence；012 → artifact；020/021/022 → registry；024/025/032/033 → coordinator/recovery；026/027 → security/lifecycle；028/029/030/031 → UI。二期 FR-003/005/013—019/023 不作一期门禁。
 
 一期验收覆盖 SC-001/003/005—009/012—017；二期标准保留至二期。真实接入、所有模型请求纳管、日志安全烟测未运行，不能报告通过。
 
