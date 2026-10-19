@@ -30,6 +30,7 @@ from personal_agent.adapters.persistence.execution_models import (
 )
 from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
 from personal_agent.adapters.rendering.markdown import render_research_document
+from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.managed_writes import ArtifactDraft, ManagedWriter
 from personal_agent.application.research_evidence import EvidenceService
@@ -94,6 +95,7 @@ class EngineDeps:
     policy: Any
     model_id: str
     capability_token: str
+    scopes: ToolScopeRegistry | None = None
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
 
 
@@ -394,9 +396,7 @@ class WorkflowEngine:
                 epoch=run.epoch,
                 tool_name=config.tool_name,
                 args=dict(config.arguments_bindings),
-                scope_token=stable_hash(
-                    {"run": run.id, "step": step.id, "epoch": run.epoch}
-                ),
+                scope_token=self._issue_scope_token(run, step, config),
                 deadline=self._deps.clock.now(),
             )
         )
@@ -427,6 +427,18 @@ class WorkflowEngine:
             if str(ref).startswith("http")
         )
         return StepOutcome(output=output)
+
+    def _issue_scope_token(self, run: WorkflowRun, step: Step, config: ToolTaskConfig) -> str:
+        if self._deps.scopes is None:
+            return stable_hash({"run": run.id, "step": step.id, "epoch": run.epoch})
+        return self._deps.scopes.issue(
+            run_id=run.id,
+            attempt_id=f"{run.id}:{step.id}",
+            epoch=run.epoch,
+            tool_name=config.tool_name,
+            allowed_domains=step.policy.allowed_domains,
+            now=self._deps.clock.now(),
+        )
 
     # -- Transform ------------------------------------------------------
     def _apply_transform(

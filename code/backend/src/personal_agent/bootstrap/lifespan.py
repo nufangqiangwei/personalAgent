@@ -28,6 +28,7 @@ from personal_agent.adapters.tools.mock_service import (
     MockToolService,
     UnavailableToolService,
 )
+from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.api.context import AppContext
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.budget_service import BudgetService
@@ -181,6 +182,7 @@ async def build_context(
         else MockToolService(observations, clock)
     )
     evidence = EvidenceService(clock)
+    tool_scopes = ToolScopeRegistry()
     capabilities = await runtime.capabilities()
     model_id = (
         "mock-deepseek-phase1"
@@ -202,6 +204,7 @@ async def build_context(
             policy=config.policy,
             model_id=model_id,
             capability_token=capability_token,
+            scopes=tool_scopes,
         )
     )
     coordinator = ExecutionCoordinator(
