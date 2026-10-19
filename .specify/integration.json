@@ -1,0 +1,20 @@
+{
+  "version": "1.2.1",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "codex",
+    "dsh"
+  ],
+  "integration_settings": {
+    "codex": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "dsh": {
+      "script": "ps",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "codex",
+  "default_integration": "codex"
+}
