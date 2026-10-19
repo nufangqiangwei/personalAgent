@@ -12,6 +12,10 @@ from personal_agent.adapters.persistence.artifact_models import (
     Blob,
     SideEffectOperation,
 )
+from personal_agent.adapters.persistence.assistance_models import (
+    AssistanceRequest,
+    UserDecision,
+)
 from personal_agent.adapters.persistence.base import Base
 from personal_agent.adapters.persistence.budget_models import (
     BudgetEntry,
@@ -33,28 +37,38 @@ from personal_agent.adapters.persistence.requirement_models import (
     RequirementDraft,
     Suggestion,
 )
+from personal_agent.adapters.persistence.research_models import (
+    Evidence,
+    ResearchAction,
+    Source,
+)
 from personal_agent.adapters.persistence.session_models import SessionLink
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 
 __all__ = [
     "AnalysisOperation",
     "Artifact",
+    "AssistanceRequest",
     "Base",
     "Blob",
     "BudgetEntry",
     "BudgetLedger",
     "Confirmation",
     "ConversationMessage",
+    "Evidence",
     "ExecutionEvent",
     "ExecutionSlot",
     "ModelRequest",
     "RequestRecord",
     "RequirementDraft",
+    "ResearchAction",
     "SessionLink",
     "SideEffectOperation",
+    "Source",
     "StepAttempt",
     "StepRun",
     "Suggestion",
+    "UserDecision",
     "Workflow",
     "WorkflowRun",
     "WorkflowVersion",
