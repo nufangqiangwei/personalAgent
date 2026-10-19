@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 
+from personal_agent.adapters.persistence.assistance_models import AssistanceRequest
 from personal_agent.adapters.persistence.execution_models import (
     StepAttempt,
     StepRun,
@@ -386,3 +387,274 @@ async def test_unknown_run_controls_return_404(client: httpx.AsyncClient) -> Non
         assert response.json()["error"]["code"] == "RUN_NOT_FOUND"
     report = await client.get(f"/api/v1/runs/{unknown}/recovery")
     assert report.status_code == 404
+
+
+# ----------------------------------------------------------------------
+# Assistance decisions (T078): the answer has to satisfy the review contract.
+# ----------------------------------------------------------------------
+REVIEW_SCHEMA = {
+    "type": "object",
+    "properties": {"decision": {"type": "string", "enum": ["CONTINUE", "STOP"]}},
+    "required": ["decision"],
+    "additionalProperties": False,
+}
+
+
+async def _review_workflow(
+    api_context: Any, workflow_definition: dict[str, Any]
+) -> tuple[str, str]:
+    """Publish a workflow whose condition sends a normal run to a human review."""
+    import copy
+
+    _, context = api_context
+    definition = copy.deepcopy(workflow_definition)
+    check = next(step for step in definition["steps"] if step["id"] == "check")
+    # The condition is deterministically false, so a normal run reaches the review.
+    check["config"]["expression"] = {
+        "op": "eq",
+        "left": {"literal": "left"},
+        "right": {"literal": "right"},
+    }
+    review = next(step for step in definition["steps"] if step["id"] == "review")
+    review["config"]["prompt"] = "来源冲突无法归类，是否继续？"
+    review["config"]["decision_schema"] = REVIEW_SCHEMA
+    registry = WorkflowRegistry(context.database, context.clock)
+    outcome = await registry.create(
+        definition=definition, change_summary="review flow", confirm_executable=True
+    )
+    return outcome.version.workflow_id, outcome.version.id
+
+
+async def _start_review_run(
+    client: httpx.AsyncClient,
+    api_context: Any,
+    workflow_definition: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    config, context = api_context
+    _workflow_id, version_id = await _review_workflow(api_context, workflow_definition)
+    field_values = {
+        "topic": {
+            "path": "topic",
+            "value": "图书馆夜间开放",
+            "source": "user",
+            "message_id": None,
+            "suggestion_id": None,
+            "accepted_at": None,
+            "explicit_none": False,
+        }
+    }
+    snapshot = {"fields": field_values, "preference_order": [], "output_spec": {}}
+    async with context.database.session() as session:
+        draft = RequirementDraft(
+            id=new_id(),
+            selected_version_id=version_id,
+            revision=2,
+            status="CONFIRMED",
+            missing_fields_json=[],
+            conflicts_json=[],
+            field_values_json=field_values,
+            preference_order_json=[],
+            output_spec_json={},
+            summary_markdown="",
+            summary_hash="sha256:summary",
+            source_draft_id=None,
+            created_at=context.clock.now(),
+            updated_at=context.clock.now(),
+        )
+        session.add(draft)
+        await session.flush()
+        confirmation = Confirmation(
+            id=new_id(),
+            draft_id=draft.id,
+            draft_revision=1,
+            workflow_version_id=version_id,
+            summary_hash="sha256:summary",
+            input_hash=stable_hash(snapshot),
+            budget_policy_hash=config.policy.policy_hash,
+            data_policy_version=config.policy.version,
+            confirmed_at=context.clock.now(),
+            action="START",
+            field_snapshot_json=snapshot,
+        )
+        session.add(confirmation)
+        await session.commit()
+    response = await client.post(
+        "/api/v1/runs",
+        json={"confirmation_id": confirmation.id},
+        headers={"Idempotency-Key": new_id()},
+    )
+    assert response.status_code == 201, response.text
+    run_id = str(response.json()["id"])
+    assert await context.executor.wait(run_id, max_wait=60) == "WAITING_USER"
+    items = (await client.get(f"/api/v1/runs/{run_id}/assistance")).json()["items"]
+    review = next(item for item in items if item["kind"] == "HUMAN_REVIEW")
+    return run_id, review
+
+
+async def _decide(
+    client: httpx.AsyncClient,
+    run_id: str,
+    review: dict[str, Any],
+    **body: Any,
+) -> httpx.Response:
+    payload = {"revision": review["revision"], "decision": "GRANT_AND_CONTINUE", **body}
+    return await client.post(
+        f"/api/v1/assistance/{review['id']}/decisions",
+        json=payload,
+        headers={
+            "Idempotency-Key": new_id(),
+            "If-Match": f'"{review["revision"]}"',
+        },
+    )
+
+
+async def test_human_review_requires_an_answer_that_satisfies_its_contract(
+    client: httpx.AsyncClient, api_context: Any, workflow_definition: dict[str, Any]
+) -> None:
+    run_id, review = await _start_review_run(client, api_context, workflow_definition)
+    assert review["decision_schema"] == REVIEW_SCHEMA
+    assert "GRANT_AND_CONTINUE" in review["available_decisions"]
+    assert "RECONCILE" not in review["available_decisions"]
+
+    # Chatting is recorded but does not resume the run.
+    discuss = await _decide(client, run_id, review, decision="DISCUSS", note="先讨论一下")
+    assert discuss.status_code == 200, discuss.text
+    assert discuss.json()["resolved"] is False
+    assert discuss.json()["blocked"] is True
+    still_open = (
+        await client.get(f"/api/v1/assistance/{review['id']}")
+    ).json()
+    assert still_open["status"] == "OPEN"
+    assert still_open["decisions"][0]["decision"] == "DISCUSS"
+
+    # A write-reconciliation decision is not offered for a review.
+    unavailable = await _decide(client, run_id, review, decision="RECONCILE")
+    assert unavailable.status_code == 422
+    assert unavailable.json()["error"]["code"] == "ASSISTANCE_DECISION_UNAVAILABLE"
+
+    # The answer must satisfy the declared schema.
+    invalid = await _decide(
+        client, run_id, review, review_result={"decision": "MAYBE"}, continue_authorized=True
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["error"]["code"] == "ASSISTANCE_REVIEW_INVALID"
+    missing_key = await _decide(
+        client, run_id, review, review_result={}, continue_authorized=True
+    )
+    assert missing_key.status_code == 422
+    assert missing_key.json()["error"]["code"] == "ASSISTANCE_REVIEW_INVALID"
+    extra_key = await _decide(
+        client,
+        run_id,
+        review,
+        review_result={"decision": "CONTINUE", "extra": 1},
+        continue_authorized=True,
+    )
+    assert extra_key.status_code == 422
+
+    # Answering still needs the separate explicit continue authorization.
+    no_continue = await _decide(
+        client, run_id, review, review_result={"decision": "CONTINUE"}
+    )
+    assert no_continue.status_code == 422
+    assert no_continue.json()["error"]["code"] == "ASSISTANCE_DECISION_INVALID"
+
+    accepted = await _decide(
+        client,
+        run_id,
+        review,
+        review_result={"decision": "CONTINUE"},
+        continue_authorized=True,
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["resolved"] is True
+    assert await api_context[1].executor.wait(run_id, max_wait=60) == "SUCCEEDED"
+
+    closed = (await client.get(f"/api/v1/assistance/{review['id']}")).json()
+    assert closed["status"] == "RESOLVED"
+    assert closed["decisions"][-1]["review_result"] == {"decision": "CONTINUE"}
+    final = await client.get(f"/api/v1/runs/{run_id}")
+    assert final.json()["artifact_ids"], "the reviewed run still delivers its document"
+
+    # A closed request cannot be decided twice, even with the current revision.
+    again = await _decide(
+        client, run_id, closed, review_result={"decision": "CONTINUE"}, continue_authorized=True
+    )
+    assert again.status_code == 409
+    assert again.json()["error"]["code"] == "ASSISTANCE_CLOSED"
+
+
+async def test_pausing_a_review_closes_it_without_resuming(
+    client: httpx.AsyncClient, api_context: Any, workflow_definition: dict[str, Any]
+) -> None:
+    run_id, review = await _start_review_run(client, api_context, workflow_definition)
+    paused = await _decide(client, run_id, review, decision="PAUSE", note="先停一下")
+    assert paused.status_code == 200, paused.text
+    assert paused.json()["run"]["status"] == "PAUSED"
+    closed = (await client.get(f"/api/v1/assistance/{review['id']}")).json()
+    assert closed["status"] == "RESOLVED"
+    assert closed["decisions"][-1]["decision"] == "PAUSE"
+    snapshot = (await client.get(f"/api/v1/runs/{run_id}")).json()
+    assert snapshot["status"] == "PAUSED"
+
+
+async def test_reconcile_never_trusts_a_client_claim(
+    client: httpx.AsyncClient, api_context: Any, workflow_definition: dict[str, Any]
+) -> None:
+    run_id, review = await _start_review_run(client, api_context, workflow_definition)
+    _, context = api_context
+    import hashlib
+
+    from personal_agent.adapters.persistence.artifact_models import SideEffectOperation
+
+    async with context.database.session() as session:
+        operation = SideEffectOperation(
+            id=new_id(),
+            root_run_id=run_id,
+            run_id=run_id,
+            step_attempt_id=None,
+            logical_effect_key="document:review-fixture",
+            target_ref="recovery/never-written.md",
+            expected_before_hash=None,
+            intended_after_hash=hashlib.sha256(b"expected").hexdigest(),
+            intent_ref="intent:review-fixture",
+            status="INTENT",
+            observed_hash=None,
+            verified_at=None,
+            verification_ref=None,
+            revision=1,
+            created_at=context.clock.now(),
+        )
+        session.add(operation)
+        write_request = AssistanceRequest(
+            id=new_id(),
+            run_id=run_id,
+            kind="WRITE_RECONCILIATION",
+            limit_snapshot={},
+            consumed_snapshot={},
+            completed_steps=[],
+            remaining_steps=[review["completed_steps"][0] if review["completed_steps"] else ""],
+            observed_problem="写入结果无法核验",
+            unknowns=["INTENT"],
+            attempted_remedies=[],
+            decision_schema_json=None,
+            status="OPEN",
+            revision=1,
+            created_at=context.clock.now(),
+        )
+        session.add(write_request)
+        await session.commit()
+        write_id = write_request.id
+        write_revision = write_request.revision
+
+    response = await client.post(
+        f"/api/v1/assistance/{write_id}/decisions",
+        json={"revision": write_revision, "decision": "RECONCILE", "note": "我确认写入成功"},
+        headers={"Idempotency-Key": new_id(), "If-Match": f'"{write_revision}"'},
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "SIDE_EFFECT_UNRESOLVED"
+    # The client claim did not close the request either.
+    unchanged = (await client.get(f"/api/v1/assistance/{write_id}")).json()
+    assert unchanged["status"] == "OPEN"
+

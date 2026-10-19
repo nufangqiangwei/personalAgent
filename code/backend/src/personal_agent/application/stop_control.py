@@ -49,10 +49,10 @@ class StopControl:
                 raise _stale()
             if run.status == RunStatus.PAUSING.value:
                 return await serialize_run(session, run)
-            if run.status != RunStatus.RUNNING.value:
+            if run.status not in {RunStatus.RUNNING.value, RunStatus.WAITING_USER.value}:
                 raise AppError(
                     code="RUN_STATE_INVALID",
-                    message="only a running execution can be paused",
+                    message="only a running or waiting execution can be paused",
                     category=ErrorCategory.VALIDATION,
                     status=409,
                     details={"status": run.status},

@@ -30,6 +30,9 @@ class AssistanceRequest(Base):
     observed_problem: Mapped[str] = mapped_column(Text, nullable=False)
     unknowns: Mapped[list[str]] = mapped_column(JsonValue, nullable=False)
     attempted_remedies: Mapped[list[str]] = mapped_column(JsonValue, nullable=False)
+    #: The reviewed step's declared result contract; kept so a restart can still
+    #: check the answer instead of trusting whatever the client sends.
+    decision_schema_json: Mapped[dict | None] = mapped_column(JsonValue, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
@@ -55,6 +58,8 @@ class UserDecision(Base):
     decision: Mapped[str] = mapped_column(String(32), nullable=False)
     approved_increment: Mapped[dict | None] = mapped_column(JsonValue, nullable=True)
     continue_authorized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: A structured human-review answer, validated against the request's schema.
+    review_result_json: Mapped[dict | None] = mapped_column(JsonValue, nullable=True)
     evidence_refs: Mapped[list[str]] = mapped_column(JsonValue, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)

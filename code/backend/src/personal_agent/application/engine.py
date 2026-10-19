@@ -260,6 +260,10 @@ class WorkflowEngine:
             merged = self._apply_transform(config.transform_id, step, outputs)
             return StepOutcome(output=merged)
         if isinstance(config, HumanReviewConfig):
+            # A review that the user already answered advances the step once; asking
+            # again would turn an explicit decision into an endless prompt.
+            if await self._review_already_approved(run, step):
+                return StepOutcome(output={"review": "approved"}, on="success")
             await self._request_human_review(run, step, config)
             return StepOutcome(waiting=True)
         if isinstance(config, ToolTaskConfig):
@@ -824,11 +828,12 @@ class WorkflowEngine:
                     kind=AssistanceKind.HUMAN_REVIEW.value,
                     limit_snapshot={},
                     consumed_snapshot={},
-                    completed_steps=[run.current_step_id or step.id],
-                    remaining_steps=[],
+                    completed_steps=[],
+                    remaining_steps=[step.id],
                     observed_problem=config.prompt,
                     unknowns=[],
                     attempted_remedies=[],
+                    decision_schema_json=dict(config.decision_schema or {}),
                     status="OPEN",
                     revision=1,
                     created_at=self._deps.clock.now(),
@@ -841,6 +846,40 @@ class WorkflowEngine:
                 row.revision += 1
             await session.commit()
         await self._set_step_status(run, step, StepStatus.WAITING_USER)
+
+    async def _review_already_approved(self, run: WorkflowRun, step: Step) -> bool:
+        """True when this exact step has a resolved, explicitly-continued review."""
+        from personal_agent.adapters.persistence.assistance_models import (
+            AssistanceRequest,
+            UserDecision,
+        )
+
+        async with self._deps.database.session() as session:
+            requests = (
+                await session.scalars(
+                    select(AssistanceRequest)
+                    .where(
+                        AssistanceRequest.run_id == run.id,
+                        AssistanceRequest.kind == AssistanceKind.HUMAN_REVIEW.value,
+                        AssistanceRequest.status == "RESOLVED",
+                    )
+                    .order_by(AssistanceRequest.created_at.desc())
+                )
+            ).all()
+            for request in requests:
+                if step.id not in list(request.remaining_steps or []):
+                    continue
+                decision = await session.scalar(
+                    select(UserDecision)
+                    .where(
+                        UserDecision.assistance_id == request.id,
+                        UserDecision.continue_authorized.is_(True),
+                    )
+                    .order_by(UserDecision.created_at.desc())
+                )
+                if decision is not None:
+                    return True
+        return False
 
     async def _request_runtime_uncertain(
         self, run: WorkflowRun, step: Step, result: Any

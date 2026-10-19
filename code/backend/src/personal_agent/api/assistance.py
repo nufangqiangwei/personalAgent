@@ -25,6 +25,7 @@ class DecisionRequest(BaseModel):
     approved_increment: dict[str, int] | None = None
     continue_authorized: bool = False
     acknowledge_cost: bool = False
+    review_result: dict[str, Any] | None = None
     note: str | None = Field(default=None, max_length=2000)
     evidence_refs: list[str] = Field(default_factory=list)
 
@@ -57,6 +58,7 @@ async def decide(
         approved_increment=payload.approved_increment,
         continue_authorized=payload.continue_authorized,
         acknowledge_cost=payload.acknowledge_cost,
+        review_result=payload.review_result,
         note=payload.note,
         evidence_refs=payload.evidence_refs,
     )

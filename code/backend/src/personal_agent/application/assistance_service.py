@@ -23,11 +23,19 @@ from personal_agent.adapters.persistence.execution_models import WorkflowRun
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.recovery import RecoveryService
 from personal_agent.application.stop_control import StopControl
-from personal_agent.domain.assistance import AssistanceStatus, UserDecisionType
+from personal_agent.domain.assistance import (
+    AssistanceKind,
+    AssistanceStatus,
+    UserDecisionType,
+    available_decisions,
+    validate_review_result,
+)
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
 from personal_agent.ports.contracts import Clock
 
 ASSISTANCE_DECISION_INVALID = "ASSISTANCE_DECISION_INVALID"
+ASSISTANCE_DECISION_UNAVAILABLE = "ASSISTANCE_DECISION_UNAVAILABLE"
+ASSISTANCE_REVIEW_INVALID = "ASSISTANCE_REVIEW_INVALID"
 
 
 class AssistanceService:
@@ -77,6 +85,7 @@ class AssistanceService:
         approved_increment: dict[str, int] | None = None,
         continue_authorized: bool = False,
         acknowledge_cost: bool = False,
+        review_result: dict[str, Any] | None = None,
         note: str | None = None,
         evidence_refs: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -105,6 +114,15 @@ class AssistanceService:
                     status=409,
                     details={"status": request.status},
                 )
+            offered = available_decisions(request.kind)
+            if choice.value not in offered:
+                raise AppError(
+                    code=ASSISTANCE_DECISION_UNAVAILABLE,
+                    message=f"{choice.value} cannot resolve a {request.kind} request",
+                    category=ErrorCategory.VALIDATION,
+                    status=422,
+                    details={"available_decisions": offered},
+                )
             run = await session.get(WorkflowRun, request.run_id)
             if run is None:
                 raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
@@ -113,43 +131,65 @@ class AssistanceService:
 
             increment = dict(approved_increment or {})
             if choice is UserDecisionType.GRANT_AND_CONTINUE:
-                if not increment or not continue_authorized or not acknowledge_cost:
-                    raise AppError(
-                        code=ASSISTANCE_DECISION_INVALID,
-                        message=(
-                            "continuing needs an explicit top-up, an explicit continue "
-                            "authorization and an acknowledgement of the cost"
-                        ),
-                        status=422,
-                        details={
-                            "approved_increment": increment,
-                            "continue_authorized": continue_authorized,
-                            "acknowledge_cost": acknowledge_cost,
-                        },
+                if request.kind == AssistanceKind.HUMAN_REVIEW.value:
+                    # A review is answered, not bought: the explicit answer must
+                    # satisfy the step's result contract and no budget is needed.
+                    if not continue_authorized:
+                        raise AppError(
+                            code=ASSISTANCE_DECISION_INVALID,
+                            message="回答问题后仍需显式授权继续执行",
+                            status=422,
+                        )
+                    problems = validate_review_result(
+                        request.decision_schema_json, review_result
                     )
-                ledger = await session.scalar(
-                    select(BudgetLedger).where(BudgetLedger.root_run_id == root_run_id)
-                )
-                if ledger is None:
-                    raise AppError(
-                        code="BUDGET_LEDGER_MISSING",
-                        message="the run has no budget ledger",
-                        status=503,
+                    if problems:
+                        raise AppError(
+                            code=ASSISTANCE_REVIEW_INVALID,
+                            message="审核结果不符合该步骤声明的结果契约",
+                            category=ErrorCategory.VALIDATION,
+                            status=422,
+                            details={"problems": problems},
+                        )
+                else:
+                    if not increment or not continue_authorized or not acknowledge_cost:
+                        raise AppError(
+                            code=ASSISTANCE_DECISION_INVALID,
+                            message=(
+                                "continuing needs an explicit top-up, an explicit continue "
+                                "authorization and an acknowledgement of the cost"
+                            ),
+                            status=422,
+                            details={
+                                "approved_increment": increment,
+                                "continue_authorized": continue_authorized,
+                                "acknowledge_cost": acknowledge_cost,
+                            },
+                        )
+                    ledger = await session.scalar(
+                        select(BudgetLedger).where(BudgetLedger.root_run_id == root_run_id)
                     )
-                await self._budget.grant_run_budget(
-                    session,
-                    ledger=ledger,
-                    increment=increment,
-                    operation_id=f"grant:{request.id}",
-                    note=note,
-                )
+                    if ledger is None:
+                        raise AppError(
+                            code="BUDGET_LEDGER_MISSING",
+                            message="the run has no budget ledger",
+                            status=503,
+                        )
+                    await self._budget.grant_run_budget(
+                        session,
+                        ledger=ledger,
+                        increment=increment,
+                        operation_id=f"grant:{request.id}",
+                        note=note,
+                    )
                 await self._resolve(session, request)
                 session.add(
                     self._decision(
                         request,
                         choice,
-                        increment=increment,
+                        increment=increment or None,
                         continue_authorized=continue_authorized,
+                        review_result=review_result,
                         evidence_refs=evidence_refs,
                         note=note,
                     )
@@ -175,6 +215,7 @@ class AssistanceService:
                         choice,
                         increment=None,
                         continue_authorized=True,
+                        review_result=None,
                         evidence_refs=evidence_refs,
                         note=note,
                     )
@@ -188,6 +229,7 @@ class AssistanceService:
                         choice,
                         increment=None,
                         continue_authorized=False,
+                        review_result=None,
                         evidence_refs=evidence_refs,
                         note=note,
                     )
@@ -213,6 +255,7 @@ class AssistanceService:
                         choice,
                         increment=None,
                         continue_authorized=False,
+                        review_result=None,
                         evidence_refs=evidence_refs,
                         note=note,
                     )
@@ -225,13 +268,43 @@ class AssistanceService:
                     "branch_required": True,
                     "run_id": run_id,
                 }
-            else:  # DISCUSS or PAUSE: recorded, still blocked
+            elif choice is UserDecisionType.PAUSE:
+                # Pausing is a decision, not a resume: it closes the request and
+                # leaves the run paused until an explicit resume.
+                await self._resolve(session, request)
                 session.add(
                     self._decision(
                         request,
                         choice,
                         increment=None,
                         continue_authorized=False,
+                        review_result=None,
+                        evidence_refs=evidence_refs,
+                        note=note,
+                    )
+                )
+                run.revision += 1
+                await session.commit()
+                current = await self._run_snapshot(run_id)
+                snapshot = await self._control.request_pause(
+                    run_id,
+                    expected_revision=int(current["revision"]),
+                    reason=note or "用户选择暂停",
+                )
+                return {
+                    "assistance_id": assistance_id,
+                    "decision": choice.value,
+                    "resolved": True,
+                    "run": snapshot,
+                }
+            else:  # DISCUSS: recorded, still blocked
+                session.add(
+                    self._decision(
+                        request,
+                        choice,
+                        increment=None,
+                        continue_authorized=False,
+                        review_result=None,
                         evidence_refs=evidence_refs,
                         note=note,
                     )
@@ -245,10 +318,14 @@ class AssistanceService:
                     "message": "讨论已记录；执行仍保持等待，不会自动继续。",
                 }
 
-        # The run may be resumed now that the request is resolved.
+        # The run may be resumed now that the request is resolved. A resolved review
+        # or budget request leaves the run in WAITING_USER, which is resumable only
+        # through this explicit decision.
         current = await self._run_snapshot(run_id)
         resumed = await self._recovery.resume(
-            run_id, expected_revision=int(current["revision"])
+            run_id,
+            expected_revision=int(current["revision"]),
+            allow_waiting_user=True,
         )
         return {
             "assistance_id": assistance_id,
@@ -309,6 +386,7 @@ class AssistanceService:
         *,
         increment: dict[str, int] | None,
         continue_authorized: bool,
+        review_result: dict[str, Any] | None,
         evidence_refs: list[str] | None,
         note: str | None,
     ) -> UserDecision:
@@ -318,6 +396,7 @@ class AssistanceService:
             decision=choice.value,
             approved_increment=increment,
             continue_authorized=continue_authorized,
+            review_result_json=review_result,
             evidence_refs=list(evidence_refs or []),
             note=note,
             created_at=self._clock.now(),
@@ -345,12 +424,15 @@ class AssistanceService:
             "observed_problem": row.observed_problem,
             "unknowns": list(row.unknowns),
             "attempted_remedies": list(row.attempted_remedies),
+            "decision_schema": dict(row.decision_schema_json or {}),
+            "available_decisions": available_decisions(row.kind),
             "created_at": row.created_at.isoformat().replace("+00:00", "Z"),
             "decisions": [
                 {
                     "decision": decision.decision,
                     "continue_authorized": decision.continue_authorized,
                     "approved_increment": decision.approved_increment,
+                    "review_result": decision.review_result_json,
                     "evidence_refs": list(decision.evidence_refs),
                     "note": decision.note,
                     "created_at": decision.created_at.isoformat().replace("+00:00", "Z"),

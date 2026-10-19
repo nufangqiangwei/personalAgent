@@ -91,7 +91,13 @@ class RecoveryService:
                 "epoch": run.epoch,
             }
 
-    async def resume(self, run_id: str, *, expected_revision: int) -> dict[str, Any]:
+    async def resume(
+        self,
+        run_id: str,
+        *,
+        expected_revision: int,
+        allow_waiting_user: bool = False,
+    ) -> dict[str, Any]:
         async with self._database.session() as session:
             run = await self._require(session, run_id)
             if run.revision != expected_revision:
@@ -101,7 +107,12 @@ class RecoveryService:
                     category=ErrorCategory.VALIDATION,
                     status=412,
                 )
-            if run.status not in {RunStatus.PAUSED.value, RunStatus.INTERRUPTED.value}:
+            resumable = {RunStatus.PAUSED.value, RunStatus.INTERRUPTED.value}
+            if allow_waiting_user:
+                # Only an explicit assistance decision may resume a run that is
+                # waiting for the user; a bare resume call may not.
+                resumable.add(RunStatus.WAITING_USER.value)
+            if run.status not in resumable:
                 raise AppError(
                     code="RUN_STATE_INVALID",
                     message="only a paused or interrupted execution can be resumed",
