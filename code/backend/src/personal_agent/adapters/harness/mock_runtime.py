@@ -321,10 +321,15 @@ class MockModelTransport:
     async def complete(self, spec: ModelRequestSpec) -> ModelResponse:
         self.calls.append(spec)
         scenario = "requirement.analysis.complete"
+        hints = self._observations.get("model", {}).get("scenario_hints", {})
         for message in spec.messages:
             if message.content.startswith("scenario:"):
                 scenario = message.content.split(":", 1)[1].strip()
                 break
+            for hint, hinted_scenario in hints.items():
+                if hint in message.content:
+                    scenario = hinted_scenario
+                    break
         observation = dict(self._observations["model"]["scenarios"].get(scenario, {}))
         if self._latency:
             await asyncio.sleep(self._latency)

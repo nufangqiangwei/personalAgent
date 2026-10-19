@@ -273,7 +273,13 @@ class ModelResponse:
 
 @runtime_checkable
 class ModelGatewayPort(Protocol):
-    async def request(self, request: ModelRequest) -> ModelResponse: ...
+    async def request(
+        self,
+        spec: ModelRequest,
+        *,
+        reserved_tokens: int,
+        timeout_seconds: float,
+    ) -> ModelResponse: ...
 
 
 # --------------------------------------------------------------------------

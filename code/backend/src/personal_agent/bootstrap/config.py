@@ -62,9 +62,10 @@ class DraftBudgetLimits:
     max_tokens: int = 30_000
 
     def as_dict(self) -> dict[str, int]:
+        # Keys are budget dimensions, matching the ledger, not policy field names.
         return {
-            "max_model_requests": self.max_model_requests,
-            "max_tokens": self.max_tokens,
+            "model_requests": self.max_model_requests,
+            "tokens": self.max_tokens,
         }
 
 

@@ -11,6 +11,12 @@
       "input_tokens_per_100_chars": 25,
       "output_limit": 8192
     },
+    "scenario_hints": {
+      "AI 编程工具": "requirement.analysis.needs_clarification",
+      "帮我决定": "requirement.analysis.needs_clarification",
+      "没有特别偏好": "requirement.analysis.no_preference",
+      "12 人": "requirement.analysis.complete"
+    },
     "scenarios": {
       "requirement.analysis.complete": {
         "finish_reason": "completed",
