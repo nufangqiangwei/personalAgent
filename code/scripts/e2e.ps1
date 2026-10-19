@@ -15,13 +15,13 @@ try {
     $env:PERSONAL_AGENT_E2E_PORT = if ($env:PERSONAL_AGENT_E2E_PORT) { $env:PERSONAL_AGENT_E2E_PORT } else { '8123' }
     $env:PERSONAL_AGENT_E2E_NO_SERVER = ''
 
-    $args = @('run', 'test:e2e', '--prefix', 'code/frontend')
+    $npmArgs = @('run', 'test:e2e', '--prefix', 'code/frontend')
     if ($Grep -ne '') {
-        $args += '--'
-        $args += '--grep'
-        $args += $Grep
+        $npmArgs += '--'
+        $npmArgs += '--grep'
+        $npmArgs += $Grep
     }
-    & npm @args
+    & npm @npmArgs
     exit $LASTEXITCODE
 }
 finally {

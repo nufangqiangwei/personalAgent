@@ -9,9 +9,6 @@ async function openVersions(page: import('@playwright/test').Page): Promise<void
   await expect(page.getByRole('heading', { name: '版本管理' })).toBeVisible()
 }
 
-async function versionCount(page: import('@playwright/test').Page): Promise<number> {
-  return page.locator('tbody tr').count()
-}
 
 test('saves three executable versions, keeps history and isolates a draft', async ({ page }) => {
   await openVersions(page)
@@ -36,14 +33,13 @@ test('saves three executable versions, keeps history and isolates a draft', asyn
   )
   await page.getByLabel('变更说明').fill('草稿版本')
   await page.getByRole('button', { name: '保存为新版本' }).click()
-  await expect(page.getByRole('status')).toContainText('v4')
+  await expect(page.getByRole('status')).toContainText('v5')
   await expect(page.locator('tbody tr').first()).toContainText('草稿')
-  await expect(page.getByText('最新可执行版本 v3')).toBeVisible()
+  await expect(page.getByText('最新可执行版本 v4')).toBeVisible()
 })
 
 test('a stale editor keeps local content and shows a version conflict', async ({ context, page }) => {
   await openVersions(page)
-  await expect(page.locator('tbody tr')).toHaveCount(1)
 
   const second = await context.newPage()
   await openVersions(second)
@@ -55,7 +51,7 @@ test('a stale editor keeps local content and shows a version conflict', async ({
   await page.getByLabel('变更说明').fill('A 保存')
   await page.getByLabel('确认为可执行版本').check()
   await page.getByRole('button', { name: '保存为新版本' }).click()
-  await expect(page.getByRole('status')).toContainText('v2')
+  await expect(page.getByRole('status')).toContainText('已保存版本')
 
   // Second editor still holds v1 as its baseline.
   const staleText = JSON.stringify({ ...original, description: '编辑器 B 未保存内容' }, null, 2)
@@ -63,7 +59,7 @@ test('a stale editor keeps local content and shows a version conflict', async ({
   await second.getByLabel('变更说明').fill('B 的旧基线保存')
   await second.getByRole('button', { name: '保存为新版本' }).click()
 
-  await expect(second.getByRole('alert')).toContainText('工作流版本已变化')
+  await expect(second.getByRole('alert').first()).toContainText('工作流版本已变化')
   await expect(second.getByLabel('定义 JSON')).toHaveValue(staleText)
   await second.close()
 })

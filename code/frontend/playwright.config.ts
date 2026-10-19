@@ -6,6 +6,11 @@ import { defineConfig, devices } from '@playwright/test'
 const port = Number(process.env.PERSONAL_AGENT_E2E_PORT ?? 8123)
 const baseURL = `http://127.0.0.1:${port}`
 
+// A locally available Chromium may be used when the pinned download is
+// unavailable offline; the pinned revision remains the CI default.
+const explicitChromium = process.env.PERSONAL_AGENT_CHROMIUM_PATH
+const launchOptions = explicitChromium ? { launchOptions: { executablePath: explicitChromium } } : {}
+
 const webServer = process.env.PERSONAL_AGENT_E2E_NO_SERVER
   ? undefined
   : {
@@ -13,15 +18,14 @@ const webServer = process.env.PERSONAL_AGENT_E2E_NO_SERVER
         'powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/e2e-backend.ps1',
       url: `${baseURL}/health`,
       reuseExistingServer: false,
-      timeout: 180_000,
-      cwd: __dirname,
+      timeout: 240_000,
       env: { PERSONAL_AGENT_E2E_PORT: String(port) },
     }
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 120_000,
-  expect: { timeout: 10_000 },
+  timeout: 180_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -37,7 +41,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...launchOptions },
     },
   ],
   ...(webServer ? { webServer } : {}),

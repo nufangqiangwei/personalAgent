@@ -73,8 +73,17 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
 
     dist = config.frontend_dist
     if dist is not None and (dist / "index.html").exists():
+        import mimetypes
+
         from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
+
+        # Windows may map .js to text/plain in the registry; browsers reject a
+        # module script served with the wrong MIME type.
+        mimetypes.add_type("text/javascript", ".js")
+        mimetypes.add_type("text/javascript", ".mjs")
+        mimetypes.add_type("text/css", ".css")
+        mimetypes.add_type("image/svg+xml", ".svg")
 
         assets = dist / "assets"
         if assets.exists():
