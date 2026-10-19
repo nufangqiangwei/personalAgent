@@ -149,15 +149,31 @@ async def test_runtime_events_are_deduplicated_by_key(mock_runtime: Any, clock: 
     assert all(event.kind != "reasoning" for event in collected)
 
 
-async def test_gateway_allows_only_one_non_terminal_request(gateway: Any) -> None:
+async def test_gateway_allows_only_one_non_terminal_request(
+    gateway: Any, database: Any, clock: Any, observations: dict[str, Any]
+) -> None:
+    # Use a transport with a controllable delay: the first request must still be
+    # holding the persistent slot when the second one arrives, whatever the load
+    # of the surrounding suite. Guessing event-loop turns made this test flaky.
+    from personal_agent.adapters.harness.mock_runtime import MockModelTransport
+    from personal_agent.adapters.harness.model_gateway import ModelGateway
+
+    slow_gateway = ModelGateway(
+        database, clock, MockModelTransport(observations, latency_seconds=0.2)
+    )
     first = asyncio.create_task(
-        gateway.request(
+        slow_gateway.request(
             spec(scenario="requirement.analysis.complete"),
             reserved_tokens=200,
             timeout_seconds=5,
         )
     )
-    await asyncio.sleep(0)
+    for _ in range(400):
+        if await slow_gateway.non_terminal_request() is not None:
+            break
+        await asyncio.sleep(0.005)
+    else:  # pragma: no cover - only fails if the gateway never reserves
+        raise AssertionError("the first request never occupied the model slot")
     with pytest.raises(AppError) as error:
         await gateway.request(
             spec(scenario="requirement.analysis.complete"), reserved_tokens=200, timeout_seconds=5
