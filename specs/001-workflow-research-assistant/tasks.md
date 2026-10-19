@@ -76,7 +76,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [x] T032 [US7] 在 code/backend/src/personal_agent/application/workflow_registry.py 实现稳定JSON/hash、内容不变复用版本、草稿与确认可执行发布、CAS最新指针、基线冲突、停用事实，版本变更不得改变现有运行。
 - [x] T033 [US7] 在 code/backend/src/personal_agent/api/workflows.py 实现 REST 契约全部 /workflows 列表、详情、versions读写及disable，返回hash/验证报告/草稿/实际版本；保存失败不伪造新版本。
 - [x] T034 [US7] 在 code/frontend/src/pages/WorkflowVersionsPage.vue 和 code/frontend/src/components/WorkflowDefinitionEditor.vue 实现可读定义与JSON编辑、验证报告、显式可执行确认、历史与停用，冲突保留待保存内容，不引入可视化编排器。
-- [ ] T035 [US7] 在 code/frontend/tests/e2e/workflow-versions.spec.ts 验证双流程各三次保存、草稿隔离、旧编辑冲突与失败内容保留，运行 code/backend/tests/contract/test_workflows.py、code/backend/tests/unit/test_workflow_validation.py 并记录结果。
+- [x] T035 [US7] 在 code/frontend/tests/e2e/workflow-versions.spec.ts 验证双流程各三次保存、草稿隔离、旧编辑冲突与失败内容保留，运行 code/backend/tests/contract/test_workflows.py、code/backend/tests/unit/test_workflow_validation.py 并记录结果。
 
 ## Phase 4: US11 — 先从列表选择固定工作流（P1）
 
@@ -90,7 +90,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [x] T037 [P] [US11] 在 code/frontend/tests/unit/workflow-selection.spec.ts 编写无需输入即可浏览、空库、范围不适用和选择后传递准确版本的组件用例。
 - [x] T038 [US11] 在 code/backend/workflows/technology-comparison.json、code/backend/workflows/public-topic-research.json 和 code/backend/src/personal_agent/bootstrap/seed.py 建立并幂等导入技术选型对比、公开主题研究定义，包含输入/方向/Agent或Tool/Transform/Condition/HumanReview/Output、预算与input_reads；只经Registry发布有效版本。
 - [x] T039 [US11] 在 code/frontend/src/pages/WorkflowListPage.vue 和 code/frontend/src/pages/WorkflowDetailPage.vue 实现最新可执行列表、范围/输入/步骤/输出说明、分页及选择准确版本的路由；此阶段传递选中version，draft创建由US1提供，不自动研究。
-- [ ] T040 [US11] 在 code/frontend/tests/e2e/workflow-selection.spec.ts 用正常与独立临时空库验证选流、返回、停用及不适用说明；US1完成后复验聊天入口改选，运行本阶段测试。
+- [x] T040 [US11] 在 code/frontend/tests/e2e/workflow-selection.spec.ts 用正常与独立临时空库验证选流、返回、停用及不适用说明；US1完成后复验聊天入口改选，运行本阶段测试。
 
 ## Phase 5: US1 — 表达并确认研究需求（P1）
 
@@ -100,15 +100,15 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 ### Tests → Models → Services → Interfaces → Integration
 
-- [ ] T041 [P] [US1] 在 code/backend/tests/contract/test_requirements.py 编写draft/messages/operations/suggestion accept/selection/confirm端点和草稿额度追加契约用例，覆盖旧revision/hash、错误版本、未接受建议及非显式授权。
-- [ ] T042 [P] [US1] 在 code/backend/tests/unit/test_requirement_confirmation.py 编写无特别偏好、具体取舍引导、来源区分、默认值、缺失/冲突/不适用、建议接受≠执行确认及H1/H2/H3摘要用例。
-- [ ] T043 [US1] 在 code/backend/src/personal_agent/domain/requirements.py、code/backend/src/personal_agent/adapters/persistence/requirement_models.py 和 code/backend/migrations/versions/0007_requirements.py 建立 RequirementDraft/ConversationMessage/Suggestion/Confirmation 并补相关外键；原文约束“status=COLLECTING/READY/CONFIRMED/STALE；字段含 value、source=user/default/suggestion、message_id、accepted_at；无特别偏好是显式值，非缺失”“UNIQUE(draft_id,sequence)；用户原话与模型摘要区分；仅聊天修改要求”“PENDING/ACCEPTED/REJECTED；接受不产生执行确认；旧revision建议不可直接应用”“action=START/BRANCH；每次确认不可变；绑定准确快照，不复用过期确认”；绑定表中全部hash、政策与版本字段，建立 runs.confirmation_id 唯一约束。
-- [ ] T044 [US1] 在 code/backend/src/personal_agent/application/requirement_analysis.py 通过统一Runtime/ModelGateway分析聊天，基于本次方向追问和引导具体取舍，禁止固定偏好问卷/擅自权重/长期偏好；必要字段与硬约束由确定性校验，模型建议保持待接受并记录依据。
-- [ ] T045 [US1] 在 code/backend/src/personal_agent/application/requirement_confirmation.py 和 code/backend/src/personal_agent/adapters/rendering/requirement_summary.py 实现完整摘要三级标题与列表、revision/hash、过期确认失效、格式协商、改选重检与显式确认；接受建议后仍需确认完整列表，不为凑标题编造要求。
-- [ ] T046 [US1] 在 code/backend/src/personal_agent/application/draft_operations.py 实现可持久查看的分析操作、忙时待分析、草稿独立额度求助与显式追加，不把待分析聊天自动转为研究启动，不以“知道了”授权，恢复后保持模型UNKNOWN阻塞。
-- [ ] T047 [US1] 在 code/backend/src/personal_agent/api/requirements.py 和 code/backend/src/personal_agent/api/operations.py 实现全部需求与操作查询契约及T001定义的草稿追加接口，BRANCH确认仅限关联proposal，缺失/冲突/版本变化返回具体错误。
-- [ ] T048 [US1] 在 code/frontend/src/pages/RequirementsPage.vue 和 code/frontend/src/components/RequirementSummary.vue 实现聊天、来源/建议、缺失冲突、完整摘要、版本与政策展示、建议接受及最终确认；输入修改仅走聊天，明确无特别偏好和取舍顺序。
-- [ ] T049 [US1] 在 code/frontend/src/components/DraftBudgetPanel.vue 实现草稿消耗、待分析/模型忙/UNKNOWN原因与额度追加反馈，确认旧摘要或改选后隐藏失效启动动作；与RequirementsPage集成；并在 code/frontend/tests/unit/draft-budget.spec.ts 覆盖草稿消耗、待分析/模型忙/UNKNOWN 原因展示及追加额度后的刷新与失效启动隐藏。
+- [x] T041 [P] [US1] 在 code/backend/tests/contract/test_requirements.py 编写draft/messages/operations/suggestion accept/selection/confirm端点和草稿额度追加契约用例，覆盖旧revision/hash、错误版本、未接受建议及非显式授权。
+- [x] T042 [P] [US1] 在 code/backend/tests/unit/test_requirement_confirmation.py 编写无特别偏好、具体取舍引导、来源区分、默认值、缺失/冲突/不适用、建议接受≠执行确认及H1/H2/H3摘要用例。
+- [x] T043 [US1] 在 code/backend/src/personal_agent/domain/requirements.py、code/backend/src/personal_agent/adapters/persistence/requirement_models.py 和 code/backend/migrations/versions/0007_requirements.py 建立 RequirementDraft/ConversationMessage/Suggestion/Confirmation 并补相关外键；原文约束“status=COLLECTING/READY/CONFIRMED/STALE；字段含 value、source=user/default/suggestion、message_id、accepted_at；无特别偏好是显式值，非缺失”“UNIQUE(draft_id,sequence)；用户原话与模型摘要区分；仅聊天修改要求”“PENDING/ACCEPTED/REJECTED；接受不产生执行确认；旧revision建议不可直接应用”“action=START/BRANCH；每次确认不可变；绑定准确快照，不复用过期确认”；绑定表中全部hash、政策与版本字段，建立 runs.confirmation_id 唯一约束。
+- [x] T044 [US1] 在 code/backend/src/personal_agent/application/requirement_analysis.py 通过统一Runtime/ModelGateway分析聊天，基于本次方向追问和引导具体取舍，禁止固定偏好问卷/擅自权重/长期偏好；必要字段与硬约束由确定性校验，模型建议保持待接受并记录依据。
+- [x] T045 [US1] 在 code/backend/src/personal_agent/application/requirement_confirmation.py 和 code/backend/src/personal_agent/adapters/rendering/requirement_summary.py 实现完整摘要三级标题与列表、revision/hash、过期确认失效、格式协商、改选重检与显式确认；接受建议后仍需确认完整列表，不为凑标题编造要求。
+- [x] T046 [US1] 在 code/backend/src/personal_agent/application/draft_operations.py 实现可持久查看的分析操作、忙时待分析、草稿独立额度求助与显式追加，不把待分析聊天自动转为研究启动，不以“知道了”授权，恢复后保持模型UNKNOWN阻塞。
+- [x] T047 [US1] 在 code/backend/src/personal_agent/api/requirements.py 和 code/backend/src/personal_agent/api/operations.py 实现全部需求与操作查询契约及T001定义的草稿追加接口，BRANCH确认仅限关联proposal，缺失/冲突/版本变化返回具体错误。
+- [x] T048 [US1] 在 code/frontend/src/pages/RequirementsPage.vue 和 code/frontend/src/components/RequirementSummary.vue 实现聊天、来源/建议、缺失冲突、完整摘要、版本与政策展示、建议接受及最终确认；输入修改仅走聊天，明确无特别偏好和取舍顺序。
+- [x] T049 [US1] 在 code/frontend/src/components/DraftBudgetPanel.vue 实现草稿消耗、待分析/模型忙/UNKNOWN原因与额度追加反馈，确认旧摘要或改选后隐藏失效启动动作；与RequirementsPage集成；并在 code/frontend/tests/unit/draft-budget.spec.ts 覆盖草稿消耗、待分析/模型忙/UNKNOWN 原因展示及追加额度后的刷新与失效启动隐藏。
 - [ ] T050 [US1] 在 code/frontend/tests/e2e/requirements.spec.ts 验证SC-001输入三例、SC-006四类喜好和SC-013六类确认；用受控启动接收端确认授权边界，US3完成后复验真实 /runs，运行本阶段后端用例。
 
 ## Phase 6: US3 — 严格按流程研究信息（P1）
