@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from personal_agent.api.artifacts import router as artifacts_router
+from personal_agent.api.assistance import router as assistance_router
 from personal_agent.api.context import AppContext
 from personal_agent.api.errors import install_error_handlers
 from personal_agent.api.health import router as health_router
@@ -17,6 +18,7 @@ from personal_agent.api.middleware import (
     RequestIdMiddleware,
 )
 from personal_agent.api.requirements import router as requirements_router
+from personal_agent.api.run_controls import router as run_controls_router
 from personal_agent.api.runs import router as runs_router
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.api.workflows import router as workflows_router
@@ -74,6 +76,8 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
     app.include_router(workflows_router)
     app.include_router(requirements_router)
     app.include_router(runs_router)
+    app.include_router(run_controls_router)
+    app.include_router(assistance_router)
     app.include_router(artifacts_router)
 
     dist = config.frontend_dist

@@ -1,0 +1,291 @@
+"""Stopping a run: pause, cancel and convergence.
+
+A stop request is an *intent*: it is recorded immediately so the user gets feedback
+well inside one second, and the state only becomes final once the current action has
+converged. Nothing here advances step results — the engine owns that — but the
+convergence rules live in one place so the API and the engine cannot disagree.
+
+Rules:
+* ``PAUSE`` goes ``RUNNING -> PAUSING -> PAUSED``; the slot is released only when
+  converged and no write is unresolved, so a paused run does not block the app.
+* ``CANCEL`` goes to ``CANCELLING`` and ends at ``CANCELLED``; a result that arrives
+  afterwards can never turn the run into a success.
+* An attempt that is still in flight keeps the run in the draining state. It is not
+  reported as stopped until it has actually returned.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy import select
+
+from personal_agent.adapters.persistence.database import Database
+from personal_agent.adapters.persistence.execution_models import (
+    ExecutionEvent,
+    ExecutionSlot,
+    StepAttempt,
+    StepRun,
+    WorkflowRun,
+)
+from personal_agent.application.run_snapshots import serialize_run
+from personal_agent.domain.common import AppError, ErrorCategory, new_id
+from personal_agent.domain.execution import EventKind, RunStatus, assert_transition
+from personal_agent.ports.contracts import Clock
+
+
+class StopControl:
+    def __init__(self, database: Database, clock: Clock) -> None:
+        self._database = database
+        self._clock = clock
+
+    # ------------------------------------------------------------------
+    async def request_pause(
+        self, run_id: str, *, expected_revision: int, reason: str | None = None
+    ) -> dict[str, Any]:
+        async with self._database.session() as session:
+            run = await self._require(session, run_id)
+            if run.revision != expected_revision:
+                raise _stale()
+            if run.status == RunStatus.PAUSING.value:
+                return await serialize_run(session, run)
+            if run.status != RunStatus.RUNNING.value:
+                raise AppError(
+                    code="RUN_STATE_INVALID",
+                    message="only a running execution can be paused",
+                    category=ErrorCategory.VALIDATION,
+                    status=409,
+                    details={"status": run.status},
+                )
+            assert_transition(RunStatus(run.status), RunStatus.PAUSING)
+            run.status = RunStatus.PAUSING.value
+            run.revision += 1
+            run.updated_at = self._clock.now()
+            await self._event(
+                session,
+                run,
+                RunStatus.PAUSING.value,
+                reason_code=None,
+                payload={"requested": "PAUSE", "reason": reason, "draining": True},
+            )
+            await session.commit()
+        return await self.converge(run_id)
+
+    async def request_cancel(
+        self,
+        run_id: str,
+        *,
+        expected_revision: int,
+        reason: str | None = None,
+        confirmed: bool = True,
+    ) -> dict[str, Any]:
+        if not confirmed:
+            raise AppError(
+                code="CANCEL_NOT_CONFIRMED",
+                message="cancelling needs an explicit confirmation",
+                category=ErrorCategory.VALIDATION,
+                status=422,
+            )
+        async with self._database.session() as session:
+            run = await self._require(session, run_id)
+            if run.revision != expected_revision:
+                raise _stale()
+            if run.status == RunStatus.CANCELLED.value:
+                return await serialize_run(session, run)
+            if run.status not in {
+                RunStatus.PENDING.value,
+                RunStatus.RUNNING.value,
+                RunStatus.PAUSING.value,
+                RunStatus.PAUSED.value,
+                RunStatus.WAITING_USER.value,
+                RunStatus.INTERRUPTED.value,
+            }:
+                raise AppError(
+                    code="RUN_STATE_INVALID",
+                    message="this execution cannot be cancelled in its current state",
+                    category=ErrorCategory.VALIDATION,
+                    status=409,
+                    details={"status": run.status},
+                )
+            assert_transition(RunStatus(run.status), RunStatus.CANCELLING)
+            run.status = RunStatus.CANCELLING.value
+            run.cancel_requested = True
+            run.revision += 1
+            run.updated_at = self._clock.now()
+            await self._event(
+                session,
+                run,
+                RunStatus.CANCELLING.value,
+                reason_code=None,
+                payload={"requested": "CANCEL", "reason": reason, "draining": True},
+            )
+            await session.commit()
+        return await self.converge(run_id)
+
+    # ------------------------------------------------------------------
+    async def converge(self, run_id: str) -> dict[str, Any]:
+        """Move a draining run to its final state once no action is in flight."""
+        async with self._database.session() as session:
+            run = await self._require(session, run_id)
+            in_flight = await self._in_flight_count(session, run.id)
+            if run.status == RunStatus.PAUSING.value and in_flight == 0:
+                run.status = RunStatus.PAUSED.value
+                run.revision += 1
+                run.updated_at = self._clock.now()
+                await self._release_slot(session, run)
+                await self._event(
+                    session,
+                    run,
+                    RunStatus.PAUSED.value,
+                    reason_code=None,
+                    payload={"converged": True, "in_flight": 0},
+                )
+            elif run.status == RunStatus.CANCELLING.value and in_flight == 0:
+                run.status = RunStatus.CANCELLED.value
+                run.revision += 1
+                run.updated_at = self._clock.now()
+                await self._close_running_steps(session, run)
+                await self._release_slot(session, run)
+                await self._event(
+                    session,
+                    run,
+                    RunStatus.CANCELLED.value,
+                    reason_code=None,
+                    payload={"converged": True, "in_flight": 0},
+                )
+            await session.commit()
+            snapshot = await serialize_run(session, run)
+            snapshot["draining"] = run.status in {
+                RunStatus.PAUSING.value,
+                RunStatus.CANCELLING.value,
+            }
+            snapshot["in_flight_actions"] = await self._in_flight_actions(session, run.id)
+            return snapshot
+
+    async def observe(self, run_id: str) -> str | None:
+        """Return ``pause``/``cancel`` when the engine must stop, else ``None``."""
+        async with self._database.session() as session:
+            run = await session.get(WorkflowRun, run_id)
+            if run is None:
+                return None
+            if run.status == RunStatus.CANCELLING.value:
+                return "cancel"
+            if run.status == RunStatus.PAUSING.value:
+                return "pause"
+            return None
+
+    async def converge_from_engine(self, run_id: str) -> str:
+        """Called by the engine between steps: finalize and return the status."""
+        snapshot = await self.converge(run_id)
+        return str(snapshot["status"])
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    async def _require(session: Any, run_id: str) -> WorkflowRun:
+        run = await session.get(WorkflowRun, run_id)
+        if run is None:
+            raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
+        return run
+
+    @staticmethod
+    async def _in_flight_count(session: Any, run_id: str) -> int:
+        rows = (
+            await session.scalars(
+                select(StepAttempt)
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(
+                    StepRun.run_id == run_id,
+                    StepAttempt.status == "RUNNING",
+                )
+            )
+        ).all()
+        return len(rows)
+
+    @staticmethod
+    async def _in_flight_actions(session: Any, run_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await session.scalars(
+                select(StepAttempt)
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(StepRun.run_id == run_id, StepAttempt.status == "RUNNING")
+            )
+        ).all()
+        return [
+            {
+                "id": attempt.id,
+                "type": "model_request",
+                "status": attempt.status,
+                "step_run_id": attempt.step_run_id,
+            }
+            for attempt in rows
+        ]
+
+    async def _close_running_steps(self, session: Any, run: WorkflowRun) -> None:
+        steps = (
+            await session.scalars(
+                select(StepRun).where(
+                    StepRun.run_id == run.id,
+                    StepRun.status.in_(["PENDING", "RUNNING", "WAITING_USER"]),
+                )
+            )
+        ).all()
+        for step in steps:
+            step.status = "CANCELLED"
+            step.revision += 1
+            step.updated_at = self._clock.now()
+
+    async def _release_slot(self, session: Any, run: WorkflowRun) -> None:
+        slot = await session.get(ExecutionSlot, 1)
+        if slot is not None and slot.run_id == run.id:
+            slot.run_id = None
+            slot.draining = False
+            slot.epoch += 1
+            slot.revision += 1
+
+    async def _event(
+        self,
+        session: Any,
+        run: WorkflowRun,
+        status: str,
+        *,
+        reason_code: str | None,
+        payload: dict[str, Any],
+    ) -> None:
+        from sqlalchemy import func
+
+        sequence = int(
+            await session.scalar(
+                select(func.max(ExecutionEvent.sequence)).where(
+                    ExecutionEvent.run_id == run.id
+                )
+            )
+            or 0
+        ) + 1
+        session.add(
+            ExecutionEvent(
+                id=new_id(),
+                run_id=run.id,
+                draft_id=None,
+                sequence=sequence,
+                step_run_id=None,
+                attempt_id=None,
+                workflow_version_id=run.workflow_version_id,
+                occurred_at=self._clock.now(),
+                kind=EventKind.RUN_STATE_CHANGED.value,
+                status=status,
+                reason_code=reason_code,
+                payload_json=payload,
+                payload_ref=None,
+                schema_version=1,
+                provider_event_key=None,
+            )
+        )
+
+
+def _stale() -> AppError:
+    return AppError(
+        code="RUN_REVISION_STALE",
+        message="the execution changed since it was read",
+        category=ErrorCategory.VALIDATION,
+        status=412,
+    )

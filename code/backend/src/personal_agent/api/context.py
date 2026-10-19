@@ -8,11 +8,14 @@ from personal_agent.adapters.harness.model_gateway import ModelGateway
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.artifact_service import ArtifactService
+from personal_agent.application.assistance_service import AssistanceService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
+from personal_agent.application.recovery import RecoveryService
 from personal_agent.application.research_evidence import EvidenceService
+from personal_agent.application.stop_control import StopControl
 from personal_agent.bootstrap.config import AppConfig
 from personal_agent.bootstrap.executor import RunExecutor
 from personal_agent.ports.contracts import Clock, RuntimePort, ToolPort
@@ -33,6 +36,9 @@ class AppContext:
     engine: WorkflowEngine
     coordinator: ExecutionCoordinator
     executor: RunExecutor
+    control: StopControl
+    recovery: RecoveryService
+    assistance: AssistanceService
     sessions: SessionManager
     origin_policy: OriginPolicy
     execution_available: bool

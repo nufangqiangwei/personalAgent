@@ -296,6 +296,67 @@ class BudgetService:
     # ------------------------------------------------------------------
     # Explicit draft top-up (T015 / REST contract)
     # ------------------------------------------------------------------
+    async def grant_run_budget(
+        self,
+        session: AsyncSession,
+        *,
+        ledger: BudgetLedger,
+        increment: Mapping[str, int],
+        operation_id: str,
+        note: str | None = None,
+    ) -> tuple[BudgetEntry, dict[str, Any]]:
+        """Explicit run-ledger top-up after an assistance request.
+
+        The grant raises only the limits; consumed and reserved are untouched, so a
+        top-up never rewrites history or clears retries.
+        """
+        existing = await self._existing_entry(
+            session, ledger.id, operation_id, rules.EntryKind.GRANT.value
+        )
+        if existing is not None:
+            return existing, await self.snapshot(session, ledger)
+
+        domain = self.to_domain(ledger)
+        if not domain.exhausted:
+            raise AppError(
+                code="BUDGET_NOT_EXHAUSTED",
+                message="the run is not at its limit; a preventive top-up is not allowed",
+                status=409,
+                details={"remaining": dict(domain.remaining())},
+            )
+        try:
+            updated = rules.grant(domain, increment, default_limits={})
+        except AppError as error:
+            if error.code == "BUDGET_AMOUNT_INVALID":
+                raise AppError(
+                    code="BUDGET_GRANT_INVALID",
+                    message=error.message,
+                    status=422,
+                    details=error.details,
+                ) from error
+            raise
+        await cas_update(
+            session,
+            BudgetLedger,
+            identity={"id": ledger.id},
+            expected_revision=ledger.revision,
+            values={"limits_json": dict(updated.limits), "revision": updated.revision},
+            stale_code="BUDGET_CONFLICT",
+            stale_status=409,
+        )
+        entry = await self._write_entry(
+            session,
+            ledger_id=ledger.id,
+            operation_id=operation_id,
+            kind=rules.EntryKind.GRANT.value,
+            amount=increment,
+        )
+        ledger.limits_json = dict(updated.limits)
+        ledger.revision = updated.revision
+        snapshot = await self.snapshot(session, ledger)
+        snapshot["note"] = note
+        return entry, snapshot
+
     async def grant_draft_budget(
         self,
         session: AsyncSession,

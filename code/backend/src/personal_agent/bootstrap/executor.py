@@ -16,10 +16,12 @@ class RunExecutor:
         self._engine = engine
         self._tasks: dict[str, asyncio.Task[str]] = {}
 
-    def submit(self, run_id: str) -> None:
+    def submit(self, run_id: str, resume: bool = False) -> None:
         if run_id in self._tasks and not self._tasks[run_id].done():
             return
-        task = asyncio.create_task(self._engine.run(run_id), name=f"run:{run_id}")
+        task = asyncio.create_task(
+            self._engine.run(run_id, resume=resume), name=f"run:{run_id}"
+        )
         self._tasks[run_id] = task
 
     async def wait(self, run_id: str, max_wait: float = 30.0) -> str:

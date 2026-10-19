@@ -297,3 +297,23 @@ async def test_slot_is_released_after_a_terminal_run(api_context: Any) -> None:
     assert status == "SUCCEEDED"
     state = await state_of(api_context, run_id)
     assert state.slot_run_id is None
+
+
+async def test_every_executed_step_is_recorded_as_succeeded_with_its_transition(
+    api_context: Any,
+) -> None:
+    """Resume and history depend on a truthful record of what already ran.
+
+    A finished step must not stay ``RUNNING``, and the transition it selected has to
+    be persisted so a resumed run can continue from it without redoing the step.
+    """
+    run_id, status = await execute(api_context, "公开主题资料研究", {"topic": "步骤记录"})
+    assert status == "SUCCEEDED"
+    state = await state_of(api_context, run_id)
+    executed = [step for step in state.steps if step.status != "SKIPPED"]
+    assert executed, "a completed run must have executed steps"
+    assert all(step.status == "SUCCEEDED" for step in executed), [
+        (step.step_id, step.status) for step in executed
+    ]
+    non_terminal = [step for step in executed if step.step_id != "write_report"]
+    assert non_terminal and all(step.selected_transition for step in non_terminal)

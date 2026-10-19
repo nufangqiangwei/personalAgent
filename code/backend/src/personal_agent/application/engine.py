@@ -94,6 +94,7 @@ class EngineDeps:
     capability_token: str
     scopes: ToolScopeRegistry | None = None
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+    control: Any | None = None
 
 
 @dataclass(slots=True)
@@ -110,7 +111,7 @@ class WorkflowEngine:
         self._evidence_summary: dict[str, Any] = {}
         self._sources: list[dict[str, Any]] = []
 
-    async def run(self, run_id: str) -> str:
+    async def run(self, run_id: str, *, resume: bool = False) -> str:
         # The engine instance is reused; per-run evidence state must never leak.
         self._evidence_summary = {}
         self._sources = []
@@ -124,6 +125,8 @@ class WorkflowEngine:
         outputs: dict[str, dict[str, Any]] = {}
         steps = {step.id: step for step in definition.steps}
         current: str | None = definition.entry_step
+        if resume:
+            outputs, current = await self._resume_point(run, definition)
         guard = 0
         try:
             while current is not None:
@@ -135,10 +138,20 @@ class WorkflowEngine:
                         category=ErrorCategory.INTEGRITY,
                         status=500,
                     )
+                stopped = await self._stop_check(run_id)
+                if stopped is not None:
+                    return stopped
                 step = steps[current]
                 outcome = await self._execute_with_retries(
                     run, definition, step, inputs, outputs
                 )
+                if not outcome.waiting and not outcome.terminal:
+                    # Record the finished step before a stop can take effect: the
+                    # work really happened and a resumed run must not redo it.
+                    await self._complete_step(run, step, outcome.on)
+                stopped = await self._stop_check(run_id)
+                if stopped is not None:
+                    return stopped
                 if outcome.waiting:
                     return await self._status(run_id)
                 if outcome.terminal:
@@ -156,6 +169,9 @@ class WorkflowEngine:
                 if step.type == "Condition":
                     await self._skip_unselected_branch(run, definition, step, edge.to)
                 current = edge.to
+            if resume:
+                # A resumed traversal may find every declared step already done.
+                return await self._status(run_id)
             raise AppError(
                 code="ENGINE_NO_OUTPUT",
                 message="the traversal ended without an Output step",
@@ -177,10 +193,11 @@ class WorkflowEngine:
         inputs: dict[str, Any],
         outputs: dict[str, dict[str, Any]],
     ) -> StepOutcome:
+        offset = await self._attempt_offset(run, step)
         if step.type == "Output":
-            attempt = await self._start_attempt(run, step, attempt_no=1)
+            attempt = await self._start_attempt(run, step, attempt_no=offset + 1)
             outcome = StepOutcome(terminal=True)
-            await self._finish_attempt(attempt, outcome, Usage())
+            await self._finish_attempt(run, attempt, outcome, Usage())
             return outcome
 
         policy = definition.execution_policy
@@ -188,12 +205,12 @@ class WorkflowEngine:
         last_error: AppError | None = None
         while attempts < policy.max_attempts_per_step:
             attempts += 1
-            attempt = await self._start_attempt(run, step, attempt_no=attempts)
+            attempt = await self._start_attempt(run, step, attempt_no=offset + attempts)
             try:
                 outcome = await self._dispatch(run, definition, step, inputs, outputs)
             except AppError as error:
                 last_error = error
-                await self._finish_attempt(attempt, StepOutcome(), Usage(), error=error)
+                await self._finish_attempt(run, attempt, StepOutcome(), Usage(), error=error)
                 retryable = error.category in RETRYABLE_CATEGORIES
                 if error.category in NON_RETRYABLE_CATEGORIES or not retryable:
                     break
@@ -203,7 +220,7 @@ class WorkflowEngine:
                     await self._deps.sleep(float(backoff[index]))
                 continue
             usage = outcome.output.pop("__usage__", Usage())
-            await self._finish_attempt(attempt, outcome, usage)
+            await self._finish_attempt(run, attempt, outcome, usage)
             return outcome
 
         exhausted = self._exhausted_transition(definition, step)
@@ -515,6 +532,18 @@ class WorkflowEngine:
                 )
             return run, WorkflowDefinition.model_validate(version.definition_json)
 
+    async def _attempt_offset(self, run: WorkflowRun, step: Step) -> int:
+        """Continue the attempt numbering so a resumed step never reuses a number."""
+        from sqlalchemy import func
+
+        async with self._deps.database.session() as session:
+            value = await session.scalar(
+                select(func.max(StepAttempt.attempt_no))
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(StepRun.run_id == run.id, StepRun.step_id == step.id)
+            )
+        return int(value or 0)
+
     async def _start_attempt(
         self, run: WorkflowRun, step: Step, *, attempt_no: int
     ) -> StepAttempt:
@@ -584,6 +613,7 @@ class WorkflowEngine:
 
     async def _finish_attempt(
         self,
+        run: WorkflowRun,
         attempt: StepAttempt,
         outcome: StepOutcome,
         usage: Usage,
@@ -601,7 +631,42 @@ class WorkflowEngine:
                 key: value for key, value in outcome.output.items() if not key.startswith("__")
             }
             row.output_hash = stable_hash(row.output_json)
+            run_row = await session.get(WorkflowRun, run.id)
+            if (
+                run_row is not None
+                and error is None
+                and (run_row.cancel_requested or run_row.status == RunStatus.CANCELLING.value)
+            ):
+                # A result that arrives after a cancel is evidence, not a success.
+                row.status = "CANCELLED"
+                await self._mark_step_cancelled(session, row.step_run_id)
+                session.add(
+                    ExecutionEvent(
+                        id=new_id(),
+                        run_id=run.id,
+                        draft_id=None,
+                        sequence=await self._next_sequence(session, run.id),
+                        step_run_id=row.step_run_id,
+                        attempt_id=row.id,
+                        workflow_version_id=run.workflow_version_id,
+                        occurred_at=self._deps.clock.now(),
+                        kind=EventKind.LATE_RESULT_QUARANTINED.value,
+                        status="CANCELLED",
+                        reason_code="CANCEL_REQUESTED",
+                        payload_json={"attempt_id": row.id, "output_hash": row.output_hash},
+                        payload_ref=None,
+                        schema_version=1,
+                        provider_event_key=None,
+                    )
+                )
             await session.commit()
+
+    async def _mark_step_cancelled(self, session: Any, step_run_id: str) -> None:
+        step_run = await session.get(StepRun, step_run_id)
+        if step_run is not None:
+            step_run.status = StepStatus.CANCELLED.value
+            step_run.revision += 1
+            step_run.updated_at = self._deps.clock.now()
 
     async def _set_step_status(
         self, run: WorkflowRun, step: Step, status: StepStatus, *, reason: str | None = None
@@ -617,6 +682,89 @@ class WorkflowEngine:
             step_run.revision += 1
             step_run.updated_at = self._deps.clock.now()
             await session.commit()
+
+    async def _complete_step(self, run: WorkflowRun, step: Step, on: str) -> None:
+        """Record a finished step and the transition it selected.
+
+        The transition is persisted so history is reviewable and a resumed run can
+        continue from exactly the same edge instead of guessing.
+        """
+        async with self._deps.database.session() as session:
+            step_run = await session.scalar(
+                select(StepRun).where(StepRun.run_id == run.id, StepRun.step_id == step.id)
+            )
+            if step_run is None:
+                return
+            # The exhausted path deliberately keeps the step FAILED while following
+            # the declared edge; only a genuinely finished step becomes SUCCEEDED.
+            if step_run.status in {StepStatus.PENDING.value, StepStatus.RUNNING.value}:
+                step_run.status = StepStatus.SUCCEEDED.value
+            step_run.selected_transition = on
+            step_run.revision += 1
+            step_run.updated_at = self._deps.clock.now()
+            await session.commit()
+
+    async def _stop_check(self, run_id: str) -> str | None:
+        """Converge a stop request before starting or continuing another step."""
+        control = self._deps.control
+        if control is None:
+            return None
+        action = await control.observe(run_id)
+        if action is None:
+            return None
+        return str(await control.converge_from_engine(run_id))
+
+    async def _resume_point(
+        self, run: WorkflowRun, definition: WorkflowDefinition
+    ) -> tuple[dict[str, dict[str, Any]], str | None]:
+        """Rebuild the outputs of already-succeeded steps and find the next one.
+
+        Succeeded steps are never re-executed; the traversal follows the recorded
+        transitions from the entry step. Steps whose transition was never recorded
+        fall back to the only available edge, otherwise the step is simply next.
+        """
+        async with self._deps.database.session() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(StepRun).where(StepRun.run_id == run.id)
+                    )
+                ).all()
+            )
+            attempts = list(
+                (
+                    await session.scalars(
+                        select(StepAttempt)
+                        .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                        .where(StepRun.run_id == run.id)
+                        .order_by(StepAttempt.attempt_no)
+                    )
+                ).all()
+            )
+        by_step = {row.step_id: row for row in rows}
+        outputs: dict[str, dict[str, Any]] = {}
+        for attempt in attempts:
+            row = next((item for item in rows if item.id == attempt.step_run_id), None)
+            if row is None or row.status != StepStatus.SUCCEEDED.value:
+                continue
+            if attempt.status == "SUCCEEDED":
+                outputs[row.step_id] = dict(attempt.output_json or {})
+        current: str | None = definition.entry_step
+        steps = {step.id: step for step in definition.steps}
+        guard = 0
+        while current is not None:
+            guard += 1
+            if guard > len(definition.steps) * 4 + 8:
+                return outputs, current
+            row = by_step.get(current)
+            if row is None or row.status != StepStatus.SUCCEEDED.value:
+                return outputs, current
+            on = row.selected_transition or "success"
+            edge = self._pick_transition(definition, steps[current], on)
+            if edge is None:
+                return outputs, None
+            current = edge.to
+        return outputs, None
 
     async def _skip_unselected_branch(
         self,

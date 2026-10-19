@@ -32,11 +32,14 @@ from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.api.context import AppContext
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.artifact_service import ArtifactService
+from personal_agent.application.assistance_service import AssistanceService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import EngineDeps, WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
+from personal_agent.application.recovery import RecoveryService
 from personal_agent.application.research_evidence import EvidenceService
+from personal_agent.application.stop_control import StopControl
 from personal_agent.bootstrap import config as config_module
 from personal_agent.bootstrap.clock import SystemClock
 from personal_agent.bootstrap.executor import RunExecutor
@@ -195,6 +198,7 @@ async def build_context(
     capability_token = (
         "mock-capability-token" if not config.is_live else "unverified-live-token"
     )
+    control = StopControl(database, clock)
     engine = WorkflowEngine(
         EngineDeps(
             database=database,
@@ -208,8 +212,11 @@ async def build_context(
             model_id=model_id,
             capability_token=capability_token,
             scopes=tool_scopes,
+            control=control,
         )
     )
+    runtime_fingerprint = stable_hash(capabilities.as_dict())
+    config_fingerprint = stable_hash(config.policy.as_document())
     coordinator = ExecutionCoordinator(
         database,
         clock,
@@ -218,10 +225,21 @@ async def build_context(
         policy_hash=config.policy.policy_hash,
         policy_version=config.policy.version,
         budget_limits=config.policy.budget.as_dict(),
-        runtime_fingerprint=stable_hash(capabilities.as_dict()),
-        config_fingerprint=stable_hash(config.policy.as_document()),
+        runtime_fingerprint=runtime_fingerprint,
+        config_fingerprint=config_fingerprint,
     )
     executor = RunExecutor(engine)
+    recovery = RecoveryService(
+        database,
+        clock,
+        gateway,
+        store,
+        runtime_fingerprint=runtime_fingerprint,
+        config_fingerprint=config_fingerprint,
+        policy_hash=config.policy.policy_hash,
+        submit=executor.submit,
+    )
+    assistance = AssistanceService(database, clock, budget, control, recovery, writer)
     unknown = await gateway.non_terminal_request()
     return AppContext(
         config=config,
@@ -237,6 +255,9 @@ async def build_context(
         engine=engine,
         coordinator=coordinator,
         executor=executor,
+        control=control,
+        recovery=recovery,
+        assistance=assistance,
         sessions=sessions or SessionManager(),
         origin_policy=origin_policy
         or OriginPolicy(config.host, config.port, config.dev_origin),

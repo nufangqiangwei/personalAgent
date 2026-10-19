@@ -17,6 +17,7 @@ from personal_agent.adapters.persistence.assistance_models import (
     UserDecision,
 )
 from personal_agent.adapters.persistence.base import Base
+from personal_agent.adapters.persistence.branch_models import BranchProposal, ReusedResult
 from personal_agent.adapters.persistence.budget_models import (
     BudgetEntry,
     BudgetLedger,
@@ -51,6 +52,7 @@ __all__ = [
     "AssistanceRequest",
     "Base",
     "Blob",
+    "BranchProposal",
     "BudgetEntry",
     "BudgetLedger",
     "Confirmation",
@@ -62,6 +64,7 @@ __all__ = [
     "RequestRecord",
     "RequirementDraft",
     "ResearchAction",
+    "ReusedResult",
     "SessionLink",
     "SideEffectOperation",
     "Source",

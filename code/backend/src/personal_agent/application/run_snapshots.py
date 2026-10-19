@@ -74,20 +74,40 @@ async def serialize_run(session: AsyncSession, run: WorkflowRun) -> dict[str, An
 
 
 async def _allowed_actions(session: AsyncSession, run: WorkflowRun) -> list[dict[str, Any]]:
+    """Server-authoritative controls; the UI enables buttons only from this list."""
     from personal_agent.domain.execution import RunStatus
 
     actions: list[dict[str, Any]] = []
-    if run.status in {RunStatus.RUNNING.value, RunStatus.PAUSING.value}:
+
+    def add(action: str, enabled: bool, reason: str | None = None) -> None:
         actions.append(
-            {"action": "PAUSE", "enabled": False, "disabled_reason": "执行控制将在 US9 提供"}
+            {"action": action, "enabled": enabled, "disabled_reason": None if enabled else reason}
         )
-        actions.append(
-            {"action": "CANCEL", "enabled": False, "disabled_reason": "执行控制将在 US9 提供"}
-        )
-    elif run.status == RunStatus.WAITING_USER.value:
-        actions.append(
-            {"action": "VIEW_ASSISTANCE", "enabled": True, "disabled_reason": None}
-        )
+
+    status = run.status
+    if status == RunStatus.RUNNING.value:
+        add("PAUSE", True)
+        add("CANCEL", True)
+    elif status == RunStatus.PAUSING.value:
+        add("PAUSE", False, "执行正在收敛，等待当前动作结束")
+        add("CANCEL", True)
+    elif status == RunStatus.CANCELLING.value:
+        add("PAUSE", False, "执行正在取消")
+        add("CANCEL", False, "取消已在进行")
+    elif status == RunStatus.PAUSED.value:
+        add("RESUME", True)
+        add("CANCEL", True)
+    elif status == RunStatus.INTERRUPTED.value:
+        add("RESUME", True)
+        add("CANCEL", True)
+    elif status == RunStatus.WAITING_USER.value:
+        add("VIEW_ASSISTANCE", True)
+        add("CANCEL", True)
+        add("RESUME", False, "先处理求助，回复不会自动继续执行")
+    elif status == RunStatus.CANCELLED.value:
+        add("CANCEL", False, "执行已取消")
+    elif status in {RunStatus.SUCCEEDED.value, RunStatus.FAILED.value}:
+        add("VIEW_ARTIFACTS", True)
     return actions
 
 
