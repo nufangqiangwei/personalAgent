@@ -82,5 +82,5 @@ strict_equality = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["personal_agent.adapters.harness.sdk_bridge"]
+module = ["personal_agent.adapters.harness.sdk_bridge", "jsonschema", "jsonschema.*"]
 ignore_missing_imports = true

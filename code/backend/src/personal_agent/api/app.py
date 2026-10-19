@@ -16,6 +16,7 @@ from personal_agent.api.middleware import (
     RequestIdMiddleware,
 )
 from personal_agent.api.requirements import router as requirements_router
+from personal_agent.api.runs import router as runs_router
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.api.workflows import router as workflows_router
 from personal_agent.bootstrap.config import AppConfig
@@ -44,6 +45,7 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
             yield
         finally:
             if owned and app.state.context is not None:
+                await app.state.context.executor.shutdown()
                 await app.state.context.database.dispose()
 
     app = FastAPI(
@@ -70,6 +72,7 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
     app.include_router(health_router)
     app.include_router(workflows_router)
     app.include_router(requirements_router)
+    app.include_router(runs_router)
 
     dist = config.frontend_dist
     if dist is not None and (dist / "index.html").exists():

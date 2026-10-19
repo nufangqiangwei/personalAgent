@@ -8,9 +8,13 @@ from personal_agent.adapters.harness.model_gateway import ModelGateway
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.budget_service import BudgetService
+from personal_agent.application.coordinator import ExecutionCoordinator
+from personal_agent.application.engine import WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
+from personal_agent.application.research_evidence import EvidenceService
 from personal_agent.bootstrap.config import AppConfig
-from personal_agent.ports.contracts import Clock, RuntimePort
+from personal_agent.bootstrap.executor import RunExecutor
+from personal_agent.ports.contracts import Clock, RuntimePort, ToolPort
 
 
 @dataclass
@@ -19,9 +23,14 @@ class AppContext:
     database: Database
     clock: Clock
     runtime: RuntimePort
+    tools: ToolPort
     gateway: ModelGateway
     budget: BudgetService
     writer: ManagedWriter
+    evidence: EvidenceService
+    engine: WorkflowEngine
+    coordinator: ExecutionCoordinator
+    executor: RunExecutor
     sessions: SessionManager
     origin_policy: OriginPolicy
     execution_available: bool

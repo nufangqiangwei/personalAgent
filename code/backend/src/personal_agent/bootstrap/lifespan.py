@@ -24,13 +24,21 @@ from personal_agent.adapters.persistence.execution_models import (
     ExecutionSlot,
     WorkflowRun,
 )
+from personal_agent.adapters.tools.mock_service import (
+    MockToolService,
+    UnavailableToolService,
+)
 from personal_agent.api.context import AppContext
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.budget_service import BudgetService
+from personal_agent.application.coordinator import ExecutionCoordinator
+from personal_agent.application.engine import EngineDeps, WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
+from personal_agent.application.research_evidence import EvidenceService
 from personal_agent.bootstrap import config as config_module
 from personal_agent.bootstrap.clock import SystemClock
-from personal_agent.domain.common import new_id
+from personal_agent.bootstrap.executor import RunExecutor
+from personal_agent.domain.common import new_id, stable_hash
 from personal_agent.domain.execution import EventKind, RunStatus
 from personal_agent.ports.contracts import Clock, RuntimePort
 
@@ -165,16 +173,63 @@ async def build_context(
         runtime_id=config.mode,
     )
     writer = ManagedWriter(database, BlobStore(config.artifacts_dir), clock)
+    budget = BudgetService(clock)
+    observations = _observations()
+    tools = (
+        UnavailableToolService()
+        if config.is_live
+        else MockToolService(observations, clock)
+    )
+    evidence = EvidenceService(clock)
     capabilities = await runtime.capabilities()
+    model_id = (
+        "mock-deepseek-phase1"
+        if not config.is_live
+        else os.environ.get("PERSONAL_AGENT_MODEL", "deepseek-v4-flash")
+    )
+    capability_token = (
+        "mock-capability-token" if not config.is_live else "unverified-live-token"
+    )
+    engine = WorkflowEngine(
+        EngineDeps(
+            database=database,
+            clock=clock,
+            runtime=runtime,
+            tools=tools,
+            writer=writer,
+            budget=budget,
+            evidence=evidence,
+            policy=config.policy,
+            model_id=model_id,
+            capability_token=capability_token,
+        )
+    )
+    coordinator = ExecutionCoordinator(
+        database,
+        clock,
+        gateway,
+        budget,
+        policy_hash=config.policy.policy_hash,
+        policy_version=config.policy.version,
+        budget_limits=config.policy.budget.as_dict(),
+        runtime_fingerprint=stable_hash(capabilities.as_dict()),
+        config_fingerprint=stable_hash(config.policy.as_document()),
+    )
+    executor = RunExecutor(engine)
     unknown = await gateway.non_terminal_request()
     return AppContext(
         config=config,
         database=database,
         clock=clock,
         runtime=runtime,
+        tools=tools,
         gateway=gateway,
-        budget=BudgetService(clock),
+        budget=budget,
         writer=writer,
+        evidence=evidence,
+        engine=engine,
+        coordinator=coordinator,
+        executor=executor,
         sessions=sessions or SessionManager(),
         origin_policy=origin_policy
         or OriginPolicy(config.host, config.port, config.dev_origin),
