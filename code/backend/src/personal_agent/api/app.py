@@ -15,6 +15,7 @@ from personal_agent.api.middleware import (
     LocalSessionMiddleware,
     RequestIdMiddleware,
 )
+from personal_agent.api.requirements import router as requirements_router
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.api.workflows import router as workflows_router
 from personal_agent.bootstrap.config import AppConfig
@@ -68,6 +69,7 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workflows_router)
+    app.include_router(requirements_router)
 
     dist = config.frontend_dist
     if dist is not None and (dist / "index.html").exists():
