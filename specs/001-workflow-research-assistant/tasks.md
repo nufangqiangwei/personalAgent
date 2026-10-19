@@ -1,4 +1,4 @@
-﻿---
+---
 description: "一期工作流研究助理的依赖有序实施任务"
 ---
 
@@ -140,12 +140,12 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 ### Tests → Models → Services → Interfaces → Integration
 
-- [ ] T063 [P] [US4] 在 code/backend/tests/contract/test_artifact_delivery.py 编写产物元数据/内容/410、hash/安全文件名、重复获取不重新研究和部分文档不伪报完整成功的契约用例。
+- [x] T063 [P] [US4] 在 code/backend/tests/contract/test_artifact_delivery.py 编写产物元数据/内容/410、hash/安全文件名、重复获取不重新研究和部分文档不伪报完整成功的契约用例。
 - [x] T064 [P] [US4] 在 code/backend/tests/unit/test_document_rendering.py 编写三种内容结构、两组偏好、必需栏目、无合格结果、冲突/过期/未证实来源与危险链接用例。
 - [x] T065 [US4] 在 code/backend/src/personal_agent/domain/document_content.py 定义目标、约束、方向结果、理由、来源、缺口及完整程度的文档契约；重要外部事实须来源或未证实标记，只有全部硬约束SATISFIED的候选可作合格推荐，排序仅用已确认priority。
 - [x] T066 [US4] 在 code/backend/src/personal_agent/adapters/rendering/markdown.py 实现report/checklist/comparison渲染及约定语言/详略；如需模型组织内容只走统一运行时并再次校验，禁原始HTML/危险链接，不支持格式需执行前协商。
 - [x] T067 [US4] 在 code/backend/src/personal_agent/application/artifact_service.py 接入Output与受管写入，hash验证后提交Artifact及完成程度；按completion_policy决定run状态，允许的部分交付可为SUCCEEDED但completeness必须为PARTIAL，不满足策略则保留部分文档且run为FAILED/WAITING_USER，下载重试仅追加访问事实。
-- [ ] T068 [US4] 在 code/backend/src/personal_agent/api/artifacts.py 实现 /runs/{id}/artifacts、/artifacts/{id}、/content，读取时检查生命周期与完整性，受控路径和脱敏错误，删除/过期410。
+- [x] T068 [US4] 在 code/backend/src/personal_agent/api/artifacts.py 实现 /runs/{id}/artifacts、/artifacts/{id}、/content，读取时检查生命周期与完整性，受控路径和脱敏错误，删除/过期410。
 - [ ] T069 [US4] 在 code/frontend/src/pages/ArtifactPage.vue 和 code/frontend/src/components/SourceList.vue 实现阅读/保存/再次获取、版本/来源/理由/缺口及完整程度展示，不把获取失败显示已交付。
 - [ ] T070 [US4] 在 code/frontend/tests/e2e/artifacts.spec.ts 验证三结构、两偏好、无合格与部分成果、获取失败重试；用 code/backend/tests/integration/test_document_checkpoint.py 验证真实Output与状态一致，并运行本阶段测试。
 

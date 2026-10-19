@@ -9,6 +9,7 @@ it always stays labelled PARTIAL.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from sqlalchemy import select
@@ -32,6 +33,11 @@ from personal_agent.domain.document_content import (
 )
 from personal_agent.domain.execution import Completeness, EventKind, RunStatus
 from personal_agent.ports.contracts import Clock
+
+
+def _unavailable(message: str, status: int = 410) -> AppError:
+    """Lifecycle and integrity failures share one redacted error code."""
+    return AppError(code="ARTIFACT_UNAVAILABLE", message=message, status=status)
 
 
 class ArtifactService:
@@ -173,6 +179,8 @@ class ArtifactService:
     async def get(self, artifact_id: str) -> dict[str, Any]:
         async with self._database.session() as session:
             artifact = await self._require(session, artifact_id)
+            if artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}:
+                raise _unavailable("the document is deleted or expired")
             metadata = await self._metadata(session, artifact)
             metadata["document"] = dict(artifact.document_json)
             return metadata
@@ -181,38 +189,23 @@ class ArtifactService:
         async with self._database.session() as session:
             artifact = await self._require(session, artifact_id)
             if artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}:
-                raise AppError(
-                    code="ARTIFACT_UNAVAILABLE",
-                    message="the document is deleted or expired",
-                    status=410,
-                )
+                raise _unavailable("the document is deleted or expired")
             blob = await session.get(Blob, artifact.blob_id)
             if blob is None or blob.deleted_at is not None:
-                raise AppError(
-                    code="ARTIFACT_UNAVAILABLE",
-                    message="the document content is unavailable",
-                    status=410,
-                )
+                raise _unavailable("the document content is unavailable")
             try:
                 data = await self._store.get(blob.managed_relative_path)
             except FileNotFoundError as error:
                 artifact.access_state = ArtifactState.INTEGRITY_ERROR.value
                 await session.commit()
-                raise AppError(
-                    code="ARTIFACT_UNAVAILABLE",
-                    message="the stored document failed its integrity check",
-                    status=503,
+                raise _unavailable(
+                    "the stored document failed its integrity check", 503
                 ) from error
-            import hashlib
 
             if hashlib.sha256(data).hexdigest() != blob.sha256:
                 artifact.access_state = ArtifactState.INTEGRITY_ERROR.value
                 await session.commit()
-                raise AppError(
-                    code="ARTIFACT_UNAVAILABLE",
-                    message="the stored document does not match its recorded hash",
-                    status=503,
-                )
+                raise _unavailable("the stored document does not match its recorded hash", 503)
             metadata = await self._metadata(session, artifact)
             metadata["sha256"] = blob.sha256
             metadata["filename"] = (
