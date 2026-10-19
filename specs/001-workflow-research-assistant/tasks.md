@@ -109,7 +109,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [x] T047 [US1] 在 code/backend/src/personal_agent/api/requirements.py 和 code/backend/src/personal_agent/api/operations.py 实现全部需求与操作查询契约及T001定义的草稿追加接口，BRANCH确认仅限关联proposal，缺失/冲突/版本变化返回具体错误。
 - [x] T048 [US1] 在 code/frontend/src/pages/RequirementsPage.vue 和 code/frontend/src/components/RequirementSummary.vue 实现聊天、来源/建议、缺失冲突、完整摘要、版本与政策展示、建议接受及最终确认；输入修改仅走聊天，明确无特别偏好和取舍顺序。
 - [x] T049 [US1] 在 code/frontend/src/components/DraftBudgetPanel.vue 实现草稿消耗、待分析/模型忙/UNKNOWN原因与额度追加反馈，确认旧摘要或改选后隐藏失效启动动作；与RequirementsPage集成；并在 code/frontend/tests/unit/draft-budget.spec.ts 覆盖草稿消耗、待分析/模型忙/UNKNOWN 原因展示及追加额度后的刷新与失效启动隐藏。
-- [ ] T050 [US1] 在 code/frontend/tests/e2e/requirements.spec.ts 验证SC-001输入三例、SC-006四类喜好和SC-013六类确认；用受控启动接收端确认授权边界，US3完成后复验真实 /runs，运行本阶段后端用例。
+- [x] T050 [US1] 在 code/frontend/tests/e2e/requirements.spec.ts 验证SC-001输入三例、SC-006四类喜好和SC-013六类确认；用受控启动接收端确认授权边界，US3完成后复验真实 /runs，运行本阶段后端用例。
 
 ## Phase 6: US3 — 严格按流程研究信息（P1）
 
