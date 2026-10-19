@@ -15,6 +15,10 @@ from sqlalchemy import select
 from personal_agent.adapters.persistence.artifact_models import Artifact, SideEffectOperation
 from personal_agent.adapters.persistence.blob_store import BlobStore, ManagedRootError
 from personal_agent.adapters.persistence.execution_models import WorkflowRun
+from personal_agent.adapters.persistence.requirement_models import (
+    Confirmation,
+    RequirementDraft,
+)
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 from personal_agent.application.managed_writes import ArtifactDraft, ManagedWriter
 from personal_agent.domain.artifacts import SideEffectStatus
@@ -62,6 +66,42 @@ async def make_run(
                 )
             )
             await session.flush()
+        draft_id = f"draft-{run_id}"
+        session.add(
+            RequirementDraft(
+                id=draft_id,
+                selected_version_id="version-1",
+                revision=1,
+                status="COLLECTING",
+                missing_fields_json=[],
+                conflicts_json=[],
+                field_values_json={},
+                preference_order_json=[],
+                output_spec_json={},
+                summary_markdown="",
+                summary_hash="",
+                source_draft_id=None,
+                created_at=clock.now(),
+                updated_at=clock.now(),
+            )
+        )
+        await session.flush()
+        session.add(
+            Confirmation(
+                id=f"confirmation-{run_id}",
+                draft_id=draft_id,
+                draft_revision=1,
+                workflow_version_id="version-1",
+                summary_hash="",
+                input_hash="",
+                budget_policy_hash="",
+                data_policy_version="1",
+                confirmed_at=clock.now(),
+                action="START",
+                field_snapshot_json={},
+            )
+        )
+        await session.flush()
         session.add(
             WorkflowRun(
                 id=run_id,
