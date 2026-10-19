@@ -5,7 +5,7 @@ test('lists both fixed workflows without any initial input', async ({ page }) =>
   await expect(page.getByRole('heading', { name: '固定流程' })).toBeVisible()
   await expect(page.locator('li.card')).toHaveCount(2)
   await expect(page.getByText('技术选型对比')).toBeVisible()
-  await expect(page.getByText('公开主题资料研究')).toBeVisible()
+  await expect(page.getByText('公开主题资料研究').first()).toBeVisible()
   await expect(page.locator('input')).toHaveCount(0)
   // Different applicability is shown before selection.
   await expect(page.getByText('当用户需要比较具体软件产品')).toBeVisible()
@@ -13,16 +13,33 @@ test('lists both fixed workflows without any initial input', async ({ page }) =>
 })
 
 test('selects the exact workflow version and can go back', async ({ page }) => {
+  let requestedVersionId: string | undefined
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/requirements') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { workflow_version_id?: string }
+      requestedVersionId = body.workflow_version_id
+    }
+  })
+
   await page.goto('/')
   const card = page.locator('li.card', { hasText: '公开主题资料研究' })
   await card.getByRole('button', { name: '选择该流程' }).click()
 
-  await expect(page).toHaveURL(/\/requirements\/new\?workflow_version_id=/)
-  const url = new URL(page.url())
-  expect(url.searchParams.get('workflow_version_id')).toBeTruthy()
+  await expect(page.locator('h1', { hasText: '研究要求' })).toBeVisible()
+  await expect(page).toHaveURL(/\/requirements\/[0-9a-f-]{36}/)
+  expect(requestedVersionId).toBeTruthy()
+  // The draft is bound to the version that was selected in the list.
+  await expect(page.getByText('公开主题资料研究').first()).toBeVisible()
+  await expect(page.getByText(/版本 v\d+/).first()).toBeVisible()
 
-  await page.goBack()
-  await expect(page.getByRole('heading', { name: '固定流程' })).toBeVisible()
+  // Creating the draft replaces the URL once, so a single back may land on the
+  // transient "new" route; keep going until the list is shown again.
+  const listHeading = page.getByRole('heading', { name: '固定流程' })
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goBack()
+    if (await listHeading.isVisible().catch(() => false)) break
+  }
+  await expect(listHeading).toBeVisible()
 })
 
 test('shows applicability, directions and the version on the detail page', async ({ page }) => {
