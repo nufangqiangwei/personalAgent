@@ -8,7 +8,7 @@ test('lists both fixed workflows without any initial input', async ({ page }) =>
   await expect(page.getByText('公开主题资料研究')).toBeVisible()
   await expect(page.locator('input')).toHaveCount(0)
   // Different applicability is shown before selection.
-  await expect(page.getByText('需要比较两个以上具体产品时使用')).toBeVisible()
+  await expect(page.getByText('当用户需要比较具体软件产品')).toBeVisible()
   await expect(page.getByText('当用户需要了解一个公开主题的背景')).toBeVisible()
 })
 
@@ -34,7 +34,7 @@ test('shows applicability, directions and the version on the detail page', async
 
   await expect(page.getByRole('heading', { name: '技术选型对比' })).toBeVisible()
   await expect(page.getByText('适用边界')).toBeVisible()
-  await expect(page.getByText('官方能力')).toBeVisible()
+  await expect(page.getByText('官方能力').first()).toBeVisible()
   await expect(page.getByText(/实际使用版本 v\d+/)).toBeVisible()
 })
 
