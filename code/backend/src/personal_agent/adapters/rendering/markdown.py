@@ -83,7 +83,7 @@ def _labels(language: str) -> dict[str, str]:
 def _finding_line(finding: dict[str, Any], *, brief: bool) -> str:
     claim = _escape(str(finding.get("claim", "")))
     if brief:
-        return f"- {claim}"
+        return f"- {claim}（{finding.get('validity', 'UNVERIFIED')!s}）"
     validity = str(finding.get("validity", "UNVERIFIED"))
     return f"- {claim}（{validity}）"
 
@@ -98,7 +98,7 @@ def _render_report(content: DocumentContent, language: str, brief: bool) -> list
     ]
     if content.objective:
         lines += [f"## {labels['objective']}", _escape(content.objective), ""]
-    if content.constraints and not brief:
+    if content.constraints:
         lines.append(f"## {labels['constraints']}")
         for constraint in content.constraints:
             lines.append(f"- {_escape(constraint)}")
@@ -125,36 +125,35 @@ def _render_report(content: DocumentContent, language: str, brief: bool) -> list
         lines.append(f"### {labels['qualified']}")
         for candidate in content.qualified:
             lines.append(f"- **{_escape(str(candidate.get('name')))}**")
-            if not brief:
-                attributes = candidate.get("attributes")
-                if content.preference_order and isinstance(attributes, dict):
-                    parts: list[str] = []
-                    for path in content.preference_order:
-                        if path not in attributes:
-                            continue
-                        raw = attributes[path]
-                        if isinstance(raw, dict):
-                            value = raw.get("value")
-                            better = str(raw.get("better") or "").lower()
-                        else:
-                            value, better = raw, ""
-                        if value is None:
-                            continue
-                        suffix = (
-                            f"（{labels['lower_better']}）"
-                            if better == "lower"
-                            else f"（{labels['higher_better']}）"
-                            if better == "higher"
-                            else ""
-                        )
-                        parts.append(f"{path}={value}{suffix}")
-                    if parts:
-                        lines.append("  - " + "；".join(_escape(part) for part in parts))
-                for constraint in candidate.get("constraints") or []:
-                    lines.append(
-                        f"  - {_escape(str(constraint.get('constraint')))}："
-                        f"{_escape(str(constraint.get('result')))}"
+            attributes = candidate.get("attributes")
+            if content.preference_order and isinstance(attributes, dict):
+                parts: list[str] = []
+                for path in content.preference_order:
+                    if path not in attributes:
+                        continue
+                    raw = attributes[path]
+                    if isinstance(raw, dict):
+                        value = raw.get("value")
+                        better = str(raw.get("better") or "").lower()
+                    else:
+                        value, better = raw, ""
+                    if value is None:
+                        continue
+                    suffix = (
+                        f"（{labels['lower_better']}）"
+                        if better == "lower"
+                        else f"（{labels['higher_better']}）"
+                        if better == "higher"
+                        else ""
                     )
+                    parts.append(f"{path}={value}{suffix}")
+                if parts:
+                    lines.append("  - " + "；".join(_escape(part) for part in parts))
+            for constraint in candidate.get("constraints") or []:
+                lines.append(
+                    f"  - {_escape(str(constraint.get('constraint')))}："
+                    f"{_escape(str(constraint.get('result')))}"
+                )
     if content.unknown_candidates:
         lines.append(f"### {labels['unknown']}")
         for candidate in content.unknown_candidates:
@@ -177,16 +176,15 @@ def _render_report(content: DocumentContent, language: str, brief: bool) -> list
     else:
         lines.append(f"- {labels['no_sources']}")
     lines.append("")
-    if not brief:
-        lines.append(f"## {labels['gaps']}")
-        if content.gaps:
-            for gap in content.gaps:
-                lines.append(f"- {_escape(gap)}")
-        if content.unverified:
-            lines.append(f"- {labels['unverified_note']}")
-        if not content.gaps and not content.unverified:
-            lines.append(f"- {labels['no_gaps']}")
-        lines.append("")
+    lines.append(f"## {labels['gaps']}")
+    if content.gaps:
+        for gap in content.gaps:
+            lines.append(f"- {_escape(gap)}")
+    if content.unverified:
+        lines.append(f"- {labels['unverified_note']}")
+    if not content.gaps and not content.unverified:
+        lines.append(f"- {labels['no_gaps']}")
+    lines.append("")
     lines.append(f"> {labels['footer']}")
     return lines
 

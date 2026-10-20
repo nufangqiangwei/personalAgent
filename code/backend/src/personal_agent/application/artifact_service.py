@@ -93,6 +93,17 @@ class ArtifactService:
             allow_partial=policy.allow_partial_document,
         )
         structure = self._structure_for(step, run)
+        output_spec = run.input_snapshot_json.get("output_spec") or {}
+        language = (
+            str(output_spec["language"])
+            if output_spec.get("language") in {"zh-CN", "en"}
+            else self._language
+        )
+        detail = (
+            str(output_spec["detail"])
+            if output_spec.get("detail") in {"brief", "standard"}
+            else self._detail
+        )
         content = build_content(
             definition_title=definition.name,
             structure=structure,
@@ -103,7 +114,7 @@ class ArtifactService:
             direction_titles={direction.id: direction.title for direction in definition.directions},
         )
         markdown, document = render_document(
-            content, structure=structure, language=self._language, detail=self._detail
+            content, structure=structure, language=language, detail=detail
         )
         # A document must never carry a usable credential even if a source page
         # contained one; the delivered bytes are the last boundary before disk.

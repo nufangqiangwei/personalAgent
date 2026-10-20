@@ -123,6 +123,23 @@ def test_editable_and_grantable_states() -> None:
         assert_grantable(DraftStatus.CONFIRMED)
 
 
+def test_output_spec_is_validated_before_execution() -> None:
+    from personal_agent.application.requirement_confirmation import RequirementService
+
+    RequirementService._validate_output_spec({
+        "format": "markdown",
+        "structure": "comparison",
+        "language": "en",
+        "detail": "brief",
+    })
+    with pytest.raises(AppError) as invalid:
+        RequirementService._validate_output_spec({"structure": "slides"})
+    assert invalid.value.code == "OUTPUT_SPEC_INVALID"
+    with pytest.raises(AppError) as unknown:
+        RequirementService._validate_output_spec({"paper_size": "A4"})
+    assert unknown.value.code == "OUTPUT_SPEC_INVALID"
+
+
 def test_summary_has_three_sections_and_lists_items() -> None:
     markdown = render_summary(
         workflow_name="技术选型对比",

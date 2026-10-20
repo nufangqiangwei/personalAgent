@@ -438,6 +438,20 @@ class WorkflowEngine:
                 context_refs=context_refs,
             )
         if isinstance(config, OutputConfig):
+            required_outputs = list(
+                definition.completion_policy.required_output_step_ids
+            )
+            if required_outputs and step.id not in required_outputs:
+                raise AppError(
+                    code="OUTPUT_STEP_NOT_REQUIRED",
+                    message=(
+                        "this Output step is not one of the completion policy's "
+                        "required output steps"
+                    ),
+                    category=ErrorCategory.INTEGRITY,
+                    status=409,
+                    details={"required": required_outputs, "step": step.id},
+                )
             return StepOutcome(terminal=True)
         raise AppError(
             code="STEP_CONFIG_INVALID", message="unknown step configuration", status=422

@@ -121,10 +121,13 @@ def test_comparison_structure_renders_a_table_with_results() -> None:
 def test_language_and_detail_preferences_change_the_rendering() -> None:
     english, _ = render_document(content(), language="en", detail="brief")
     assert "Completeness" in english
-    assert "## Hard constraints" not in english  # brief omits the constraints section
+    # Brief must not hide the risks: constraints and gaps stay visible.
+    assert "## Hard constraints" in english
+    assert "## Gaps and unverified claims" in english
     assert "模型内部推理" not in english
     brief, _ = render_document(content(), detail="brief")
-    assert "## 硬约束" not in brief
+    assert "## 硬约束" in brief
+    assert "## 缺口与未证实" in brief
     full, _ = render_document(content(), detail="standard")
     assert "## 硬约束" in full
 

@@ -434,6 +434,7 @@ class RequirementService:
                 "preference_order": list(draft.preference_order_json),
                 "output_spec": dict(draft.output_spec_json),
             })
+            self._validate_output_spec(dict(draft.output_spec_json))
             confirmation = Confirmation(
                 id=new_id(),
                 draft_id=draft.id,
@@ -654,6 +655,28 @@ class RequirementService:
         if draft is None:
             raise AppError(code="DRAFT_NOT_FOUND", message="draft not found", status=404)
         return draft
+
+    @staticmethod
+    def _validate_output_spec(output_spec: dict[str, Any]) -> None:
+        allowed = {
+            "format": {"markdown"},
+            "structure": {"report", "checklist", "comparison"},
+            "language": {"zh-CN", "en"},
+            "detail": {"brief", "standard"},
+        }
+        unknown = sorted(set(output_spec) - set(allowed))
+        invalid = {
+            key: value
+            for key, value in output_spec.items()
+            if key in allowed and value not in allowed[key]
+        }
+        if unknown or invalid:
+            raise AppError(
+                code="OUTPUT_SPEC_INVALID",
+                message="the requested output format is not supported by the fixed workflow",
+                status=422,
+                details={"unknown": unknown, "invalid": invalid},
+            )
 
     @staticmethod
     def _assert_revision(draft: RequirementDraft, expected: int) -> None:
