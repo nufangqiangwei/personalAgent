@@ -84,7 +84,9 @@ def _resolver(host: str) -> list[str]:
 
 def _fetch_tool(routes: dict[str, httpx.Response]) -> HttpFetcher:
     def handler(request: httpx.Request) -> httpx.Response:
-        return routes.get(str(request.url), httpx.Response(404))
+        host = request.headers.get("host", "")
+        key = str(request.url.copy_with(host=host)) if host else str(request.url)
+        return routes.get(key, httpx.Response(404))
 
     return HttpFetcher(
         client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
@@ -412,6 +414,34 @@ async def test_dns_rebinding_is_rejected_on_every_redirect_hop() -> None:
         await tool.fetch("https://example.org/first", allowed_domains=("example.org",))
     assert rebound.value.code == "TARGET_FORBIDDEN"
     assert calls["count"] == 2  # the hop was re-resolved, not trusted from hop one
+
+
+async def test_connection_uses_the_validated_address_without_a_second_lookup() -> None:
+    seen: list[httpx.Request] = []
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200, headers={"content-type": "text/plain"}, content=b"ok"
+        )
+
+    def rebinding_resolver(host: str) -> list[str]:
+        calls["count"] += 1
+        # A connector resolving again would receive a private address.
+        return [PUBLIC_ADDRESS] if calls["count"] == 1 else [PRIVATE_ADDRESS]
+
+    tool = HttpFetcher(
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        resolver=rebinding_resolver,
+    )
+    payload = await tool.fetch("https://example.org/page", allowed_domains=("example.org",))
+    assert payload["text"] == "ok"
+    assert calls["count"] == 1
+    request = seen[0]
+    assert request.url.host == PUBLIC_ADDRESS
+    assert request.headers["host"] == "example.org"
+    assert request.extensions.get("sni_hostname") == "example.org"
 
 
 async def test_search_drops_malicious_and_private_result_urls() -> None:

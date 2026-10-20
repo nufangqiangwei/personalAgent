@@ -125,12 +125,17 @@ def domain_allowed(host: str, allowed_domains: Iterable[str]) -> bool:
     return False
 
 
-def validate_url(
+def resolve_url(
     url: str,
     *,
     allowed_domains: Iterable[str],
     resolver: Callable[[str], Iterable[str]] | None = None,
-) -> str:
+) -> tuple[str, list[str]]:
+    """Validate the URL and return the exact public addresses to connect to.
+
+    The caller must connect to one of the returned addresses instead of resolving
+    again: a second lookup is the DNS-rebinding window this function closes.
+    """
     parts = urlsplit(url)
     if parts.scheme.lower() not in ALLOWED_SCHEMES:
         raise _deny("TARGET_FORBIDDEN", "only http and https targets are allowed")
@@ -169,7 +174,16 @@ def validate_url(
     for address in addresses:
         if not is_public_address(address):
             raise _deny("TARGET_FORBIDDEN", "the host resolves to a non-public address")
-    return url
+    return url, addresses
+
+
+def validate_url(
+    url: str,
+    *,
+    allowed_domains: Iterable[str],
+    resolver: Callable[[str], Iterable[str]] | None = None,
+) -> str:
+    return resolve_url(url, allowed_domains=allowed_domains, resolver=resolver)[0]
 
 
 def _default_resolver(host: str) -> Iterable[str]:

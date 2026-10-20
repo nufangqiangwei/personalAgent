@@ -207,7 +207,9 @@ async def test_search_requires_a_credential() -> None:
 
 def _fetch_tool(routes: dict[str, httpx.Response]) -> HttpFetcher:
     def handler(request: httpx.Request) -> httpx.Response:
-        return routes.get(str(request.url), httpx.Response(404))
+        host = request.headers.get("host", "")
+        key = str(request.url.copy_with(host=host)) if host else str(request.url)
+        return routes.get(key, httpx.Response(404))
 
     return HttpFetcher(
         client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),

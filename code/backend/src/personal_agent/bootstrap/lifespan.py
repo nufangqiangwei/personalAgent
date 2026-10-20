@@ -442,7 +442,9 @@ def _live_tools(
     return ToolService(
         ToolHandlers(
             search=BraveSearchTool(client, lambda: credentials.secret("search")),
-            fetch=HttpFetcher(client),
+            fetch=HttpFetcher(
+                client, clock=clock, should_stop=lambda: stop_signal.stopping,
+            ),
             browser=BrowserReader(
                 PlaywrightBrowserDriver(
                     action_timeout_seconds=config.policy.transport.browser_action_seconds,

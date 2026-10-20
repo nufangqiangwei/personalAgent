@@ -13,8 +13,9 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
-from personal_agent.adapters.tools.scope import validate_url
+from personal_agent.adapters.tools.scope import resolve_url, validate_url
 from personal_agent.domain.common import AppError, ErrorCategory, iso_z, stable_hash
 from personal_agent.ports.contracts import ToolResult, Usage
 
@@ -101,7 +102,17 @@ class PlaywrightBrowserDriver:
                 status=503,
             ) from error
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
+            # Pin the main navigation host to the address validated here. Chromium
+            # keeps the hostname for Host/SNI/TLS, so a second DNS answer cannot
+            # redirect the document connection to a private address.
+            main_host = urlsplit(url).hostname or ""
+            _validated, addresses = resolve_url(
+                url, allowed_domains=allowed_domains, resolver=resolver
+            )
+            resolver_rule = f"--host-resolver-rules=MAP {main_host} {addresses[0]}"
+            browser = await playwright.chromium.launch(
+                headless=True, args=[resolver_rule]
+            )
             context = await browser.new_context()
             try:
                 blocked: list[str] = []
