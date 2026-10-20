@@ -403,6 +403,121 @@ def _confirm_body(
     }
 
 
+async def test_a_crashed_claim_is_never_reexecuted(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.adapters.persistence.request_models import RequestRecord
+    from personal_agent.bootstrap.seed import seed
+    from personal_agent.domain.common import new_id, stable_hash
+
+    _, context = api_context
+    await seed(context.database)
+    version = await pick_version(client, "技术选型对比")
+    body = {"workflow_version_id": version["id"]}
+    route = "/api/v1/requirements"
+    raw = httpx.Request("POST", f"http://test{route}", json=body).content
+    request_hash = stable_hash({
+        "method": "POST", "route": route, "query": "b''",
+        "body": raw.decode("utf-8", errors="replace"),
+    })
+    async with context.database.session() as session:
+        session.add(RequestRecord(
+            id=new_id(), workspace_id="local", route=route,
+            idempotency_key="crash-key", request_hash=request_hash,
+            status_code=None, response_json=None, resource_id=None,
+            created_at=context.clock.now(), revision=1,
+        ))
+        await session.commit()
+    response = await client.post(route, json=body, headers=keys("crash-key"))
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "IDEMPOTENCY_IN_PROGRESS"
+    async with context.database.session() as session:
+        count = await session.scalar(
+            select(RequirementDraft).where(
+                RequirementDraft.selected_version_id == version["id"]
+            )
+        )
+    assert count is None
+
+
+async def test_same_key_concurrency_creates_one_draft(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    import asyncio
+
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    version = await pick_version(client, "技术选型对比")
+    body = {"workflow_version_id": version["id"]}
+    results = await asyncio.gather(*[
+        client.post("/api/v1/requirements", json=body, headers=keys("concurrent-key"))
+        for _ in range(2)
+    ])
+    statuses = sorted(item.status_code for item in results)
+    assert 201 in statuses, [item.text for item in results]
+    assert all(status in {201, 409} for status in statuses)
+    async with context.database.session() as session:
+        drafts = (
+            await session.scalars(
+                select(RequirementDraft).where(
+                    RequirementDraft.selected_version_id == version["id"]
+                )
+            )
+        ).all()
+    assert len(drafts) == 1
+
+
+async def test_same_key_with_a_different_request_conflicts(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    tech = await pick_version(client, "技术选型对比")
+    public = await pick_version(client, "公开主题资料研究")
+    first = await client.post(
+        "/api/v1/requirements",
+        json={"workflow_version_id": tech["id"]},
+        headers=keys("conflict-key"),
+    )
+    assert first.status_code == 201, first.text
+    second = await client.post(
+        "/api/v1/requirements",
+        json={"workflow_version_id": public["id"]},
+        headers=keys("conflict-key"),
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+async def test_replay_preserves_etag_and_resource(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    version = await pick_version(client, "技术选型对比")
+    body = {"workflow_version_id": version["id"]}
+    first = await client.post("/api/v1/requirements", json=body, headers=keys("etag-key"))
+    assert first.status_code == 201, first.text
+    draft_id = first.json()["id"]
+    replay = await client.post("/api/v1/requirements", json=body, headers=keys("etag-key"))
+    assert replay.status_code == 201
+    assert replay.json()["id"] == draft_id
+    etag = replay.headers.get("etag")
+    assert etag
+    assert replay.headers.get("x-idempotent-replay") == "true"
+    conditional = await client.post(
+        "/api/v1/requirements", json=body,
+        headers=keys("etag-key", **{"If-None-Match": etag}),
+    )
+    assert conditional.status_code == 304
+
+
 async def test_double_confirmation_is_consumed_once(
     client: httpx.AsyncClient, api_context: Any,
 ) -> None:
@@ -414,10 +529,15 @@ async def test_double_confirmation_is_consumed_once(
     version, draft_id, latest = await _ready_draft(client, api_context)
     policies = (await client.get("/policies")).json()
     body = _confirm_body(latest, policies, version["id"])
-    headers = keys("double-confirm", **{"If-Match": f'"{latest["revision"]}"'})
     results = await asyncio.gather(*[
-        client.post(f"/api/v1/requirements/{draft_id}/confirm", json=body, headers=headers)
-        for _ in range(2)
+        client.post(
+            f"/api/v1/requirements/{draft_id}/confirm", json=body,
+            headers=keys(
+                f"double-confirm-{index}",
+                **{"If-Match": f'"{latest["revision"]}"'},
+            ),
+        )
+        for index in range(2)
     ])
     statuses = sorted(item.status_code for item in results)
     assert statuses[0] == 201 and statuses[1] in {409, 412}, [

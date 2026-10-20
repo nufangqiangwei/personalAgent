@@ -12,7 +12,7 @@ import json
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -204,9 +204,10 @@ class IdempotencyMiddleware:
             await self.app(scope, replay_receive, send)
             return
 
-        stored = await self._load(context, route, key)
-        if stored is not None:
-            if stored.request_hash != request_hash:
+        record_id, record, claimed = await self._claim(context, route, key, request_hash)
+        if not claimed:
+            assert record is not None
+            if record.request_hash != request_hash:
                 start_message, body_message = _json_response(
                     409,
                     AppError(
@@ -218,14 +219,36 @@ class IdempotencyMiddleware:
                 await send(start_message)
                 await send(body_message)
                 return
-            if stored.status_code and stored.response_json is not None:
-                start_message, body_message = _json_response(
-                    stored.status_code, stored.response_json
+            if record.status_code and record.response_json is not None:
+                if await self._stale(context, record):
+                    start_message, body_message = _json_response(
+                        410,
+                        AppError(
+                            code="IDEMPOTENT_RESPONSE_EXPIRED",
+                            message="the resource behind this replay was deleted or expired",
+                            status=410,
+                        ).payload(str(scope.get("state", {}).get("request_id", "unknown"))),
+                    )
+                    await send(start_message)
+                    await send(body_message)
+                    return
+                await self._replay_response(
+                    scope, send, record.status_code, record.response_json
                 )
-                await send(start_message)
-                await send(body_message)
                 return
-            # An earlier attempt failed before producing a response: run again.
+            # A claim exists but no response was committed. Re-executing could
+            # duplicate a side effect, so the retry is refused deterministically.
+            start_message, body_message = _json_response(
+                409,
+                AppError(
+                    code="IDEMPOTENCY_IN_PROGRESS",
+                    message="an earlier attempt with this key has no committed response",
+                    status=409,
+                ).payload(str(scope.get("state", {}).get("request_id", "unknown"))),
+            )
+            await send(start_message)
+            await send(body_message)
+            return
 
         captured: dict[str, Any] = {"status": None, "headers": [], "chunks": []}
 
@@ -237,7 +260,12 @@ class IdempotencyMiddleware:
                 captured["chunks"].append(message.get("body", b""))
             await send(message)
 
-        await self.app(scope, replay_receive, capture)
+        try:
+            await self.app(scope, replay_receive, capture)
+        except Exception:
+            # The claim stays: a crash after a side effect must never be replayed
+            # into a second execution.
+            raise
 
         status = captured["status"]
         content_type = dict(captured["headers"]).get(b"content-type", b"").decode("latin-1")
@@ -252,28 +280,18 @@ class IdempotencyMiddleware:
                 payload = json.loads(response_body.decode("utf-8"))
             except ValueError:  # pragma: no cover - defensive
                 return
-            await self._store(context, route, key, request_hash, status, payload)
-
-    @staticmethod
-    async def _load(context: Any, route: str, key: str) -> RequestRecord | None:
-        async with context.database.session() as session:
-            return await session.scalar(
-                select(RequestRecord).where(
-                    RequestRecord.workspace_id == "local",
-                    RequestRecord.route == route,
-                    RequestRecord.idempotency_key == key,
-                )
+            await self._complete(
+                context, record_id, route, key, request_hash, status, payload
             )
+        elif isinstance(status, int) and 400 <= status < 500:
+            # A rejected request produced no business result; release the claim so
+            # the caller can correct the request under a fresh key.
+            await self._discard(context, record_id)
 
     @staticmethod
-    async def _store(
-        context: Any,
-        route: str,
-        key: str,
-        request_hash: str,
-        status: int,
-        payload: dict[str, Any],
-    ) -> None:
+    async def _claim(
+        context: Any, route: str, key: str, request_hash: str
+    ) -> tuple[str, RequestRecord | None, bool]:
         async with context.database.session() as session:
             record = RequestRecord(
                 id=new_id(),
@@ -281,17 +299,123 @@ class IdempotencyMiddleware:
                 route=route,
                 idempotency_key=key,
                 request_hash=request_hash,
-                status_code=status,
-                response_json=payload,
-                resource_id=str(payload.get("id") or payload.get("run_id") or "") or None,
+                status_code=None,
+                response_json=None,
+                resource_id=None,
                 created_at=context.clock.now(),
                 revision=1,
             )
+            record_id = record.id
             session.add(record)
             try:
                 await session.commit()
+                return record_id, None, True
             except IntegrityError:
                 await session.rollback()
+        async with context.database.session() as session:
+            existing = await session.scalar(
+                select(RequestRecord).where(
+                    RequestRecord.workspace_id == "local",
+                    RequestRecord.route == route,
+                    RequestRecord.idempotency_key == key,
+                )
+            )
+        if existing is None:  # pragma: no cover - concurrent delete
+            raise AppError(
+                code="IDEMPOTENCY_CONFLICT",
+                message="the idempotency record disappeared while claiming it",
+                status=409,
+            )
+        return "", existing, False
+
+    @staticmethod
+    async def _stale(context: Any, record: RequestRecord) -> bool:
+        if not record.resource_id:
+            return False
+        from personal_agent.adapters.persistence.artifact_models import Artifact
+
+        async with context.database.session() as session:
+            artifact = await session.get(Artifact, record.resource_id)
+        return artifact is not None and artifact.access_state in {"DELETED", "EXPIRED"}
+
+    @staticmethod
+    async def _replay_response(
+        scope: Scope, send: Send, status: int, payload: dict[str, Any]
+    ) -> None:
+        etag = '"' + stable_hash(payload) + '"'
+        if _header(scope, b"if-none-match") == etag:
+            await send({
+                "type": "http.response.start",
+                "status": 304,
+                "headers": [
+                    (b"etag", etag.encode()),
+                    (b"x-idempotent-replay", b"true"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+        start_message, body_message = _json_response(status, payload)
+        start_message["headers"].extend([
+            (b"etag", etag.encode()),
+            (b"x-idempotent-replay", b"true"),
+        ])
+        await send(start_message)
+        await send(body_message)
+
+    @staticmethod
+    async def _complete(
+        context: Any,
+        record_id: str,
+        route: str,
+        key: str,
+        request_hash: str,
+        status: int,
+        payload: dict[str, Any],
+    ) -> None:
+        resource_id = str(payload.get("id") or payload.get("run_id") or "") or None
+        async with context.database.session() as session:
+            result = await session.execute(
+                update(RequestRecord)
+                .where(RequestRecord.id == record_id, RequestRecord.revision == 1)
+                .values(
+                    status_code=status,
+                    response_json=payload,
+                    resource_id=resource_id,
+                    revision=RequestRecord.revision + 1,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:  # type: ignore[attr-defined]
+                # A restore can replace the database after the claim was made. The
+                # response must still be replayable in the current database.
+                existing = await session.get(RequestRecord, record_id)
+                if existing is None:
+                    session.add(RequestRecord(
+                        id=record_id,
+                        workspace_id="local",
+                        route=route,
+                        idempotency_key=key,
+                        request_hash=request_hash,
+                        status_code=status,
+                        response_json=payload,
+                        resource_id=resource_id,
+                        created_at=context.clock.now(),
+                        revision=1,
+                    ))
+                else:
+                    existing.status_code = status
+                    existing.response_json = payload
+                    existing.resource_id = resource_id
+                    existing.revision += 1
+            await session.commit()
+
+    @staticmethod
+    async def _discard(context: Any, record_id: str) -> None:
+        async with context.database.session() as session:
+            record = await session.get(RequestRecord, record_id)
+            if record is not None and record.status_code is None:
+                await session.delete(record)
+                await session.commit()
 
 
 async def _buffer_body(receive: Receive) -> tuple[bytes, Receive]:
