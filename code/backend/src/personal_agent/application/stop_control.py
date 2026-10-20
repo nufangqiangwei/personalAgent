@@ -28,6 +28,7 @@ from personal_agent.adapters.persistence.execution_models import (
     StepRun,
     WorkflowRun,
 )
+from personal_agent.application.event_log import event_session
 from personal_agent.application.run_snapshots import serialize_run
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
 from personal_agent.domain.execution import EventKind, RunStatus, assert_transition
@@ -43,7 +44,7 @@ class StopControl:
     async def request_pause(
         self, run_id: str, *, expected_revision: int, reason: str | None = None
     ) -> dict[str, Any]:
-        async with self._database.session() as session:
+        async with event_session(self._database) as session:
             run = await self._require(session, run_id)
             if run.revision != expected_revision:
                 raise _stale()
@@ -86,7 +87,7 @@ class StopControl:
                 category=ErrorCategory.VALIDATION,
                 status=422,
             )
-        async with self._database.session() as session:
+        async with event_session(self._database) as session:
             run = await self._require(session, run_id)
             if run.revision != expected_revision:
                 raise _stale()
@@ -125,7 +126,7 @@ class StopControl:
     # ------------------------------------------------------------------
     async def converge(self, run_id: str) -> dict[str, Any]:
         """Move a draining run to its final state once no action is in flight."""
-        async with self._database.session() as session:
+        async with event_session(self._database) as session:
             run = await self._require(session, run_id)
             in_flight = await self._in_flight_count(session, run.id)
             if run.status == RunStatus.PAUSING.value and in_flight == 0:

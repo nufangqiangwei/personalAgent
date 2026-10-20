@@ -32,6 +32,7 @@ from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
 from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
+from personal_agent.application.event_log import event_session
 from personal_agent.application.research_evidence import EvidenceService
 from personal_agent.domain.assistance import AssistanceKind
 from personal_agent.domain.budget import effective_run_limits
@@ -62,6 +63,7 @@ from personal_agent.ports.contracts import (
     Clock,
     Owner,
     RuntimeCapabilities,
+    RuntimeEvent,
     RuntimePort,
     RuntimeTask,
     SessionContext,
@@ -110,6 +112,8 @@ class StepOutcome:
     on: str = "success"
     waiting: bool = False
     terminal: bool = False
+    # The attempt and its step completion were committed together.
+    recorded: bool = False
 
 
 class WorkflowEngine:
@@ -167,7 +171,7 @@ class WorkflowEngine:
                     )
                 finally:
                     await tick()
-                if not outcome.waiting and not outcome.terminal:
+                if not outcome.waiting and not outcome.terminal and not outcome.recorded:
                     # Record the finished step before a stop can take effect: the
                     # work really happened and a resumed run must not redo it.
                     await self._complete_step(run, step, outcome.on)
@@ -277,13 +281,16 @@ class WorkflowEngine:
                     await self._deps.sleep(float(backoff[index]))
                 continue
             usage = outcome.output.pop("__usage__", Usage())
-            await self._finish_attempt(run, attempt, outcome, usage)
+            await self._finish_attempt(run, attempt, outcome, usage, on=outcome.on)
+            outcome.recorded = True
             return outcome
 
         exhausted = self._exhausted_transition(definition, step)
         if exhausted is not None and last_error is not None:
-            await self._set_step_status(run, step, StepStatus.FAILED, reason=last_error.code)
-            return StepOutcome(output={"error": last_error.code}, on="exhausted")
+            await self._set_step_status(
+                run, step, StepStatus.FAILED, reason=last_error.code, on="exhausted",
+            )
+            return StepOutcome(output={"error": last_error.code}, on="exhausted", recorded=True)
         raise last_error or AppError(
             code="STEP_FAILED",
             message=f"step {step.id!r} failed",
@@ -425,7 +432,17 @@ class WorkflowEngine:
             )
         )
         await self._set_session_status(attempt.id, "SUBMITTED")
-        result = await self._deps.runtime.wait_result(submission.submission_id)
+        stop_pump = asyncio.Event()
+        pump = asyncio.create_task(
+            self._pump_runtime_events(
+                run, attempt, session.adapter_session_id, stop_pump,
+            )
+        )
+        try:
+            result = await self._deps.runtime.wait_result(submission.submission_id)
+        finally:
+            stop_pump.set()
+            await asyncio.gather(pump, return_exceptions=True)
         if result.status == "unknown":
             await self._set_session_status(attempt.id, "UNKNOWN")
             await self._request_runtime_uncertain(run, step, result)
@@ -450,6 +467,62 @@ class WorkflowEngine:
         output["__usage__"] = result.usage
         self._evidence_summary = summary
         return StepOutcome(output=output)
+
+    async def _pump_runtime_events(
+        self, run: WorkflowRun, attempt: StepAttempt, session_id: str,
+        stop: asyncio.Event,
+    ) -> None:
+        """Consume the adapter's cursor-addressed events while the task runs.
+
+        Only whitelisted, non-reasoning facts are persisted. A final drain after
+        the result settles guarantees an event emitted during submit/finish is
+        not lost.
+        """
+        cursor = 0
+        while True:
+            try:
+                batch = [
+                    event async for event in self._deps.runtime.events(session_id, cursor)
+                ]
+            except Exception:
+                batch = []
+            for event in batch:
+                cursor = max(cursor, event.sequence)
+                await self._record_runtime_event(run, attempt, event)
+            if stop.is_set():
+                return
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=0.1)
+            except TimeoutError:
+                continue
+
+    async def _record_runtime_event(
+        self, run: WorkflowRun, attempt: StepAttempt, event: RuntimeEvent,
+    ) -> None:
+        if event.kind != "action.proposed":
+            return
+        direction_ids = [
+            str(item) for item in (event.payload.get("direction_ids") or [])
+        ][:20]
+        async with event_session(self._deps.database) as session:
+            session.add(ExecutionEvent(
+                id=new_id(),
+                run_id=run.id,
+                draft_id=None,
+                sequence=await self._next_sequence(session, run.id),
+                step_run_id=attempt.step_run_id,
+                attempt_id=attempt.id,
+                workflow_version_id=run.workflow_version_id,
+                occurred_at=self._deps.clock.now(),
+                kind=EventKind.ACTION_STARTED.value,
+                status="RUNNING",
+                reason_code=None,
+                payload_json={"direction_ids": direction_ids, "purpose": "agent"},
+                payload_ref=None,
+                schema_version=1,
+                provider_event_key=None,
+            ))
+            await session.commit()
 
     async def _record_evidence(
         self,
@@ -681,7 +754,7 @@ class WorkflowEngine:
         attempt_input = payload if payload is not None else {
             "step": step.id, "inputs": {}, "dependencies": {},
         }
-        async with self._deps.database.session() as session:
+        async with event_session(self._deps.database) as session:
             step_run = await session.scalar(
                 select(StepRun).where(StepRun.run_id == run.id, StepRun.step_id == step.id)
             )
@@ -753,8 +826,9 @@ class WorkflowEngine:
         usage: Usage,
         *,
         error: AppError | None = None,
+        on: str | None = None,
     ) -> None:
-        async with self._deps.database.session() as session:
+        async with event_session(self._deps.database) as session:
             row = await session.get(StepAttempt, attempt.id)
             if row is None:
                 return
@@ -803,6 +877,19 @@ class WorkflowEngine:
                         provider_event_key=None,
                     )
                 )
+            if on is not None and row.status == "SUCCEEDED":
+                # The result, its step completion, the selected transition and
+                # the review event share this one transaction: a crash can never
+                # persist a success without the edge that follows it.
+                step_row = await session.get(StepRun, row.step_run_id)
+                if step_row is not None:
+                    if step_row.status in {
+                        StepStatus.PENDING.value, StepStatus.RUNNING.value,
+                    }:
+                        step_row.status = StepStatus.SUCCEEDED.value
+                    step_row.selected_transition = on
+                    step_row.revision += 1
+                    step_row.updated_at = self._deps.clock.now()
             await session.commit()
 
     async def _link_session(
@@ -868,7 +955,8 @@ class WorkflowEngine:
             step_run.updated_at = self._deps.clock.now()
 
     async def _set_step_status(
-        self, run: WorkflowRun, step: Step, status: StepStatus, *, reason: str | None = None
+        self, run: WorkflowRun, step: Step, status: StepStatus, *,
+        reason: str | None = None, on: str | None = None,
     ) -> None:
         async with self._deps.database.session() as session:
             step_run = await session.scalar(
@@ -878,6 +966,8 @@ class WorkflowEngine:
                 return
             step_run.status = status.value
             step_run.skip_reason = reason
+            if on is not None:
+                step_run.selected_transition = on
             step_run.revision += 1
             step_run.updated_at = self._deps.clock.now()
             await session.commit()
@@ -1206,7 +1296,7 @@ class WorkflowEngine:
         await self._set_step_status(run, step, StepStatus.WAITING_USER)
 
     async def _fail(self, run: WorkflowRun, error: AppError) -> None:
-        async with self._deps.database.session() as session:
+        async with event_session(self._deps.database) as session:
             row = await session.get(WorkflowRun, run.id)
             if row is None or row.status in {
                 RunStatus.SUCCEEDED.value,
@@ -1315,7 +1405,7 @@ class WorkflowEngine:
     ) -> None:
         from personal_agent.adapters.persistence.assistance_models import AssistanceRequest
 
-        async with self._deps.database.session() as session:
+        async with event_session(self._deps.database) as session:
             row = await session.get(WorkflowRun, run.id)
             if row is None or row.status != RunStatus.RUNNING.value or row.epoch != run.epoch:
                 return

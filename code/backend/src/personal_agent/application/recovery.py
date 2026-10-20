@@ -33,6 +33,7 @@ from personal_agent.adapters.persistence.execution_models import (
     WorkflowRun,
 )
 from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
+from personal_agent.application.event_log import event_session
 from personal_agent.application.run_snapshots import serialize_run
 from personal_agent.domain.common import (
     MODEL_BUSY,
@@ -77,7 +78,7 @@ class RecoveryService:
 
     # ------------------------------------------------------------------
     async def inspect(self, run_id: str) -> dict[str, Any]:
-        async with self._database.session() as session:
+        async with event_session(self._database) as session:
             run = await self._require(session, run_id)
             checks, blocker = await self._checks(session, run)
             return {
@@ -98,7 +99,7 @@ class RecoveryService:
         expected_revision: int,
         allow_waiting_user: bool = False,
     ) -> dict[str, Any]:
-        async with self._database.session() as session:
+        async with event_session(self._database) as session:
             run = await self._require(session, run_id)
             if run.revision != expected_revision:
                 raise AppError(

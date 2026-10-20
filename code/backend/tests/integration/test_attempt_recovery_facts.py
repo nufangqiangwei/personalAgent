@@ -10,9 +10,11 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from personal_agent.adapters.persistence.artifact_models import Artifact
 from personal_agent.adapters.persistence.execution_models import (
+    ExecutionEvent,
     StepAttempt,
     WorkflowRun,
 )
@@ -120,6 +122,61 @@ async def test_attempt_records_real_input_and_session_link(
     assert run is not None
     await context.engine._restore_reuse(run)
     assert context.engine._sources and context.engine._evidence_summary
+
+
+async def test_republishing_after_a_crash_keeps_one_artifact(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.application.workflow_registry import WorkflowRegistry
+
+    _, context = api_context
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    assert await context.executor.wait(run_id, max_wait=60) == "SUCCEEDED"
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        before = int(await session.scalar(
+            select(func.count()).select_from(Artifact)
+        ) or 0)
+    assert run is not None
+    _, definition = await WorkflowRegistry(
+        context.database, context.clock,
+    ).definition_of(run.workflow_version_id)
+    output_step = next(step for step in definition.steps if step.type == "Output")
+    inputs = {
+        path: entry.get("value")
+        for path, entry in (run.input_snapshot_json.get("fields") or {}).items()
+    }
+    # A crash after the file was published re-enters delivery for the same logical
+    # effect; the writer must return the existing artifact, not duplicate it.
+    await context.engine._restore_reuse(run)
+    await context.artifacts.deliver(
+        run=run, definition=definition, step=output_step, inputs=inputs,
+        evidence=context.engine._evidence_summary, sources=context.engine._sources,
+    )
+    async with context.database.session() as session:
+        after = int(await session.scalar(select(func.count()).select_from(Artifact)) or 0)
+    assert after == before == 1
+
+
+async def test_runtime_action_events_are_consumed_without_reasoning(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    _, context = api_context
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    assert await context.executor.wait(run_id, max_wait=60) == "SUCCEEDED"
+    async with context.database.session() as session:
+        events = list((await session.scalars(
+            select(ExecutionEvent).where(
+                ExecutionEvent.run_id == run_id,
+                ExecutionEvent.kind == "action.started",
+            )
+        )).all())
+    assert events, "the engine must consume the adapter's action events"
+    payloads = [dict(item.payload_json or {}) for item in events]
+    assert all("direction_ids" in payload for payload in payloads)
+    assert "PRIVATE" not in repr(payloads)
 
 
 async def test_output_attempt_fails_when_the_artifact_cannot_be_written(
