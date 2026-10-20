@@ -340,7 +340,7 @@ flowchart TD
 - [ ] T132 HIGH（F29）待真实运行时接线及 T021 采用门禁完成后，按 code/backend/tests/live/test_phase1_delivery.py 从实际 UI/服务链路运行两个固定流程，验证官方 Loop、全部模型记账、真实来源及可再次获取文档，在 docs/live-acceptance.md 记录 run/artifact/来源/用量证据；本任务不构成 live 调用授权，仅在用户明确授权、配置凭据并确认费用范围后执行，否则记录 NOT RUN 与具体阻断，保持真实发布门禁，不用 Mock 结果代替 per FR-028；US10/AC6；T100 (partial)
 - [ ] T133 HIGH（F30）在修复收敛项后运行 code/scripts/check.ps1 的全部适用静态/类型/默认离线/UI/策略检查及干净迁移恢复验收，创建 docs/release-evidence.md 记录真实命令、结果、锁文件指纹、五项宪章符合性及未运行限制；随后由实施任务更新 specs/001-workflow-research-assistant/plan.md 的过时状态并衔接全部一期追踪，未通过 T021/T100 或其他强制门禁不得宣告发布完成；保留需求 checklist 的评审者勾选权 per T102/T103；plan: 交付门禁 (missing)
 - [ ] T134 HIGH（F31）补齐 code/backend/pyproject.toml、code/backend/src/personal_agent/bootstrap/config.py、code/backend/src/personal_agent/bootstrap/seed.py、code/backend/src/personal_agent/bootstrap/lifespan.py 与 code/scripts/package.ps1 的分发资源和资源定位，包含运行所需 Alembic/迁移、两种子流程、code/runtime-policy/profile.json、前端及固定依赖资料，Mock 运行不依赖源码 tests/fixtures；在无仓库目录的干净临时安装位置验证迁移、导入两流程、生产同源 UI 和完整离线研究及校验和重复构建，不把仓库内构建成功视为安装包可用 per T101；plan: 可复现单应用交付 (partial)
-- [ ] T135 MEDIUM（F32）修正 code/backend/src/personal_agent/api/settings.py 与 code/frontend/src/pages/SetupPage.vue：完成状态必须同时核验实际迁移/数据目录保护、已验证执行能力、适用凭据及当前 data_policy_acknowledged/budget_policy_acknowledged 均为真，不以任一确认行存在或非空 capabilities 当就绪；落实配置更新并发前提及失败反馈，mock 与 live 能力如实区分，补拒绝 false 政策同意的契约与 UI 用例 per T001/T025/T093/T094；plan: 首次配置与授权 (partial)
+- [x] T135 MEDIUM（F32）修正 code/backend/src/personal_agent/api/settings.py 与 code/frontend/src/pages/SetupPage.vue：完成状态必须同时核验实际迁移/数据目录保护、已验证执行能力、适用凭据及当前 data_policy_acknowledged/budget_policy_acknowledged 均为真，不以任一确认行存在或非空 capabilities 当就绪；落实配置更新并发前提及失败反馈，mock 与 live 能力如实区分，补拒绝 false 政策同意的契约与 UI 用例 per T001/T025/T093/T094；plan: 首次配置与授权 (partial)
 - [ ] T136 MEDIUM（F33）将 code/backend/pyproject.toml、code/frontend/package.json 与 code/runtime-policy/package.json 的运行/开发直接依赖精确固定到已核验版本，遵守 CPython 3.12.9、Node24/npm11/uv 范围并经 uv/npm 重新生成锁文件、更新 docs/dependency-baseline.md 指纹；验证后端与 E2E 的 Playwright 浏览器 revision 一致，禁止手改锁文件或用未核验的本机浏览器替代发布证据 per plan: Dependency Management；T006；AGENTS.md §2–3 (partial)
 - [ ] T137 MEDIUM（F34）在 code/backend/src/personal_agent/api/runs.py、code/backend/src/personal_agent/api/workflows.py、code/backend/src/personal_agent/application/data_lifecycle.py 与相关前端列表中落实契约规定的稳定排序和绑定筛选条件的游标，避免仅用可漂移 offset；验证翻页间插入/删除同时间记录、非法/不同筛选游标、重复页及下一页 UI，保持数据不重复不遗漏，保留已有 10000 记录性能阈值 per T024/T033/T039；plan: 稳定分页 (partial)
 - [x] T138 LOW（F35）核对 code/backend/src/personal_agent/domain/zz1.txt 的用途与引用；若无一期规格、计划或任务依据则移除该单字符残留，若确有用途则在相应实施证据中说明必要性，避免将无用途文件随后端 wheel 交付 per plan: Source Code 领域模块范围；T010 (unrequested)
@@ -582,3 +582,10 @@ flowchart TD
 - T123：新增拒绝建议端点与前端按钮；选择新流程时筛除旧流程专用字段并重新校验；迟到分析（存在更新消息）不再覆盖草稿；确认后聊天修改仍使旧确认失效。
 - 测试：分析契约与依据、拒绝建议、切换流程字段筛除。
 - 验证：后端 416、前端 48、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T122/T123 勾选，合计 121/138。
+
+### 2026-10-21 Phase 11 首次配置就绪判定（T135）
+
+- `setup_status` 要求**数据与预算两项政策同意均为真**（仅存在确认行或 false 不算）；live 模式还要求模型与搜索凭据、Windows ACL 保护；返回 `data_dir.protected` 与两项同意状态。
+- 确认端点拒绝任一 false 同意并返回 `POLICY_ACKNOWLEDGEMENT_REQUIRED`；frontend 仅在两个勾选与显式确认后启用提交。
+- 测试：false 同意被拒且不写入行；双 true 后 `acknowledged` 为真。
+- 验证：后端 417、前端 48、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T135 勾选，合计 122/138。

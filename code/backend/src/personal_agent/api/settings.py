@@ -7,6 +7,7 @@ acknowledgement, but cannot set ``completed`` itself.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -15,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from personal_agent.adapters.persistence.setup_models import PolicyAcknowledgement
 from personal_agent.api.context import AppContext
 from personal_agent.api.deps import context
+from personal_agent.bootstrap.acl import verify_directory
 from personal_agent.bootstrap.credentials import CredentialService
 from personal_agent.domain.common import AppError, iso_z
 
@@ -54,31 +56,66 @@ def _data_dir_writable(app_context: AppContext) -> bool:
         return False
 
 
+def _data_dir_protected(app_context: AppContext) -> bool:
+    """Live data must sit behind the single-user ACL boundary, not just be writable."""
+    if os.name != "nt" or not app_context.config.is_live:
+        return True
+    try:
+        verify_directory(app_context.config.data_dir)
+        return True
+    except AppError:
+        return False
+
+
 async def setup_status(app_context: AppContext) -> dict[str, Any]:
     policy = app_context.config.policy
     async with app_context.database.session() as session:
         acknowledgement = await session.get(PolicyAcknowledgement, policy.policy_hash)
-        acknowledged = acknowledgement is not None
+    data_acknowledged = bool(
+        acknowledgement is not None and acknowledgement.data_policy_acknowledged
+    )
+    budget_acknowledged = bool(
+        acknowledgement is not None and acknowledgement.budget_policy_acknowledged
+    )
+    acknowledged = data_acknowledged and budget_acknowledged
     writable = _data_dir_writable(app_context)
+    protected = _data_dir_protected(app_context)
     migrations_current = app_context.migrations_up_to_date
     runtime_compatible = bool(
         app_context.runtime_capabilities.get("tool_policy_enforced")
     )
+    credential_health = CredentialService(app_context.clock).health()
+    credentials_by_provider = {
+        str(item.get("provider")): item
+        for item in credential_health.get("items", [])
+    }
+    credential_ready = True
+    if app_context.config.is_live:
+        credential_ready = all(
+            bool(credentials_by_provider.get(provider, {}).get("configured"))
+            for provider in ("model", "search")
+        )
     completed = (
         migrations_current
         and writable
+        and protected
         and app_context.execution_available
         and acknowledged
+        and credential_ready
     )
     missing: list[str] = []
     if not migrations_current:
         missing.append("数据库迁移未到达当前版本")
     if not writable:
         missing.append("数据目录不可写")
+    if not protected:
+        missing.append("数据目录权限未收敛到单用户边界")
     if not app_context.execution_available:
         missing.append("执行运行时不可用")
     if not acknowledged:
-        missing.append("尚未确认当前政策")
+        missing.append("尚未确认当前数据与预算政策")
+    if not credential_ready:
+        missing.append("缺少 live 模式所需的模型或搜索凭据")
     return {
         "completed": completed,
         "required": not completed,
@@ -88,7 +125,11 @@ async def setup_status(app_context: AppContext) -> dict[str, Any]:
             "head": app_context.migration_head,
             "up_to_date": migrations_current,
         },
-        "data_dir": {"writable": writable, "path": str(app_context.config.data_dir)},
+        "data_dir": {
+            "writable": writable,
+            "protected": protected,
+            "path": str(app_context.config.data_dir),
+        },
         "runtime": {
             "available": bool(app_context.runtime_capabilities),
             "compatible": runtime_compatible,
@@ -98,11 +139,13 @@ async def setup_status(app_context: AppContext) -> dict[str, Any]:
             "version": policy.version,
             "hash": policy.policy_hash,
             "acknowledged": acknowledged,
+            "data_policy_acknowledged": data_acknowledged,
+            "budget_policy_acknowledged": budget_acknowledged,
             "acknowledged_at": iso_z(acknowledgement.confirmed_at)
             if acknowledgement
             else None,
         },
-        "credentials": CredentialService(app_context.clock).health(),
+        "credentials": credential_health,
     }
 
 
@@ -129,6 +172,16 @@ async def acknowledge(request: Request, payload: AcknowledgementRequest) -> dict
             code="POLICY_ACKNOWLEDGEMENT_REQUIRED",
             message="acknowledging the policy needs an explicit confirmation",
             status=422,
+        )
+    if not payload.data_policy_acknowledged or not payload.budget_policy_acknowledged:
+        raise AppError(
+            code="POLICY_ACKNOWLEDGEMENT_REQUIRED",
+            message="both the data and budget policies must be acknowledged",
+            status=422,
+            details={
+                "data_policy_acknowledged": payload.data_policy_acknowledged,
+                "budget_policy_acknowledged": payload.budget_policy_acknowledged,
+            },
         )
     async with app_context.database.session() as session:
         row = await session.get(PolicyAcknowledgement, policy.policy_hash)
