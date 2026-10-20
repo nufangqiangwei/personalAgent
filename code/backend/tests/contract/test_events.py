@@ -133,6 +133,42 @@ async def _frames(
     return collected
 
 
+async def test_a_secret_in_an_event_never_reaches_history(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    from personal_agent.adapters.harness.events import normalize_event
+    from personal_agent.domain.redaction import REDACTED
+    from personal_agent.ports.contracts import Owner
+
+    _, context = api_context
+    run_id = await _completed_run(client, api_context)
+    secret = "sk-live-abc123456789"
+    event = normalize_event(
+        raw={
+            "kind": "result.available",
+            "payload": {"note": f"api_key={secret}", "token": secret},
+        },
+        owner=Owner(run_id=run_id),
+        session_id="session-secret",
+        sequence=10_000,
+        occurred_at=context.clock.now(),
+    )
+    assert event is not None
+    assert secret not in str(event.payload)
+    async with context.database.session() as session:
+        session.add(ExecutionEvent(
+            id=new_id(), run_id=run_id, draft_id=None, sequence=10_000,
+            step_run_id=None, attempt_id=None, workflow_version_id=None,
+            occurred_at=context.clock.now(), kind=event.kind, status=None,
+            reason_code=None, payload_json=dict(event.payload), payload_ref=None,
+            schema_version=1, provider_event_key=None,
+        ))
+        await session.commit()
+    history = (await client.get(f"/api/v1/runs/{run_id}/event-history?limit=1000")).text
+    assert secret not in history
+    assert REDACTED in history
+
+
 async def test_history_is_ordered_paged_and_matches_the_stream_shape(
     client: httpx.AsyncClient, api_context: Any
 ) -> None:

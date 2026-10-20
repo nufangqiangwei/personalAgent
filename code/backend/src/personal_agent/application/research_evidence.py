@@ -27,6 +27,7 @@ from personal_agent.adapters.persistence.research_models import (
 )
 from personal_agent.adapters.persistence.research_models import Source
 from personal_agent.domain.common import new_id
+from personal_agent.domain.redaction import redact_url, sanitize
 
 VALID_CLASSIFICATIONS = {"FACT", "OPINION", "INFERENCE"}
 VALID_VALIDITY = {"VERIFIED", "UNVERIFIED", "OUTDATED", "CONFLICTED"}
@@ -247,8 +248,8 @@ class EvidenceService:
             row = Source(
                 id=new_id(),
                 run_id=run_id,
-                normalized_url=url,
-                title=str(source.get("title", "")),
+                normalized_url=redact_url(url),
+                title=sanitize(str(source.get("title", ""))),
                 fetched_at=fetched_at,
                 published_at=_parse_time(source.get("published_at")),
                 updated_at=_parse_time(source.get("updated_at")),

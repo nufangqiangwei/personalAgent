@@ -14,6 +14,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+from personal_agent.domain.redaction import sanitize
+
 ALLOWED_FIELDS = frozenset(
     {
         "request_id",
@@ -56,23 +58,6 @@ SENSITIVE_KEYS = frozenset(
 )
 
 
-def _redact(value: Any, depth: int = 0) -> Any:
-    if depth > 5:
-        return "<redacted>"
-    if isinstance(value, dict):
-        return {
-            str(key): (
-                "<redacted>"
-                if str(key).lower() in SENSITIVE_KEYS
-                else _redact(item, depth + 1)
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, (list, tuple)):
-        return [_redact(item, depth + 1) for item in value]
-    return value
-
-
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
@@ -81,11 +66,11 @@ class JsonFormatter(logging.Formatter):
             .replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
-            "message": _redact(record.getMessage()),
+            "message": sanitize(record.getMessage()),
         }
         for key, value in record.__dict__.items():
             if key in ALLOWED_FIELDS:
-                payload[key] = _redact(value)
+                payload[key] = sanitize(value)
         if record.exc_info:
             payload["error_category"] = "EXCEPTION"
         return json.dumps(payload, ensure_ascii=False)

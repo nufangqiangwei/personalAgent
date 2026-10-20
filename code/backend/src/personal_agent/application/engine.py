@@ -49,6 +49,7 @@ from personal_agent.domain.execution import (
     StepStatus,
 )
 from personal_agent.domain.expressions import MISSING, evaluate, resolve_binding
+from personal_agent.domain.redaction import sanitize, strip_reasoning
 from personal_agent.domain.workflow_schema import (
     AgentTaskConfig,
     ConditionConfig,
@@ -73,6 +74,9 @@ from personal_agent.ports.contracts import (
     ToolRequest,
     Usage,
 )
+
+MAX_CONTEXT_REFERENCES = 8
+MAX_CONTEXT_CHARACTERS = 4000
 
 RETRYABLE_CATEGORIES = {
     ErrorCategory.DEPENDENCY,
@@ -423,7 +427,10 @@ class WorkflowEngine:
                 except AppError as error:
                     if error.code != "BINDING_UNRESOLVED":
                         raise
-            context_refs = tuple(refs)
+            context_refs = tuple(
+                reference[:MAX_CONTEXT_CHARACTERS]
+                for reference in refs[:MAX_CONTEXT_REFERENCES]
+            )
             if resolved:
                 self._validate_step_input(step, resolved)
             return await self._run_agent(
@@ -1054,14 +1061,14 @@ class WorkflowEngine:
             )
             row.ended_at = self._deps.clock.now()
             row.error_category = error.category.value if error else None
-            row.output_json = {
+            row.output_json = strip_reasoning(sanitize({
                 key: value for key, value in outcome.output.items() if not key.startswith("__")
-            }
+            }))
             evidence = outcome.output.get("__evidence__")
             if isinstance(evidence, dict) and evidence:
-                row.output_json["__evidence__"] = evidence
+                row.output_json["__evidence__"] = strip_reasoning(sanitize(evidence))
             if self._sources:
-                row.output_json["__sources__"] = list(self._sources)
+                row.output_json["__sources__"] = strip_reasoning(sanitize(list(self._sources)))
             row.output_hash = stable_hash({
                 key: value for key, value in row.output_json.items()
                 if not key.startswith("__")

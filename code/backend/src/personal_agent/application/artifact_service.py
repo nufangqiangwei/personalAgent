@@ -33,6 +33,7 @@ from personal_agent.domain.document_content import (
     decide_completeness,
 )
 from personal_agent.domain.execution import Completeness, EventKind, RunStatus
+from personal_agent.domain.redaction import sanitize
 from personal_agent.ports.contracts import Clock
 
 
@@ -89,6 +90,10 @@ class ArtifactService:
         markdown, document = render_document(
             content, structure=structure, language=self._language, detail=self._detail
         )
+        # A document must never carry a usable credential even if a source page
+        # contained one; the delivered bytes are the last boundary before disk.
+        markdown = sanitize(markdown)
+        document = sanitize(document)
         draft = ArtifactDraft(
             workflow_version_id=run.workflow_version_id,
             completeness=completeness,

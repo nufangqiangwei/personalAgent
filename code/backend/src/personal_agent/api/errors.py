@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from personal_agent.domain.common import AppError
+from personal_agent.domain.redaction import sanitize
 
 logger = logging.getLogger("personal_agent.api")
 
@@ -39,7 +40,7 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _app_error(request: Request, error: AppError) -> JSONResponse:
         return JSONResponse(
             status_code=error.status,
-            content=error.payload(_request_id(request)),
+            content=sanitize(error.payload(_request_id(request))),
             headers={"X-Request-ID": _request_id(request)},
         )
 
@@ -63,7 +64,7 @@ def install_error_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=400,
-            content=payload.payload(_request_id(request)),
+            content=sanitize(payload.payload(_request_id(request))),
             headers={"X-Request-ID": _request_id(request)},
         )
 
@@ -79,7 +80,7 @@ def install_error_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=error.status_code,
-            content=payload.payload(_request_id(request)),
+            content=sanitize(payload.payload(_request_id(request))),
             headers={"X-Request-ID": _request_id(request)},
         )
 

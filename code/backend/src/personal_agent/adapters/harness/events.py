@@ -11,6 +11,7 @@ import json
 from typing import Any, Final
 
 from personal_agent.domain.common import iso_z
+from personal_agent.domain.redaction import sanitize
 from personal_agent.ports.contracts import Owner, RuntimeEvent
 
 ALLOWED_EVENT_KINDS: Final[frozenset[str]] = frozenset(
@@ -47,20 +48,8 @@ MAX_EVENT_PAYLOAD_BYTES: Final = 64 * 1024
 
 
 def redact(value: Any, *, depth: int = 0) -> Any:
-    if depth > 8:
-        return "<redacted>"
-    if isinstance(value, dict):
-        return {
-            str(key): (
-                "<redacted>"
-                if str(key).lower() in SENSITIVE_KEYS
-                else redact(item, depth=depth + 1)
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, (list, tuple)):
-        return [redact(item, depth=depth + 1) for item in value]
-    return value
+    """Key and text redaction, shared with logs, errors and evidence."""
+    return sanitize(value, depth=depth)
 
 
 def payload_within_limit(payload: dict[str, Any]) -> bool:
