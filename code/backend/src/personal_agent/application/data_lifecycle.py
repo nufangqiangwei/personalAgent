@@ -21,10 +21,19 @@ from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
 from personal_agent.adapters.persistence.blob_store import BlobStore
 from personal_agent.adapters.persistence.branch_models import ReusedResult
 from personal_agent.adapters.persistence.database import Database
+from personal_agent.adapters.persistence.execution_models import (
+    ExecutionEvent,
+    StepAttempt,
+    StepRun,
+    WorkflowRun,
+)
 from personal_agent.adapters.persistence.lifecycle_models import (
     BackupManifest,
     DeletionRecord,
 )
+from personal_agent.adapters.persistence.request_models import RequestRecord
+from personal_agent.adapters.persistence.requirement_models import ConversationMessage
+from personal_agent.adapters.persistence.research_models import Source
 from personal_agent.adapters.persistence.session_models import SessionLink
 from personal_agent.bootstrap.config import RetentionPolicy
 from personal_agent.domain.common import AppError, iso_z, new_id, paginate, stable_hash
@@ -238,6 +247,10 @@ class DataLifecycleService:
         expired_artifacts = 0
         expired_backups = 0
         purged_files = 0
+        cleared_messages = 0
+        cleared_runs = 0
+        cleared_sources = 0
+        cleared_requests = 0
 
         async with self._database.session() as session:
             artifacts = list(
@@ -256,6 +269,70 @@ class DataLifecycleService:
                 if blob is not None and blob.deleted_at is None:
                     blob.deleted_at = now
                 expired_artifacts += 1
+            # Conversation text becomes a content-free tombstone; the identifier
+            # and sequence stay so the timeline can still be reconstructed.
+            messages = (
+                await session.scalars(
+                    select(ConversationMessage).where(
+                        ConversationMessage.created_at < business_cutoff,
+                        ConversationMessage.content_text != "[deleted by retention]",
+                    )
+                )
+            ).all()
+            for message in messages:
+                message.content_text = "[deleted by retention]"
+                message.content_ref = "retention:deleted"
+                cleared_messages += 1
+            # Event payloads are business content; removing them also prevents a
+            # stale cursor from replaying expired material.
+            await session.execute(
+                delete(ExecutionEvent).where(ExecutionEvent.occurred_at < business_cutoff)
+            )
+            sources = (
+                await session.scalars(
+                    select(Source).where(
+                        Source.fetched_at < business_cutoff,
+                        Source.deleted_at.is_(None),
+                    )
+                )
+            ).all()
+            for source_row in sources:
+                source_row.deleted_at = now
+                cleared_sources += 1
+            old_runs = (
+                await session.scalars(
+                    select(WorkflowRun).where(WorkflowRun.created_at < business_cutoff)
+                )
+            ).all()
+            for old_run in old_runs:
+                old_run.input_snapshot_json = {
+                    "schema_version": 1,
+                    "fields": {},
+                    "preference_order": [],
+                    "output_spec": {},
+                }
+                cleared_runs += 1
+            attempts = (
+                await session.scalars(
+                    select(StepAttempt)
+                    .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                    .join(WorkflowRun, StepRun.run_id == WorkflowRun.id)
+                    .where(WorkflowRun.created_at < business_cutoff)
+                )
+            ).all()
+            for attempt in attempts:
+                attempt.output_json = {}
+            records = (
+                await session.scalars(
+                    select(RequestRecord).where(
+                        RequestRecord.created_at < business_cutoff,
+                        RequestRecord.response_json.is_not(None),
+                    )
+                )
+            ).all()
+            for record in records:
+                record.response_json = None
+                cleared_requests += 1
             await session.execute(
                 delete(SessionLink).where(SessionLink.created_at < session_cutoff)
             )
@@ -290,6 +367,10 @@ class DataLifecycleService:
             "expired_artifacts": expired_artifacts,
             "expired_backups": expired_backups,
             "purged_files": purged_files,
+            "cleared_messages": cleared_messages,
+            "cleared_runs": cleared_runs,
+            "cleared_sources": cleared_sources,
+            "cleared_requests": cleared_requests,
         }
 
     # ------------------------------------------------------------------

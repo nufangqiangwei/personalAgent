@@ -10,6 +10,7 @@ it always stays labelled PARTIAL.
 from __future__ import annotations
 
 import hashlib
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select, update
@@ -52,6 +53,7 @@ class ArtifactService:
         *,
         language: str = "zh-CN",
         detail: str = "standard",
+        business_content_days: int = 90,
     ) -> None:
         self._database = database
         self._writer = writer
@@ -59,6 +61,19 @@ class ArtifactService:
         self._clock = clock
         self._language = language
         self._detail = detail
+        self._business_content_days = business_content_days
+
+    def _expired(self, artifact: Artifact, blob: Blob | None) -> bool:
+        now = self._clock.now()
+        if blob is not None and blob.expires_at is not None and blob.expires_at <= now:
+            return True
+        return artifact.created_at + timedelta(days=self._business_content_days) <= now
+
+    async def _expire_now(self, session: Any, artifact: Artifact, blob: Blob | None) -> None:
+        artifact.access_state = ArtifactState.EXPIRED.value
+        if blob is not None and blob.deleted_at is None:
+            blob.deleted_at = self._clock.now()
+        await session.commit()
 
     # ------------------------------------------------------------------
     async def deliver(
@@ -205,7 +220,13 @@ class ArtifactService:
     async def get(self, artifact_id: str) -> dict[str, Any]:
         async with self._database.session() as session:
             artifact = await self._require(session, artifact_id)
-            if artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}:
+            blob = await session.get(Blob, artifact.blob_id)
+            if (
+                artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}
+                or self._expired(artifact, blob)
+            ):
+                if self._expired(artifact, blob):
+                    await self._expire_now(session, artifact, blob)
                 raise _unavailable("the document is deleted or expired")
             metadata = await self._metadata(session, artifact)
             metadata["document"] = dict(artifact.document_json)
@@ -214,9 +235,14 @@ class ArtifactService:
     async def content(self, artifact_id: str) -> tuple[bytes, dict[str, Any]]:
         async with self._database.session() as session:
             artifact = await self._require(session, artifact_id)
-            if artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}:
-                raise _unavailable("the document is deleted or expired")
             blob = await session.get(Blob, artifact.blob_id)
+            if (
+                artifact.access_state in {ArtifactState.DELETED.value, ArtifactState.EXPIRED.value}
+                or self._expired(artifact, blob)
+            ):
+                if self._expired(artifact, blob):
+                    await self._expire_now(session, artifact, blob)
+                raise _unavailable("the document is deleted or expired")
             if blob is None or blob.deleted_at is not None:
                 raise _unavailable("the document content is unavailable")
             try:

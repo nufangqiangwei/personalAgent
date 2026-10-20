@@ -12,6 +12,7 @@ from datetime import timedelta
 from typing import Any
 
 import httpx
+import pytest
 from sqlalchemy import select
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
@@ -320,6 +321,101 @@ async def test_deleting_a_reused_result_invalidates_the_branch_reference(
             )
         ).all()
     assert remaining == []
+
+
+async def test_an_expired_artifact_is_blocked_on_read_without_a_restart(
+    api_context: Any,
+) -> None:
+    from personal_agent.adapters.persistence.artifact_models import Artifact
+    from personal_agent.domain.common import AppError
+
+    _, context = api_context
+    _run_id, artifact_id, _blob_id = await _artifact_fixture(api_context)
+    async with context.database.session() as session:
+        artifact = await session.get(Artifact, artifact_id)
+        assert artifact is not None
+        artifact.created_at = context.clock.now() - timedelta(days=91)
+        await session.commit()
+    with pytest.raises(AppError) as error:
+        await context.artifacts.content(artifact_id)
+    assert error.value.code == "ARTIFACT_UNAVAILABLE"
+    async with context.database.session() as session:
+        artifact = await session.get(Artifact, artifact_id)
+        assert artifact is not None
+        assert artifact.access_state == "EXPIRED"
+
+
+async def test_business_retention_clears_content_and_keeps_tombstones(
+    api_context: Any,
+) -> None:
+    from personal_agent.adapters.persistence.blob_store import BlobStore
+    from personal_agent.adapters.persistence.execution_models import (
+        ExecutionEvent,
+        WorkflowRun,
+    )
+    from personal_agent.adapters.persistence.request_models import RequestRecord
+    from personal_agent.adapters.persistence.requirement_models import (
+        Confirmation,
+        ConversationMessage,
+    )
+    from personal_agent.application.data_lifecycle import DataLifecycleService
+
+    config, context = api_context
+    run_id, _artifact_id, _blob_id = await _artifact_fixture(api_context)
+    old = context.clock.now() - timedelta(days=120)
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        run.created_at = old
+        confirmation = await session.get(Confirmation, run.confirmation_id)
+        assert confirmation is not None
+        draft_id = confirmation.draft_id
+        session.add(ExecutionEvent(
+            id=new_id(), run_id=run_id, draft_id=None, sequence=9001,
+            step_run_id=None, attempt_id=None, workflow_version_id=None,
+            occurred_at=old, kind="result.available", status=None, reason_code=None,
+            payload_json={"content": "old event"}, payload_ref=None,
+            schema_version=1, provider_event_key=None,
+        ))
+        session.add(RequestRecord(
+            id=new_id(), route="/api/v1/old", idempotency_key=f"old-{new_id()}",
+            request_hash="sha256:old", status_code=200,
+            response_json={"content": "old response"}, resource_id=None,
+            created_at=old, revision=1,
+        ))
+        session.add(ConversationMessage(
+            id=new_id(), draft_id=draft_id, sequence=9001, role="user",
+            content_ref="old-message", content_text="old chat", created_at=old,
+        ))
+        await session.commit()
+
+    service = DataLifecycleService(
+        context.database, context.clock, BlobStore(config.artifacts_dir),
+        retention=config.policy.retention, data_dir=config.data_dir,
+    )
+    result = await service.apply_retention()
+    assert result["cleared_messages"] >= 1
+    assert result["cleared_runs"] >= 1
+    assert result["cleared_requests"] >= 1
+
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        assert run.input_snapshot_json["fields"] == {}
+        event = await session.scalar(
+            select(ExecutionEvent).where(ExecutionEvent.sequence == 9001)
+        )
+        assert event is None
+        message = await session.scalar(
+            select(ConversationMessage).where(ConversationMessage.sequence == 9001)
+        )
+        assert message is not None
+        assert message.content_text == "[deleted by retention]"
+        record = await session.scalar(
+            select(RequestRecord).where(RequestRecord.route == "/api/v1/old")
+        )
+        assert record is not None
+        assert record.response_json is None
 
 
 async def test_retention_expires_business_content_and_destroys_old_sessions(

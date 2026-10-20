@@ -244,7 +244,10 @@ async def build_context(
 
     store = BlobStore(config.artifacts_dir)
     writer = ManagedWriter(database, store, clock)
-    artifacts = ArtifactService(database, writer, store, clock)
+    artifacts = ArtifactService(
+        database, writer, store, clock,
+        business_content_days=config.policy.retention.business_content_days,
+    )
     budget = BudgetService(clock)
     evidence = EvidenceService(clock)
     capabilities = await runtime.capabilities()
