@@ -145,6 +145,7 @@ class BackupService:
                 ]
             )
         blob_digest = stable_hash(blob_entries)
+        db_digest, _db_size = file_digest(database_path)
         schema_version = migration_head() or "unknown"
         manifest_hash = stable_hash(
             {
@@ -153,6 +154,7 @@ class BackupService:
                 "app": APP_VERSION,
                 "policy": self._policy.version,
                 "blobs": blob_digest,
+                "db": db_digest,
                 "tombstones": tombstones,
             }
         )
@@ -168,6 +170,7 @@ class BackupService:
             "db_revision": schema_version,
             "manifest_hash": manifest_hash,
             "blob_hashes_digest": blob_digest,
+            "db_sha256": db_digest,
             "deletion_tombstone_hash": tombstones,
             "blob_count": len(blob_entries),
             "total_bytes": sum(entry["size_bytes"] for entry in blob_entries),
@@ -280,12 +283,17 @@ class BackupService:
             )
 
     def _verify_files(
-        self, target_dir: Path, database_path: Path, blob_entries: list[dict[str, Any]]
+        self, target_dir: Path, database_path: Path, blob_entries: list[dict[str, Any]],
+        expected_db_sha256: str | None = None,
     ) -> dict[str, Any]:
         problems: list[str] = []
         if not database_path.exists():
             problems.append("database copy is missing")
         else:
+            if expected_db_sha256 is not None:
+                digest, _size = file_digest(database_path)
+                if digest != expected_db_sha256:
+                    problems.append("database content hash mismatch")
             try:
                 connection = sqlite3.connect(database_path.as_posix())
                 try:

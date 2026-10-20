@@ -276,14 +276,49 @@ async def test_backup_restore_applies_tombstones_and_keeps_runs_interrupted(
     assert any(run.status == "INTERRUPTED" for run in runs)
     assert all(run.status != "RUNNING" for run in runs)
 
+    # Restoring the same backup a second time must not resurrect the deletion.
+    again = await client.post(
+        "/api/v1/maintenance/restores",
+        json={
+            "backup_id": backup["id"],
+            "manifest_hash": backup["manifest_hash"],
+            "explicit_restore": True,
+            "acknowledge_interruption": True,
+            "acknowledge_lifecycle": True,
+        },
+        headers={"Idempotency-Key": new_id()},
+    )
+    assert again.status_code == 202, again.text
+    assert again.json()["post_restore"]["tombstones_applied"] >= 1
+    assert (await client.get(f"/api/v1/artifacts/{artifact_id}")).status_code == 410
+
 
 async def test_incompatible_backup_and_tampered_manifest_are_refused(
     client: httpx.AsyncClient, api_context: Any
 ) -> None:
-    _, context = api_context
+    config, context = api_context
     _run_id, artifact_id = await _seed_marker(api_context)
     await _enter_maintenance(client)
     backup = await _create_backup(client)
+
+    # Changing the backup database bytes must fail its content hash, even when the
+    # client presents the correct manifest hash.
+    backup_db = config.data_dir / "backups" / backup["id"] / "personal-agent.db"
+    backup_db.write_bytes(backup_db.read_bytes() + b"tampered")
+    tampered_db = await client.post(
+        "/api/v1/maintenance/restores",
+        json={
+            "backup_id": backup["id"],
+            "manifest_hash": backup["manifest_hash"],
+            "explicit_restore": True,
+            "acknowledge_interruption": True,
+            "acknowledge_lifecycle": True,
+        },
+        headers={"Idempotency-Key": new_id()},
+    )
+    assert tampered_db.status_code == 422
+    assert tampered_db.json()["error"]["code"] == "BACKUP_VERIFICATION_FAILED"
+    assert (await client.get(f"/api/v1/artifacts/{artifact_id}")).status_code == 200
 
     tampered = await client.post(
         "/api/v1/maintenance/restores",

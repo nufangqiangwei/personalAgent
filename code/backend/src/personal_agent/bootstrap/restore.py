@@ -10,6 +10,8 @@ never auto-resumes research.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import sqlite3
@@ -18,13 +20,14 @@ from typing import Any
 
 from sqlalchemy import select
 
+from personal_agent.adapters.persistence.blob_store import BlobStore
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.persistence.lifecycle_models import (
     BackupManifest,
     DeletionRecord,
     RestoreRecord,
 )
-from personal_agent.bootstrap.backup import MANIFEST_FILENAME, BackupService
+from personal_agent.bootstrap.backup import MANIFEST_FILENAME, BackupService, _backup_sqlite
 from personal_agent.bootstrap.config import Policy
 from personal_agent.bootstrap.lifespan import mark_interrupted_runs, migration_head
 from personal_agent.domain.common import AppError, iso_z, new_id
@@ -98,6 +101,20 @@ class RestoreService:
                     message="the backup manifest is missing",
                     status=422,
                 )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get("manifest_hash") != backup.manifest_hash:
+                raise AppError(
+                    code="MANIFEST_HASH_MISMATCH",
+                    message="the manifest file does not match the recorded backup",
+                    status=409,
+                )
+            if manifest.get("schema_version") != head:
+                raise AppError(
+                    code="BACKUP_INCOMPATIBLE",
+                    message="the backup file schema is not compatible with this build",
+                    status=409,
+                    details={"backup": manifest.get("schema_version"), "current": head},
+                )
 
             record = RestoreRecord(
                 id=new_id(),
@@ -123,7 +140,8 @@ class RestoreService:
             }
 
         result = self._backups._verify_files(
-            backup_dir, backup_dir / "personal-agent.db", blobs
+            backup_dir, backup_dir / "personal-agent.db", blobs,
+            expected_db_sha256=manifest.get("db_sha256"),
         )
         if not result["ok"]:
             await self._fail(restore_id, "BACKUP_VERIFICATION_FAILED", result["problems"])
@@ -143,7 +161,13 @@ class RestoreService:
         staged_db = work_dir / "personal-agent.db"
         safety_db = work_dir / "current-safety.db"
         shutil.copy2(backup_dir / "personal-agent.db", staged_db)
-        shutil.copy2(self._database.path, safety_db)
+        # The rollback copy must be a consistent snapshot: a raw copy of a live
+        # WAL database can miss recent commits. Same SQLite backup API as backup.
+        _backup_sqlite(self._database.path, safety_db)
+        artifacts_dir = self._data_dir / "artifacts"
+        safety_artifacts = work_dir / "artifacts-safety"
+        if artifacts_dir.exists():
+            shutil.copytree(artifacts_dir, safety_artifacts)
         try:
             applied = self._apply_tombstones(staged_db, tombstones)
             self._check_database(staged_db)
@@ -153,13 +177,35 @@ class RestoreService:
             self._restore_blobs(backup_dir, blobs)
             interrupted = await mark_interrupted_runs(self._database, self._clock)
         except Exception as error:  # any failure must roll back
+            rollback_ok = True
             try:
                 await self._database.dispose()
                 if self._database.path.exists() and safety_db.exists():
                     self._swap_database(safety_db)
-            except Exception:  # pragma: no cover - best effort rollback
-                pass
-            await self._fail(restore_id, "ROLLED_BACK", [str(error)], rolled_back=True)
+                if safety_artifacts.exists():
+                    shutil.rmtree(artifacts_dir, ignore_errors=True)
+                    shutil.copytree(safety_artifacts, artifacts_dir)
+            except Exception as rollback_error:
+                rollback_ok = False
+                await self._fail(
+                    restore_id,
+                    "ROLLBACK_FAILED",
+                    [str(error), str(rollback_error)],
+                    rolled_back=False,
+                )
+                raise AppError(
+                    code="RESTORE_ROLLBACK_FAILED",
+                    message=(
+                        "the restore failed and the original database or blobs "
+                        "could not be fully restored"
+                    ),
+                    status=500,
+                    details={"stage": "RESTORING", "error": str(error)},
+                ) from error
+            if rollback_ok:
+                await self._fail(
+                    restore_id, "ROLLED_BACK", [str(error)], rolled_back=True
+                )
             raise AppError(
                 code="RESTORE_FAILED",
                 message="the restore failed; the current data was kept",
@@ -167,9 +213,21 @@ class RestoreService:
                 details={"stage": "RESTORING", "error": str(error)},
             ) from error
 
+        # Expire what the policy says is due before the restored data is served.
+        from personal_agent.application.data_lifecycle import DataLifecycleService
+
+        lifecycle = DataLifecycleService(
+            self._database,
+            self._clock,
+            BlobStore(self._data_dir / "artifacts"),
+            retention=self._policy.retention,
+            data_dir=self._data_dir,
+        )
+        retention = await lifecycle.apply_retention()
         post_restore = {
             "interrupted_runs": interrupted,
             "tombstones_applied": applied,
+            "retention": retention,
             "auto_resumed": False,
         }
         async with self._database.session() as session:
@@ -260,6 +318,24 @@ class RestoreService:
             connection.execute(
                 f"DELETE FROM reused_results WHERE artifact_id IN ({placeholders})",
                 tombstones,
+            )
+            # Persist a deletion tombstone into the restored database itself, so a
+            # second restore from the same backup cannot resurrect the content.
+            digest = hashlib.sha256(",".join(tombstones).encode("utf-8")).hexdigest()
+            stamp = iso_z(self._clock.now())
+            connection.execute(
+                "INSERT OR IGNORE INTO deletion_records "
+                "(id, status, run_id, artifact_id, affected_ids, backup_ids, "
+                "tombstone_hash, reason, requested_at, completed_at, revision) "
+                "VALUES (?, 'COMPLETED', NULL, NULL, ?, '[]', ?, ?, ?, ?, 1)",
+                (
+                    f"restore-{digest[:28]}",
+                    json.dumps(tombstones),
+                    f"sha256:{digest}",
+                    "restore tombstone",
+                    stamp,
+                    stamp,
+                ),
             )
             connection.commit()
             return applied
