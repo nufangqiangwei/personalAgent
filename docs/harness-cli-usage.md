@@ -74,9 +74,13 @@ node <经 package.json 校验为 0.2.1-rc.2 的 dsh/lib/bin.js> headless --patch
 
 这些是保留的采用门禁，不因 CLI 连通成功而豁免。
 
-### 本机模型网关代理（实现，未采用）
+### 本机模型网关代理（已接线，采用待真实供应商复验）
 
-正式执行时 CLI 的 `llm-deepseek.baseURL` 指向仅回环的 Messages 代理，`apiKeyEnv` 指向每 attempt 的网关令牌；供应商地址与 Key 只存在于 Python 网关进程。代理对每次模型调用先占用持久 `ModelGateway` 槽并绑定 owner/epoch/预留，再以单次非流式请求转发供应商，把成功回复重建为 Anthropic 事件流；失败、超时与本地终止保留 `UNKNOWN`，不回显供应商错误正文。任务环境只允许网关地址、令牌和 profile 路径三个变量。代理单测与真实 CLI 固定观测已通过，但 `lifespan` 正式装配、受管 MCP 工具与无旁路验收仍未完成，采用记录未生成。
+正式执行时 CLI 的 `llm-deepseek.baseURL` 指向仅回环的 Messages 代理，`apiKeyEnv` 指向每 attempt 的网关令牌；供应商地址与 Key 只存在于 Python 网关进程。代理对每次模型调用先占用持久 `ModelGateway` 槽并绑定 owner/epoch/预留，再以单次非流式请求转发供应商，把成功回复重建为 Anthropic 事件流；失败、超时与本地终止保留 `UNKNOWN`，不回显供应商错误正文。任务环境只允许网关地址、令牌、profile 路径和 scope epoch 四个变量。
+
+受管工具经官方 MCP client 挂载：CLI 通过 stdio 启动 `python -m personal_agent.adapters.tools.mcp_stdio`，该进程只持有网关地址与 attempt 令牌，把 `http_fetch` 等 MCP 名称映射回业务名称并转发到 `/tools/call`。每个工具的 scope 令牌由应用在 attempt 开始时签发、只保存在网关绑定中，模型无法提供 run/epoch/scope；工具结果返回正文/结构而非哈希。
+
+`bootstrap/lifespan.py` 已装配真实 transport、Brave/httpx/Playwright/提取 handlers、代理与 CLI 适配器；无证据或未配置凭据时仍禁用真实执行。剩余阻断：一次经授权并由评审确认的真实供应商请求，以及 T105 的官方 Loop 内逐次预留（当前多模型调用的 Loop 需要每次调用独立预留）。
 
 ## 5. 本机验证结果与费用
 

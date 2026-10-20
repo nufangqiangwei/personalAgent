@@ -128,6 +128,49 @@ describe('restricted tool guard', () => {
     expect(restrict).toHaveBeenCalledWith({ allow: ['search.web'] })
   })
 
+  it('binds the node scope from the launch environment when the profile has none', () => {
+    const predicates: Array<(execution: { name: string }) => string | undefined> = []
+    const guard = vi.fn((predicate: (execution: { name: string }) => string | undefined) => {
+      predicates.push(predicate)
+      return () => undefined
+    })
+    const restrict = vi.fn()
+    const listeners: Array<(payload: { agent: { ctx: { tools: unknown } } }) => void> = []
+    const on = (name: string, listener: (payload: { agent: { ctx: { tools: unknown } } }) => void) => {
+      if (name === 'agent/created') listeners.push(listener)
+      return () => undefined
+    }
+    process.env.PERSONAL_AGENT_GATEWAY_TOKEN = 'attempt-token'
+    process.env.PERSONAL_AGENT_SCOPE_EPOCH = '7'
+    try {
+      apply({ tools: { guard, restrict }, on } as never, loadProfile())
+      listeners[0]({ agent: { ctx: { tools: { guard, restrict } } } })
+      // A positive epoch and the attempt token satisfy the node scope check.
+      expect(predicates[0]({ name: 'search.web' })).toBeUndefined()
+    } finally {
+      delete process.env.PERSONAL_AGENT_GATEWAY_TOKEN
+      delete process.env.PERSONAL_AGENT_SCOPE_EPOCH
+    }
+  })
+
+  it('fails closed when neither the profile nor the environment binds a scope', () => {
+    const predicates: Array<(execution: { name: string }) => string | undefined> = []
+    const guard = vi.fn((predicate: (execution: { name: string }) => string | undefined) => {
+      predicates.push(predicate)
+      return () => undefined
+    })
+    const restrict = vi.fn()
+    const listeners: Array<(payload: { agent: { ctx: { tools: unknown } } }) => void> = []
+    const on = (name: string, listener: (payload: { agent: { ctx: { tools: unknown } } }) => void) => {
+      if (name === 'agent/created') listeners.push(listener)
+      return () => undefined
+    }
+    delete process.env.PERSONAL_AGENT_GATEWAY_TOKEN
+    apply({ tools: { guard, restrict }, on } as never, loadProfile())
+    listeners[0]({ agent: { ctx: { tools: { guard, restrict } } } })
+    expect(predicates[0]({ name: 'search.web' })).toBe('SCOPE_TOKEN_MISSING')
+  })
+
   it('loads the shipped profile and mounts only the guard hook', () => {
     const profile = loadProfile()
     const guard = vi.fn(() => () => undefined)

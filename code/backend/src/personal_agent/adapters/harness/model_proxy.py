@@ -16,7 +16,7 @@ import asyncio
 import json
 import secrets
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Protocol
 
@@ -28,11 +28,20 @@ from starlette.routing import Route
 
 from personal_agent.adapters.harness.model_gateway import ModelGateway, ProviderOutcome
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
-from personal_agent.ports.contracts import Clock, ModelMessage, ModelRequest, Owner
+from personal_agent.ports.contracts import (
+    Clock,
+    ModelMessage,
+    ModelRequest,
+    Owner,
+    ToolPort,
+    ToolRequest,
+)
 
 LOOPBACK_HOST = "127.0.0.1"
 MESSAGES_PATH = "/anthropic/v1/messages"
+TOOLS_PATH = "/tools/call"
 STREAM_LIMIT = 4 * 1024 * 1024
+TOOL_CONTENT_LIMIT = 256 * 1024
 
 
 class ProviderClient(Protocol):
@@ -51,6 +60,10 @@ class ProxyBinding:
     reserved_tokens: int
     output_limit: int
     timeout_seconds: float
+    # Scope tokens issued by the app's ToolScopeRegistry, one per allowed tool.
+    # They never leave the gateway process; the MCP client only holds the
+    # attempt token and cannot name a tool outside this mapping.
+    tool_scopes: Mapping[str, str] = field(default_factory=dict)
 
 
 class ProxyTokenRegistry:
@@ -69,6 +82,7 @@ class ProxyTokenRegistry:
         reserved_tokens: int,
         output_limit: int,
         timeout_seconds: float,
+        tool_scopes: Mapping[str, str] | None = None,
     ) -> ProxyBinding:
         if epoch < 1:
             raise ValueError("a gateway token needs a positive epoch")
@@ -83,6 +97,7 @@ class ProxyTokenRegistry:
             reserved_tokens=reserved_tokens,
             output_limit=output_limit,
             timeout_seconds=timeout_seconds,
+            tool_scopes=dict(tool_scopes or {}),
         )
         self._bindings[binding.token] = binding
         return binding
@@ -112,6 +127,7 @@ class ModelProxy:
         provider: ProviderClient,
         clock: Clock,
         *,
+        tools: ToolPort | None = None,
         host: str = LOOPBACK_HOST,
     ) -> None:
         if host != LOOPBACK_HOST:
@@ -120,6 +136,7 @@ class ModelProxy:
         self._tokens = tokens
         self._provider = provider
         self._clock = clock
+        self._tools = tools
         self._host = host
         self._port = 0
         self._server: uvicorn.Server | None = None
@@ -139,6 +156,7 @@ class ModelProxy:
             return self.base_url
         app = Starlette(routes=[
             Route(MESSAGES_PATH, self._messages, methods=["POST"]),
+            Route(TOOLS_PATH, self._call_tool, methods=["POST"]),
         ])
         config = uvicorn.Config(
             app,
@@ -225,6 +243,70 @@ class ModelProxy:
                 headers={"cache-control": "no-store"},
             )
         return JSONResponse(outcome.payload)
+
+    # ------------------------------------------------------------------
+    async def _call_tool(self, request: Request) -> Response:
+        """Managed MCP tool call: identity and scope come from the attempt token.
+
+        The model/MCP client only names a tool and arguments; it cannot supply a
+        scope token, run identity, epoch or an operation id. Those come from the
+        binding issued by the application before the attempt started.
+        """
+        binding = self._tokens.resolve(_request_token(request))
+        if binding is None:
+            return _error(401, "authentication_error",
+                          "a valid local gateway token is required")
+        body = await _json_body(request)
+        if body is None:
+            return _error(400, "invalid_request_error", "the request body must be JSON")
+        name = body.get("name")
+        arguments = body.get("arguments") or {}
+        if not isinstance(name, str) or not name or not isinstance(arguments, Mapping):
+            return _error(422, "invalid_request_error",
+                          "a tool name and object arguments are required")
+        scope_token = binding.tool_scopes.get(name)
+        if scope_token is None:
+            return _error(403, "permission_error",
+                          "the tool is not authorized for this attempt")
+        if self._tools is None:
+            return _error(503, "api_error", "the managed tool service is not mounted")
+        request_id = new_id()
+        try:
+            result = await self._tools.execute(ToolRequest(
+                operation_id=f"{request_id}:tool",
+                run_id=binding.owner.run_id or "",
+                attempt_id=binding.owner.attempt_id or "",
+                epoch=binding.epoch,
+                tool_name=name,
+                args=dict(arguments),
+                scope_token=scope_token,
+                deadline=self._clock.now() + timedelta(seconds=binding.timeout_seconds),
+            ))
+        except AppError as error:
+            # A refusal is a tool result, not an HTTP bypass; keep the code and
+            # drop message details that could carry arguments or targets.
+            return JSONResponse({
+                "content": [{
+                    "type": "text",
+                    "text": json.dumps(
+                        {"status": "refused", "code": error.code}, ensure_ascii=False
+                    ),
+                }],
+                "isError": True,
+                "source_refs": [],
+            })
+        content = result.content if result.content is not None else {"status": result.status}
+        text = json.dumps(content, ensure_ascii=False, sort_keys=True)
+        if len(text.encode("utf-8")) > TOOL_CONTENT_LIMIT:
+            text = json.dumps(
+                {"status": "truncated", "note": "the tool payload exceeded the local bound"},
+                ensure_ascii=False,
+            )
+        return JSONResponse({
+            "content": [{"type": "text", "text": text}],
+            "isError": result.status != "ok",
+            "source_refs": list(result.source_refs),
+        })
 
 
 def _request_token(request: Request) -> str | None:

@@ -12,6 +12,8 @@ import pytest
 
 from personal_agent.adapters.harness.cli import CliResult
 from personal_agent.adapters.harness.cli_runtime import CliRuntime
+from personal_agent.adapters.harness.model_proxy import ProxyTokenRegistry
+from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.domain.common import AppError, new_id
 from personal_agent.ports.contracts import Owner, RuntimeTask, SessionContext, Usage
 
@@ -21,6 +23,7 @@ class FixedRunner:
 
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.environments: list[dict[str, str] | None] = []
         self.ready = asyncio.Event()
         self.ready.set()
         self.result = CliResult(
@@ -28,8 +31,12 @@ class FixedRunner:
             Usage(input_tokens=13, output_tokens=2, model_requests=1), "verified-completion",
         )
 
-    async def run(self, prompt: str, *, timeout_seconds: float) -> CliResult:
+    async def run(
+        self, prompt: str, *, timeout_seconds: float,
+        environment: dict[str, str] | None = None,
+    ) -> CliResult:
         self.calls.append(prompt)
+        self.environments.append(environment)
         await self.ready.wait()
         return self.result
 
@@ -177,3 +184,47 @@ async def test_cancelling_one_waiter_does_not_cancel_the_owned_process(clock: An
         await waiter
     runner.ready.set()
     assert (await runtime.wait_result(submission.submission_id)).status == "completed"
+
+
+async def test_attempt_token_and_tool_scopes_are_issued_then_revoked(clock: Any) -> None:
+    runner = FixedRunner()
+    runner.ready.clear()
+    tokens = ProxyTokenRegistry()
+    scopes = ToolScopeRegistry()
+    runtime = CliRuntime(
+        runner, clock, profile_hash="profile",
+        tokens=tokens, gateway_base_url="http://127.0.0.1:1",
+        profile_path="C:/runtime/profile.json", scopes=scopes,
+    )
+    handle = await runtime.create_session(context())
+    request = replace(
+        task(handle.adapter_session_id, clock),
+        tool_scope=("search.web",), allowed_domains=("example.org",),
+    )
+    submission = await runtime.submit(request)
+    for _ in range(100):
+        if runner.environments:
+            break
+        await asyncio.sleep(0.01)
+    environment = runner.environments[0]
+    assert environment is not None
+    assert environment["PERSONAL_AGENT_GATEWAY_BASE_URL"] == "http://127.0.0.1:1"
+    assert environment["PERSONAL_AGENT_PROFILE_PATH"] == "C:/runtime/profile.json"
+    binding = tokens.resolve(environment["PERSONAL_AGENT_GATEWAY_TOKEN"])
+    assert binding is not None
+    assert binding.reservation_id == "reservation"
+    grant = scopes.validate(
+        token=binding.tool_scopes["search.web"], tool_name="search.web",
+        epoch=1, now=clock.now(),
+    )
+    assert grant.allowed_domains == ("example.org",)
+
+    runner.ready.set()
+    result = await runtime.wait_result(submission.submission_id)
+    assert result.status == "completed"
+    assert tokens.resolve(environment["PERSONAL_AGENT_GATEWAY_TOKEN"]) is None
+    with pytest.raises(AppError):
+        scopes.validate(
+            token=binding.tool_scopes["search.web"], tool_name="search.web",
+            epoch=1, now=clock.now(),
+        )

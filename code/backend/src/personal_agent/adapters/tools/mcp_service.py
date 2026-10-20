@@ -131,6 +131,7 @@ class ToolService:
             result_ref=str(parsed.get("char_count", 0)),
             source_refs=[],
             usage=_usage(normalized),
+            content=parsed,
         )
 
 

@@ -97,6 +97,7 @@ class BraveSearchTool:
             result_ref=stable_hash({"query": query, "results": results}),
             source_refs=[item["url"] for item in results],
             usage=Usage(tool_calls=1, search_calls=1),
+            content={"query": query, "results": results},
         )
 
 

@@ -73,6 +73,7 @@ class BrowserReader:
             result_ref=stable_hash(payload),
             source_refs=[str(payload["final_url"])],
             usage=Usage(tool_calls=1, page_reads=1),
+            content=payload,
         )
 
 

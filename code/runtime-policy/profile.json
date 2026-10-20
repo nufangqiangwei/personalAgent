@@ -15,7 +15,16 @@
     "persistReasoning": false
   },
   "tools": {
-    "allow": ["search.web", "http.fetch", "browser.read", "content.extract"],
+    "allow": [
+      "search.web",
+      "http.fetch",
+      "browser.read",
+      "content.extract",
+      "mcp__personal_agent__search_web",
+      "mcp__personal_agent__http_fetch",
+      "mcp__personal_agent__browser_read",
+      "mcp__personal_agent__content_extract"
+    ],
     "denyPrefixes": ["shell", "fs.", "file.", "plugin.", "agent.", "subagent.", "mcp.admin", "web.form", "payment"],
     "denyManagementApi": true,
     "emptyDomainListDeniesNetwork": true

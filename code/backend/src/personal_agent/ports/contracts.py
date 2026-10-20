@@ -132,6 +132,8 @@ class RuntimeTask:
     model_reserved_tokens: int = 0
     model_output_limit: int = 8192
     model_timeout_seconds: float = 120
+    # Domains the node may reach; issued into per-tool scope tokens by the caller.
+    allowed_domains: Sequence[str] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +239,9 @@ class ToolResult:
     side_effect_operation_id: str | None = None
     usage: Usage = field(default_factory=Usage)
     error: AppError | None = None
+    # The retrieved structure itself (bounded text/items). The model must be able
+    # to read the body, not only an unparseable hash or character count.
+    content: Mapping[str, Any] | None = None
 
 
 @runtime_checkable

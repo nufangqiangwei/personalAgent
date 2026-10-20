@@ -62,11 +62,20 @@ class LiveRuntime:
 
     def __init__(
         self, config: AppConfig, *, adapter: CliRuntime | None = None,
-        transport: ModelTransport | None = None,
+        transport: ModelTransport | None = None, proxy: Any | None = None,
     ) -> None:
         self._config = config
         self._adapter = adapter
         self._transport = transport
+        self._proxy = proxy
+
+    def mounted_bindings(self) -> dict[str, bool]:
+        """Actual composition facts, independent of a prior adoption record."""
+        return {
+            "cli_adapter": self._adapter is not None,
+            "gateway_transport": self._transport is not None,
+            "model_proxy": self._proxy is not None,
+        }
 
     def _require_adopted(self) -> dict[str, Any]:
         evidence = adoption_evidence(profile_path=self._config.profile_path)
@@ -136,6 +145,8 @@ class LiveRuntime:
     async def close(self) -> None:
         if self._adapter is not None:
             await self._adapter.close()
+        if self._proxy is not None:
+            await self._proxy.stop()
 
     @property
     def model_transport(self) -> ModelTransport:

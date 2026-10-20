@@ -6,10 +6,13 @@ in-flight runs as ``INTERRUPTED`` and leaves the decision to the user.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
@@ -17,6 +20,7 @@ from sqlalchemy import func, select, text
 
 from personal_agent.adapters.harness.mock_runtime import MockRuntime
 from personal_agent.adapters.harness.model_gateway import ModelGateway, ModelTransport
+from personal_agent.adapters.harness.model_provider import ProviderTransport
 from personal_agent.adapters.persistence.blob_store import BlobStore
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.persistence.execution_models import (
@@ -50,7 +54,13 @@ from personal_agent.bootstrap.clock import SystemClock
 from personal_agent.bootstrap.executor import RunExecutor
 from personal_agent.domain.common import AppError, ErrorCategory, new_id, stable_hash
 from personal_agent.domain.execution import EventKind, RunStatus
-from personal_agent.ports.contracts import Clock, ModelRequest, ModelResponse, RuntimePort
+from personal_agent.ports.contracts import (
+    Clock,
+    ModelRequest,
+    ModelResponse,
+    RuntimePort,
+    ToolPort,
+)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
@@ -177,19 +187,25 @@ async def build_context(
     clock = clock or SystemClock()
     database = database or Database(config.db_path)
     await ensure_execution_slot(database, clock)
+    observations = _observations()
+    tool_scopes = ToolScopeRegistry()
 
-    if runtime is None:
-        if config.is_live:
-            from personal_agent.adapters.harness.runtime import LiveRuntime
+    # The supplier client is the only holder of the provider credential. Its
+    # absence keeps live mode diagnosable but never falls back to Mock output.
+    live_provider = _live_provider() if config.is_live else None
+    if config.is_live:
+        transport: ModelTransport = (
+            ProviderTransport(live_provider) if live_provider is not None
+            else UnavailableModelTransport()
+        )
+    else:
+        from personal_agent.adapters.harness.mock_runtime import MockModelTransport
 
-            runtime = LiveRuntime(config)
-        else:
-            runtime = MockRuntime(_observations(), clock)
-
+        transport = MockModelTransport(observations)
     gateway = ModelGateway(
         database,
         clock,
-        _transport_for(config, runtime),
+        transport,
         runtime_id=config.mode,
         allowed_model_ids={
             os.environ.get("PERSONAL_AGENT_MODEL", "deepseek-v4-flash")
@@ -197,20 +213,38 @@ async def build_context(
         },
         enforce_owner=True,
     )
-    if isinstance(runtime, MockRuntime):
-        runtime.bind_model_gateway(gateway)
+    if config.is_live:
+        tools: Any = (
+            _live_tools(config, clock, tool_scopes) if live_provider is not None
+            else UnavailableToolService()
+        )
+    else:
+        tools = MockToolService(observations, clock)
+
+    live_proxy = None
+    live_adapter = None
+    if config.is_live and live_provider is not None and runtime is None:
+        live_proxy, live_adapter = await _mount_cli_bridge(
+            config, clock, gateway, live_provider, tools, tool_scopes,
+        )
+    if runtime is None:
+        if config.is_live:
+            from personal_agent.adapters.harness.runtime import LiveRuntime
+
+            runtime = LiveRuntime(
+                config, adapter=live_adapter,
+                transport=transport if live_provider is not None else None,
+                proxy=live_proxy,
+            )
+        else:
+            runtime = MockRuntime(observations, clock)
+            runtime.bind_model_gateway(gateway)
+
     store = BlobStore(config.artifacts_dir)
     writer = ManagedWriter(database, store, clock)
     artifacts = ArtifactService(database, writer, store, clock)
     budget = BudgetService(clock)
-    observations = _observations()
-    tools = (
-        UnavailableToolService()
-        if config.is_live
-        else MockToolService(observations, clock)
-    )
     evidence = EvidenceService(clock)
-    tool_scopes = ToolScopeRegistry()
     capabilities = await runtime.capabilities()
     model_id = (
         "mock-deepseek-phase1"
@@ -235,6 +269,7 @@ async def build_context(
             capability_token=capability_token,
             scopes=tool_scopes,
             control=control,
+            profile_hash=_profile_hash(config),
         )
     )
     runtime_fingerprint = stable_hash(capabilities.as_dict())
@@ -344,6 +379,103 @@ class UnavailableModelTransport:
         )
 
 
+def _profile_hash(config: config_module.AppConfig) -> str:
+    if not config.is_live or config.profile_path is None:
+        return "profile"
+    return hashlib.sha256(config.profile_path.read_bytes()).hexdigest()
+
+
+def _live_provider() -> Any:
+    """The supplier client, or None when no provider credential is configured."""
+    from personal_agent.adapters.harness.model_provider import AnthropicMessagesProvider
+
+    try:
+        return AnthropicMessagesProvider.from_environment()
+    except AppError:
+        return None
+
+
+def _live_tools(
+    config: config_module.AppConfig, clock: Clock, scopes: ToolScopeRegistry,
+) -> ToolPort:
+    """Real restricted handlers: Brave, httpx, Playwright, pure extraction."""
+    import httpx
+
+    from personal_agent.adapters.tools.browser_read import BrowserReader, PlaywrightBrowserDriver
+    from personal_agent.adapters.tools.extract import ContentExtractor
+    from personal_agent.adapters.tools.http_fetch import HttpFetcher
+    from personal_agent.adapters.tools.mcp_service import ToolHandlers, ToolService
+    from personal_agent.adapters.tools.search import BraveSearchTool
+    from personal_agent.bootstrap.credentials import CredentialService
+
+    credentials = CredentialService(clock)
+    client = httpx.AsyncClient(timeout=config.policy.transport.http_read_seconds)
+    return ToolService(
+        ToolHandlers(
+            search=BraveSearchTool(client, lambda: credentials.secret("search")),
+            fetch=HttpFetcher(client),
+            browser=BrowserReader(
+                PlaywrightBrowserDriver(
+                    action_timeout_seconds=config.policy.transport.browser_action_seconds,
+                ),
+                should_stop=lambda: False,
+            ),
+            extract=ContentExtractor(),
+        ),
+        scopes,
+        clock,
+    )
+
+
+async def _mount_cli_bridge(
+    config: config_module.AppConfig,
+    clock: Clock,
+    gateway: ModelGateway,
+    provider: Any,
+    tools: ToolPort,
+    scopes: ToolScopeRegistry,
+) -> tuple[Any, Any]:
+    """Start the loopback proxy and the pinned CLI adapter for this process.
+
+    Returns ``(None, None)`` when the installation, profile or built policy
+    plugin is unavailable: live mode then stays disabled rather than falling
+    back to a direct provider or Mock output.
+    """
+    from personal_agent.adapters.harness.adoption import configured_installation
+    from personal_agent.adapters.harness.cli import HeadlessCli
+    from personal_agent.adapters.harness.cli_runtime import CliRuntime
+    from personal_agent.adapters.harness.model_proxy import ModelProxy, ProxyTokenRegistry
+    from personal_agent.adapters.harness.patch import write_cli_patch
+
+    installation = configured_installation()
+    profile = config.profile_path
+    plugin = BACKEND_ROOT.parent / "runtime-policy" / "dist" / "index.js"
+    if installation is None or profile is None or not plugin.exists():
+        return None, None
+    tokens = ProxyTokenRegistry()
+    proxy = ModelProxy(gateway, tokens, provider, clock, tools=tools)
+    try:
+        await proxy.start()
+    except (OSError, RuntimeError):
+        return None, None
+    patch = write_cli_patch(
+        config.runtime_dir / "restricted.patch.yml",
+        policy_plugin=plugin,
+        max_output_tokens=config.policy.model.max_output_tokens,
+        tool_command=[sys.executable, "-m", "personal_agent.adapters.tools.mcp_stdio"],
+    )
+    adapter = CliRuntime(
+        HeadlessCli(installation, patch, config.runtime_dir / "attempts"),
+        clock,
+        profile_hash=_profile_hash(config),
+        tokens=tokens,
+        gateway_base_url=proxy.base_url,
+        profile_path=str(profile),
+        scopes=scopes,
+    )
+    return proxy, adapter
+
+
 def _transport_for(
     config: config_module.AppConfig, runtime: RuntimePort
 ) -> ModelTransport:
@@ -373,4 +505,7 @@ async def lifespan_for(config: config_module.AppConfig) -> AsyncIterator[AppCont
         await mark_interrupted_runs(context.database, context.clock)
         yield context
     finally:
+        close = getattr(context.runtime, "close", None)
+        if close is not None:
+            await close()
         await context.database.dispose()

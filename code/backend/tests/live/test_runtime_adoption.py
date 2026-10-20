@@ -27,7 +27,9 @@ from personal_agent.adapters.harness.cli import (
     launch_environment,
 )
 from personal_agent.adapters.harness.cli_runtime import CliRuntime
-from personal_agent.adapters.harness.model_gateway import ModelGateway
+from personal_agent.adapters.harness.model_gateway import ModelGateway, ProviderOutcome
+from personal_agent.adapters.harness.model_proxy import ModelProxy, ProxyTokenRegistry
+from personal_agent.adapters.harness.patch import write_cli_patch
 from personal_agent.adapters.harness.runtime import LiveRuntime
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.tools.mcp_service import ToolService
@@ -41,6 +43,7 @@ from personal_agent.ports.contracts import (
     Owner,
     RuntimeTask,
     SessionContext,
+    Usage,
 )
 
 pytestmark = pytest.mark.live
@@ -223,26 +226,105 @@ async def test_real_cli_gateway_completion_and_unknown_survive_restart(
 
 async def test_production_gateway_and_managed_tool_bindings(
     tmp_path: Path, installation: CliInstallation, database: Any, clock: Any,
-    adoption_report: dict[str, Any],
+    adoption_report: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    checks = adoption_report["checks"]
+    # A configured credential and endpoint let the production composition mount
+    # its bridge; no request is sent while merely building the context.
+    monkeypatch.setenv("PERSONAL_AGENT_MODEL_API_KEY", "adoption-fixture-key")
+    monkeypatch.setenv("PERSONAL_AGENT_MODEL_BASE_URL", "http://127.0.0.1:1/anthropic")
     config = load_config(mode="live", data_dir=tmp_path)
     app = await build_context(config, database=database, clock=clock)
-    capabilities = await app.runtime.capabilities()
-    checks = adoption_report["checks"]
-    checks["gateway_binding_mounted"] = (
-        isinstance(app.runtime, LiveRuntime) and capabilities.model_gateway_enforced
+    try:
+        binding = app.runtime.mounted_bindings() if isinstance(app.runtime, LiveRuntime) else {}
+        checks["gateway_binding_mounted"] = all(
+            binding.get(name) is True
+            for name in ("cli_adapter", "gateway_transport", "model_proxy")
+        )
+        checks["managed_tools_mounted"] = isinstance(app.tools, ToolService)
+        capabilities = await app.runtime.capabilities()
+        # Mounted is not adopted: without evidence live still refuses to run.
+        assert capabilities.model_gateway_enforced is False
+        assert app.execution_available is False
+        with pytest.raises(AppError) as denied:
+            await app.runtime.create_session(SessionContext(
+                new_id(), Owner(run_id=new_id(), attempt_id=new_id()),
+                1, "deepseek-flash", "profile", "token", "policy",
+            ))
+        assert denied.value.code == "RUNTIME_INCOMPATIBLE"
+    finally:
+        close = getattr(app.runtime, "close", None)
+        if close is not None:
+            await close()
+
+    # No bypass: the generated patch points the CLI only at the loopback proxy,
+    # and every model call the provider sees is one completed gateway request.
+    class FixedProvider:
+        def __init__(self) -> None:
+            self.specs: list[ModelRequest] = []
+
+        async def complete(self, body: Any, spec: ModelRequest) -> ProviderOutcome:
+            self.specs.append(spec)
+            return ProviderOutcome(
+                status="completed",
+                payload={
+                    "id": "msg_adoption", "type": "message", "role": "assistant",
+                    "model": "deepseek-flash",
+                    "content": [{"type": "text", "text": "adoption final"}],
+                    "stop_reason": "end_turn", "stop_sequence": None,
+                    "usage": {"input_tokens": 3, "output_tokens": 2},
+                },
+                usage=Usage(input_tokens=3, output_tokens=2, model_requests=1),
+                completion_evidence_ref=f"fixed:{spec.request_id}",
+            )
+
+    class UnusedTransport:
+        async def complete(self, spec: ModelRequest) -> Any:  # pragma: no cover
+            raise AssertionError("the bridge must not use the Python-side transport")
+
+    provider = FixedProvider()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    tokens = ProxyTokenRegistry()
+    proxy = ModelProxy(gateway, tokens, provider, clock)
+    await proxy.start()
+    try:
+        token = tokens.issue(
+            owner=Owner(run_id=new_id(), attempt_id=new_id()), epoch=1,
+            model_id="deepseek-flash", reservation_id="adoption:model",
+            reserved_tokens=256, output_limit=64, timeout_seconds=30,
+        )
+        patch = write_cli_patch(
+            tmp_path / "adoption.patch.yml",
+            policy_plugin=ROOT / "code/runtime-policy/dist/index.js",
+            max_output_tokens=64,
+        )
+        result = await HeadlessCli(installation, patch, tmp_path / "bypass").run(
+            "Return the fixed adoption answer as plain text.",
+            timeout_seconds=60,
+            environment={
+                "PERSONAL_AGENT_GATEWAY_BASE_URL": proxy.base_url,
+                "PERSONAL_AGENT_GATEWAY_TOKEN": token.token,
+                "PERSONAL_AGENT_PROFILE_PATH": str(ROOT / "code/runtime-policy/profile.json"),
+                "PERSONAL_AGENT_SCOPE_EPOCH": "1",
+            },
+        )
+    finally:
+        await proxy.stop()
+    settled = (
+        await gateway.describe(provider.specs[0].request_id) if provider.specs else {}
     )
-    checks["managed_tools_mounted"] = isinstance(app.tools, ToolService)
-    # Claiming no bypass requires the actual production boundary first. A fixed
-    # observation sent through a test transport is not that production boundary.
-    checks["gateway_no_bypass"] = None  # NOT RUN: mounted production boundary is a prerequisite.
+    checks["gateway_no_bypass"] = (
+        result.status == "completed" and result.text == "adoption final"
+        and len(provider.specs) == 1
+        and await gateway.non_terminal_request() is None
+        and settled.get("status") == "COMPLETED"
+    )
     adoption_report["blockers"] = [
-        "production CLI llm/stream provider-to-ModelGateway bridge is not mounted",
-        "production managed tool/MCP handlers and retrievable bodies are not mounted",
-        "all-model no-bypass acceptance must run against those mounted boundaries",
+        "the fixed-observation run proves wiring and accounting, not a real supplier answer",
+        "adoption still needs one authorized real supplier request and a reviewed record",
     ]
-    assert checks["gateway_binding_mounted"] and checks["managed_tools_mounted"], (
-        "T121 adoption blocked: production provider/ModelGateway and managed tool/MCP "
-        "bindings are absent; installed CLI, fixed observations, "
-        "or an existing record cannot adopt them"
-    )
+    assert checks["gateway_binding_mounted"] and checks["managed_tools_mounted"]
+    assert checks["gateway_no_bypass"], {
+        "status": result.status, "calls": len(provider.specs),
+        "error_code": result.error_code,
+    }

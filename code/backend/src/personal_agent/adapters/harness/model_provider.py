@@ -14,7 +14,7 @@ import httpx
 
 from personal_agent.adapters.harness.model_gateway import ProviderOutcome
 from personal_agent.domain.common import AppError, ErrorCategory, stable_hash
-from personal_agent.ports.contracts import ModelRequest, Usage
+from personal_agent.ports.contracts import ModelRequest, ModelResponse, Usage
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic"
@@ -148,4 +148,49 @@ class AnthropicMessagesProvider:
             payload=payload,
             usage=usage,
             completion_evidence_ref=evidence,
+        )
+
+
+def reply_text(payload: dict[str, Any] | None) -> str | None:
+    """Join visible text blocks; reasoning and tool calls are never content."""
+    if not payload:
+        return None
+    blocks = payload.get("content")
+    if not isinstance(blocks, list):
+        return None
+    parts = [
+        str(block.get("text"))
+        for block in blocks
+        if isinstance(block, dict) and block.get("type") == "text"
+        and isinstance(block.get("text"), str)
+    ]
+    return "".join(parts) if parts else None
+
+
+class ProviderTransport:
+    """ModelTransport for Python-originated calls (analysis, clarification, rewrite).
+
+    Those requests never enter the CLI Loop; they share the same supplier client
+    and therefore the same gateway slot and credential boundary.
+    """
+
+    def __init__(self, provider: AnthropicMessagesProvider) -> None:
+        self._provider = provider
+
+    async def complete(self, spec: ModelRequest) -> ModelResponse:
+        body = {
+            "model": spec.model_id,
+            "max_tokens": spec.output_limit,
+            "messages": [
+                {"role": message.role, "content": message.content}
+                for message in spec.messages
+            ],
+        }
+        outcome = await self._provider.complete(body, spec)
+        return ModelResponse(
+            status=outcome.status,
+            content=reply_text(outcome.payload),
+            usage=outcome.usage,
+            completion_evidence_ref=outcome.completion_evidence_ref,
+            error=outcome.error,
         )

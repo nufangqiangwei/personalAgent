@@ -20,7 +20,13 @@ from personal_agent.adapters.harness.model_gateway import ModelGateway, Provider
 from personal_agent.adapters.harness.model_provider import AnthropicMessagesProvider
 from personal_agent.adapters.harness.model_proxy import ModelProxy, ProxyTokenRegistry
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
-from personal_agent.ports.contracts import ModelRequest, Owner, Usage
+from personal_agent.ports.contracts import (
+    ModelRequest,
+    Owner,
+    ToolRequest,
+    ToolResult,
+    Usage,
+)
 
 ANTHROPIC_MESSAGE = {
     "id": "msg_fixture",
@@ -219,6 +225,72 @@ async def test_proxy_rejects_a_model_outside_its_binding(proxy: Any) -> None:
     response = await post(server, body(model="other-model"), token)
     assert response.status_code == 403
     assert await gateway.non_terminal_request() is None
+
+
+async def test_tool_calls_use_the_bound_scope_and_return_the_body(
+    database: Any, clock: Any,
+) -> None:
+    class RecordingTools:
+        def __init__(self) -> None:
+            self.requests: list[ToolRequest] = []
+            self.refuse = False
+
+        async def execute(self, request: ToolRequest) -> ToolResult:
+            self.requests.append(request)
+            if self.refuse:
+                raise AppError(
+                    code="TOOL_SCOPE_DENIED", message="denied",
+                    category=ErrorCategory.PERMISSION, status=403,
+                )
+            return ToolResult(
+                status="ok", content={"body": "page body"},
+                source_refs=["https://example.org"], usage=Usage(tool_calls=1),
+            )
+
+    registry = ProxyTokenRegistry()
+    tools = RecordingTools()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(gateway, registry, FixedProvider(), clock, tools=tools)
+    await server.start()
+    try:
+        token = binding(registry=registry, tool_scopes={"http.fetch": "scope-token"})
+        async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+            allowed = await client.post(
+                server.url("/tools/call"),
+                json={"name": "http.fetch", "arguments": {"url": "https://example.org"},
+                      "scope_token": "forged", "epoch": 99},
+                headers={"x-api-key": token},
+            )
+            assert allowed.status_code == 200, allowed.text
+            payload = allowed.json()
+            assert payload["isError"] is False
+            assert json.loads(payload["content"][0]["text"]) == {"body": "page body"}
+            assert tools.requests[0].scope_token == "scope-token"
+            assert tools.requests[0].tool_name == "http.fetch"
+            assert tools.requests[0].epoch == 1
+
+            not_bound = await client.post(
+                server.url("/tools/call"), json={"name": "shell.exec", "arguments": {}},
+                headers={"x-api-key": token},
+            )
+            assert not_bound.status_code == 403
+
+            tools.refuse = True
+            refused = await client.post(
+                server.url("/tools/call"),
+                json={"name": "http.fetch", "arguments": {"url": "https://example.org"}},
+                headers={"x-api-key": token},
+            )
+            assert refused.status_code == 200
+            assert refused.json()["isError"] is True
+            assert "TOOL_SCOPE_DENIED" in refused.json()["content"][0]["text"]
+
+            missing = await client.post(
+                server.url("/tools/call"), json={"name": "http.fetch", "arguments": {}},
+            )
+            assert missing.status_code == 401
+    finally:
+        await server.stop()
 
 
 async def test_provider_maps_usage_and_never_echoes_failure_detail(clock: Any) -> None:

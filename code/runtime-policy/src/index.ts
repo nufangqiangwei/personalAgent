@@ -68,7 +68,13 @@ export function apply(ctx: PolicyContext, profile?: ProfileFile): InstalledGuard
   // patch; the CLI never receives the profile inline, so its hash stays bound.
   const resolved = profile ?? loadProfile(process.env.PERSONAL_AGENT_PROFILE_PATH)
   const policy = toolPolicyFromProfile(resolved)
-  const scope = resolved.scope
+  // The launch patch binds the node scope to the per-attempt token/epoch; the
+  // profile itself never carries a secret. The gateway re-validates the real
+  // per-tool grant, so this token is only the "a trusted node started me" mark.
+  const scope = resolved.scope ?? {
+    scopeToken: process.env.PERSONAL_AGENT_GATEWAY_TOKEN ?? '',
+    epoch: Number(process.env.PERSONAL_AGENT_SCOPE_EPOCH ?? '1'),
+  }
   const installed = new Map<AgentScope, InstalledGuard>()
   // dsh-agent 0.2.1-rc.2 dispatches { agent, source, signal }, not the agent itself.
   const created = ctx.on('agent/created', event => {

@@ -48,6 +48,7 @@ class MockToolService:
                 result_ref=stable_hash({"search": query, "urls": urls}),
                 source_refs=urls,
                 usage=Usage(tool_calls=1, search_calls=1),
+                content={"query": query, "results": entry.get("results", [])},
             )
         pages = self._observations.get("http", {}).get("pages", {})
         url = str(request.args.get("url") or "")
@@ -69,6 +70,12 @@ class MockToolService:
                 tool_calls=1,
                 page_reads=1 if request.tool_name in {"http.fetch", "browser.read"} else 0,
             ),
+            content={
+                "url": url,
+                "source_id": page.get("source_id"),
+                "title": page.get("title"),
+                "body": page.get("body"),
+            },
         )
 
 

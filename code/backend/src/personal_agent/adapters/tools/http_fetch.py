@@ -108,4 +108,5 @@ def fetch_result(payload: dict[str, Any]) -> ToolResult:
         result_ref=stable_hash(payload),
         source_refs=[str(payload.get("final_url") or payload.get("url"))],
         usage=Usage(tool_calls=1, page_reads=1),
+        content=payload,
     )

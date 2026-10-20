@@ -116,42 +116,38 @@ T021/T104/T121/T129/T100/T132 保持未勾选，总任务仍 94/138；按 implem
 
 本轮固定观测通过的真实依赖测试发送供应商请求 **0 次**，新增付费 **0 元**；原两次付费探针的保守占用 **2.013242 元** 原样继承，总授权 **25 元**，余量上界 **22.986758 元**。没有读取凭据存储、重启 Web 或重复索要已有授权；8730 仍由 PID26948 监听。没有新迁移或锁文件变更，未执行用户数据库迁移，未提交或发布。
 
-## 2026-10-20 收尾：本机模型网关代理与真实 CLI 桥接（采用仍未通过）
+## 2026-10-20 Phase 2 收口：模型网关、受管 MCP 与正式装配（实现完成，采用待真实供应商）
 
-本轮把上一节列出的“实际 provider→ModelGateway”做成可执行代码，但**没有**完成 `lifespan` 正式装配与受管工具，因此采用记录仍为 `adopted=false`，真实模式继续禁用。
+本轮把“provider→ModelGateway 与受管工具”从缺口做成正式装配，并重写了可执行采用门禁。**12 项检查在固定本机观测下全部为 true，但采用记录仍为 `adopted=false`**：尚无一次经授权、经评审的真实供应商请求。
 
-新增/修改：
+实现：
 
 | 文件 | 作用 |
 |---|---|
-| `code/backend/src/personal_agent/adapters/harness/model_proxy.py` | 仅回环、按 attempt 令牌绑定的 Messages 协议代理；每次 CLI 模型请求先占持久槽，再以单次非流式请求转发供应商，成功回复重建为 Anthropic 事件流；失败/超时保留 UNKNOWN，不回显供应商错误正文 |
-| `code/backend/src/personal_agent/adapters/harness/model_provider.py` | 唯一持有供应商地址与凭据的客户端（`PERSONAL_AGENT_MODEL_API_KEY` / `PERSONAL_AGENT_MODEL_BASE_URL`）；用量含缓存读写；非 2xx/超时只返回白名单错误 |
-| `code/backend/src/personal_agent/adapters/harness/model_gateway.py` | 抽出 `exchange()`，复用占槽/超时/UNKNOWN/可信结算；`request()` 行为不变 |
-| `code/backend/src/personal_agent/adapters/harness/patch.py` | 生成受限 headless patch：provider `baseURL` 指向本机代理、`apiKeyEnv` 为每 attempt 令牌、禁用持久化/压缩/重试/默认工具；地址与令牌只经每 attempt 环境传入 |
-| `code/backend/src/personal_agent/adapters/harness/cli.py` | 任务环境白名单；白名单外的变量（如供应商 Key）直接 `RUNTIME_ENV_REJECTED` |
-| `code/runtime-policy/src/{index,guard}.ts` | 修复两个真实不兼容，见下 |
+| `adapters/harness/model_proxy.py` | 仅回环、按 attempt 令牌绑定的 Messages 与工具代理。模型调用先占持久槽；`/tools/call` 的 run/attempt/epoch/scope 全部来自绑定，模型只能提供工具名与参数；结果返回正文，超限截断为明确标记 |
+| `adapters/harness/model_provider.py` | 唯一持有供应商地址与 Key 的客户端；`ProviderTransport` 让 Python 侧分析/澄清请求走同一供应商与网关 |
+| `adapters/harness/patch.py` | 受限 headless patch：模型 baseURL 固定为 `<本机代理>/anthropic`、apiKeyEnv 为 attempt 令牌、禁用持久化/压缩/重试/默认工具/工作区指令，并按需挂载官方 MCP client |
+| `adapters/tools/mcp_stdio.py` | 官方 MCP stdio 协议（JSON-RPC 2.0，换行分帧）：暴露 `search_web/http_fetch/browser_read/content_extract`，映射回业务名并转发网关；不接受模型提供的身份字段 |
+| `adapters/harness/cli_runtime.py` | 每次 submit 签发 attempt 令牌与逐工具 scope 令牌，经环境白名单传入；停止、完成、销毁和迟到结果均撤销 |
+| `bootstrap/lifespan.py` | 正式装配真实 transport、Brave/httpx/Playwright/提取 handlers、代理、CLI 适配器与共享 scope 注册表；无凭据/安装/插件时保持禁用 |
+| `application/engine.py`、`ports/contracts.py` | AgentTask 传递 `allowed_domains` 与真实 profile hash；`ToolResult.content` 承载可取回的正文/结构 |
 
-运行真实 CLI 时发现并修复的两个插件缺陷（此前 fixture 复刻了错误假设）：
+运行真实 CLI 时发现并修复的缺陷：`agent/created` 的载荷是 `{agent, source, signal}`；`tools.restrict()` 拒绝尚未注册的全局工具名（现只收紧已存在工具，`guard` 仍拒绝全部越权名）；guard 需要从启动环境取得节点 scope；MCP 名称不能含点，已映射为下划线名再还原业务名。
 
-1. 固定版本 `agent/created` 的载荷是 `{agent, source, signal}`，不是 agent 本身；旧代码读取 `payload.ctx.tools` 直接崩溃。
-2. `tools.restrict()` 拒绝尚未注册的全局工具名，空工具表会让 CLI 启动失败。现在只收紧**当前已存在**的 allowlist 名称，`guard` 仍拒绝所有越权名（含随后在同 scope 注册的工具），删除工具时也不放松。
-
-验证（均为固定本机观测/本机 provider，供应商请求 0 次、新增付费 0 元）：
+验证（固定本机观测/本机 provider，供应商请求 0 次、新增付费 0 元）：
 
 | 检查 | 结果 |
 |---|---|
-| 真实 CLI 经代理完成一次模型调用 `tests/live/test_cli_gateway_bridge.py` | **1 PASS，4.64 秒**；官方 Loop 实际经本机代理，网关记录 1 个 COMPLETED、13 tokens |
-| 代理契约 `tests/contract/test_model_proxy.py` | 6 PASS：令牌/撤销、单槽并发 409、SSE 结构、结算用量、失败保留 UNKNOWN、模型越权 403 |
-| 任务环境白名单 | 1 PASS：仅允许网关地址/令牌/profile 路径 |
-| `code/scripts/check.ps1` | **PASS，7 组检查整体退出 0**；后端 342、前端 47、策略 20 |
+| 采用门禁 `test_runtime_adoption.py --live` | **4 PASS，13.84 秒**；候选证据 12 项全 true、`adopted=false` |
+| 真实 CLI 经代理（无工具） | 1 PASS；1 个 COMPLETED、13 tokens |
+| 真实 CLI + 受管 MCP 工具 | 1 PASS；两次模型调用均经网关，工具正文进入第二次上下文，供应商 Key 未进入 CLI |
+| `check.ps1` | **PASS，7 组整体退出 0**；后端 346、前端 47、策略 22 |
 | ruff / mypy | PASS / PASS，108 个源码文件 |
-| 采用门禁复跑 | **3 PASS / 1 FAIL，15.09 秒**；失败仍为 `gateway_binding_mounted`、`managed_tools_mounted` 与未运行的 `gateway_no_bypass` |
 
-仍未完成，不能勾选 T021/T121/T129：
+仍未完成 / 下一个阻断：
 
-- `bootstrap/lifespan.py` 尚未装配代理、`CliRuntime` 的每 attempt 令牌与真实 transport；当前 `build_context(live)` 仍以禁用能力启动。
-- 受管 MCP 工具（Brave/httpx/Playwright/提取正文）尚未挂载；`ToolService` 的 scope 令牌还未绑定到 CLI 的 AgentTask 工具调用。
-- `gateway_no_bypass` 仍需在正式装配后对所有生成/压缩/重试逐一验证，不能凭代理单测或 capability 声明通过。
-- `docs/runtime-adoption.json` 未生成；没有任何 adopted=true 记录。
+- **T105**：官方 Loop 内一次 attempt 可能发起多次模型调用，而生产网关的 `enforce_owner=True` 目前只认 attempt 级单次预留；工具型 Loop 需要每次调用独立预留与结算。固定观测门禁使用 `enforce_owner=False`，不能据此宣布 T104/T105 通过。
+- **T021**：需要用户提供供应商凭据并授权一次真实请求，生成经评审的 `docs/runtime-adoption.json`；在此之前 `execution_available` 恒为 false，真实模式继续禁用。
+- 未运行：真实供应商、Brave、真实页面抓取与两流程真实交付（T100/T132）。
 
-三个锁文件指纹与本轮前一致，无新迁移、未改依赖、未提交或发布。
+三个锁文件指纹与本轮前一致，无新迁移、无依赖变更，未对用户数据库执行迁移，未提交或发布。

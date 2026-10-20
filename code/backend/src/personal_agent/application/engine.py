@@ -96,6 +96,7 @@ class EngineDeps:
     scopes: ToolScopeRegistry | None = None
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     control: Any | None = None
+    profile_hash: str = "profile"
 
 
 @dataclass(slots=True)
@@ -369,7 +370,7 @@ class WorkflowEngine:
                 owner=Owner(run_id=run.id, attempt_id=attempt.id),
                 epoch=run.epoch,
                 model_id=self._deps.model_id,
-                profile_hash="profile",
+                profile_hash=self._deps.profile_hash,
                 capability_token=self._deps.capability_token,
                 policy_hash=run.budget_policy_hash,
             )
@@ -395,6 +396,7 @@ class WorkflowEngine:
                     step.policy.timeout_seconds,
                     timeout_seconds,
                 ),
+                allowed_domains=tuple(step.policy.allowed_domains),
             )
         )
         result = await self._deps.runtime.wait_result(submission.submission_id)

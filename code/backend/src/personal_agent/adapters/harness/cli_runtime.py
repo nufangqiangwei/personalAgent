@@ -18,6 +18,8 @@ from jsonschema.exceptions import SchemaError, ValidationError  # type: ignore[i
 
 from personal_agent.adapters.harness.cli import CLI_VERSION, CliResult
 from personal_agent.adapters.harness.events import normalize_event
+from personal_agent.adapters.harness.model_proxy import ProxyTokenRegistry
+from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.domain.common import AppError, ErrorCategory, new_id, stable_hash
 from personal_agent.ports.contracts import (
     Clock,
@@ -35,7 +37,10 @@ from personal_agent.ports.contracts import (
 
 
 class CliRunner(Protocol):
-    async def run(self, prompt: str, *, timeout_seconds: float) -> CliResult: ...
+    async def run(
+        self, prompt: str, *, timeout_seconds: float,
+        environment: Mapping[str, str] | None = None,
+    ) -> CliResult: ...
 
 
 def _error(code: str, message: str, category: ErrorCategory) -> AppError:
@@ -43,16 +48,32 @@ def _error(code: str, message: str, category: ErrorCategory) -> AppError:
 
 
 class CliRuntime:
-    def __init__(self, runner: CliRunner, clock: Clock, *, profile_hash: str) -> None:
+    def __init__(
+        self,
+        runner: CliRunner,
+        clock: Clock,
+        *,
+        profile_hash: str,
+        tokens: ProxyTokenRegistry | None = None,
+        gateway_base_url: str | None = None,
+        profile_path: str | None = None,
+        scopes: ToolScopeRegistry | None = None,
+    ) -> None:
         self._runner = runner
         self._clock = clock
         self._profile_hash = profile_hash
+        self._tokens = tokens
+        self._gateway_base_url = gateway_base_url
+        self._profile_path = profile_path
+        self._scopes = scopes
         self._sessions: dict[str, SessionHandle] = {}
         self._contexts: dict[str, SessionContext] = {}
         self._session_operations: dict[str, tuple[str, SessionHandle]] = {}
         self._submissions: dict[str, tuple[str, Submission]] = {}
         self._workers: dict[str, asyncio.Task[WaitResult]] = {}
         self._session_submission: dict[str, str] = {}
+        self._session_tokens: dict[str, str] = {}
+        self._session_scope_tokens: dict[str, list[str]] = {}
         self._events: dict[str, list[RuntimeEvent]] = {}
         self._stopped: set[str] = set()
 
@@ -124,10 +145,66 @@ class CliRuntime:
             "output_schema": dict(task.output_schema),
             "response_format": "Return one JSON object satisfying output_schema.",
         }, ensure_ascii=False)
+        environment = self._bind_gateway(context, task)
         self._workers[submission.submission_id] = asyncio.create_task(
-            self._execute(task.session_id, prompt, min(remaining, task.model_timeout_seconds)),
+            self._execute(
+                task.session_id, prompt, min(remaining, task.model_timeout_seconds),
+                environment,
+            ),
         )
         return submission
+
+    def _bind_gateway(
+        self, context: SessionContext, task: RuntimeTask,
+    ) -> dict[str, str] | None:
+        """Issue one attempt token plus per-tool scope tokens for this attempt.
+
+        The CLI and the MCP child only receive the loopback endpoint and this
+        token; supplier credentials and scope tokens stay in the gateway process.
+        """
+        if self._tokens is None or not self._gateway_base_url:
+            return None
+        tool_scopes: dict[str, str] = {}
+        if self._scopes is not None and context.owner.run_id and context.owner.attempt_id:
+            for tool_name in task.tool_scope:
+                tool_scopes[str(tool_name)] = self._scopes.issue(
+                    run_id=context.owner.run_id,
+                    attempt_id=context.owner.attempt_id,
+                    epoch=context.epoch,
+                    tool_name=str(tool_name),
+                    allowed_domains=task.allowed_domains,
+                    now=self._clock.now(),
+                )
+        binding = self._tokens.issue(
+            owner=context.owner,
+            epoch=context.epoch,
+            model_id=context.model_id,
+            reservation_id=task.budget_reservation_id,
+            reserved_tokens=max(task.model_reserved_tokens, task.model_output_limit),
+            output_limit=task.model_output_limit,
+            timeout_seconds=task.model_timeout_seconds,
+            tool_scopes=tool_scopes,
+        )
+        self._session_tokens[task.session_id] = binding.token
+        self._session_scope_tokens[task.session_id] = list(tool_scopes.values())
+        environment = {
+            "PERSONAL_AGENT_GATEWAY_BASE_URL": self._gateway_base_url,
+            "PERSONAL_AGENT_GATEWAY_TOKEN": binding.token,
+            # The guard binds its node scope to this attempt's epoch; the real
+            # scope token stays in the gateway's per-tool grants.
+            "PERSONAL_AGENT_SCOPE_EPOCH": str(context.epoch),
+        }
+        if self._profile_path:
+            environment["PERSONAL_AGENT_PROFILE_PATH"] = self._profile_path
+        return environment
+
+    def _revoke(self, session_id: str) -> None:
+        token = self._session_tokens.pop(session_id, None)
+        if token is not None and self._tokens is not None:
+            self._tokens.revoke(token)
+        for scope_token in self._session_scope_tokens.pop(session_id, []):
+            if self._scopes is not None:
+                self._scopes.revoke(scope_token)
 
     @staticmethod
     def _local_schema(value: Any) -> None:
@@ -142,9 +219,14 @@ class CliRuntime:
             for child in value:
                 CliRuntime._local_schema(child)
 
-    async def _execute(self, session_id: str, prompt: str, duration: float) -> WaitResult:
+    async def _execute(
+        self, session_id: str, prompt: str, duration: float,
+        environment: Mapping[str, str] | None = None,
+    ) -> WaitResult:
         try:
-            result = await self._runner.run(prompt, timeout_seconds=duration)
+            result = await self._runner.run(
+                prompt, timeout_seconds=duration, environment=environment,
+            )
             output: dict[str, Any] | None = None
             error = None
             status = result.status
@@ -187,6 +269,9 @@ class CliRuntime:
                 ErrorCategory.UNKNOWN_OUTCOME,
             ))
         self._emit(session_id, "result.available", {"status": mapped.status})
+        # The attempt token dies with the attempt: a late or leaked value cannot
+        # start another model or tool action.
+        self._revoke(session_id)
         return mapped
 
     def _emit(self, session_id: str, kind: str, payload: dict[str, Any]) -> None:
@@ -227,6 +312,8 @@ class CliRuntime:
     async def request_stop(self, session_id: str, reason: str) -> StopResult:
         self._context(session_id)
         self._stopped.add(session_id)
+        # No new model or tool action may start after a stop request.
+        self._revoke(session_id)
         submission = self._session_submission.get(session_id)
         worker = self._workers.get(submission or "")
         return StopResult("requested" if worker and not worker.done() else "drained",
@@ -254,6 +341,7 @@ class CliRuntime:
             if session.runtime_id != runtime_id:
                 continue
             self._stopped.add(session.adapter_session_id)
+            self._revoke(session.adapter_session_id)
             submission = self._session_submission.get(session.adapter_session_id)
             worker = self._workers.get(submission or "")
             if worker is not None and not worker.done():

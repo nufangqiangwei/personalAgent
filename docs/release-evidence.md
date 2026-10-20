@@ -149,4 +149,19 @@ npx 包装器先遇 ENOTCACHED/EPERM，真实成功探针使用同版本已安�
 | 真实 CLI 经本机网关 | 1 PASS，4.64 秒；1 个 COMPLETED、13 tokens、供应商请求 0 |
 | 采用门禁 | 3 PASS / 1 FAIL，15.09 秒；`gateway_binding_mounted`、`managed_tools_mounted` 仍失败，`gateway_no_bypass` NOT RUN |
 
-三个锁文件指纹与本轮前一致；无新迁移、无依赖变更、未执行用户数据库迁移。T021/T121/T129 保持未勾选，`docs/runtime-adoption.json` 未生成，真实模式继续禁用。未提交、合并或发布；下一门槛是 `lifespan` 正式装配代理与 CLI 令牌、受管 MCP 工具及无旁路验收。
+三个锁文件指纹与本轮前一致；无新迁移、无依赖变更、未执行用户数据库迁移。T121/T129 已在 Phase 2 收口中勾选，`docs/runtime-adoption.json` 仍未生成，真实模式继续禁用。未提交、合并或发布；下一门槛是 `lifespan` 正式装配代理与 CLI 令牌、受管 MCP 工具及无旁路验收。
+
+## 2026-10-20 Phase 2 收口：网关/受管 MCP 正式装配与采用门禁
+
+本轮完成 T121/T129：正式装配本机模型网关代理、真实 transport、Brave/httpx/Playwright/提取 handlers 与官方 MCP client；CLI 只接收回环地址与 attempt 令牌，逐工具 scope 令牌由应用签发并在停止/完成/销毁时撤销；工具结果返回正文/结构。运行真实 CLI 时发现并修复两处插件不兼容（`agent/created` 载荷形状、`tools.restrict()` 未知名字）与两处自身缺陷（guard 缺少节点 scope、MCP 工具名含点被改名）。
+
+| 检查 | 结果 |
+|---|---|
+| `check.ps1`（7 组） | PASS，整体退出 0 |
+| 后端 unit/contract/integration | 346 PASS，97.35 秒 |
+| 前端类型 / 单元 | PASS / 47 PASS |
+| 策略类型 / 单元 | PASS / 22 PASS |
+| 真实 CLI 经网关（无工具 / 含 MCP 工具） | 1 PASS / 1 PASS；模型两次调用均经网关，正文进入上下文，供应商 Key 未进入 CLI |
+| 采用门禁 | **4 PASS，13.84 秒**；候选证据 12 项全 true，`adopted=false`，供应商请求 0 |
+
+三个锁文件指纹不变，无新迁移、无依赖变更。T121/T129 勾选，合计 96/138；T021 仍需一次经授权的真实供应商请求与评审记录，T105 仍需官方 Loop 内逐次模型预留。未提交、合并或发布。

@@ -6,6 +6,7 @@ no real provider, DNS or browser is contacted.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -15,7 +16,11 @@ from personal_agent.adapters.tools.browser_read import BrowserReader
 from personal_agent.adapters.tools.extract import ContentExtractor, extract_text
 from personal_agent.adapters.tools.http_fetch import HttpFetcher
 from personal_agent.adapters.tools.mcp_service import ToolHandlers, ToolService
-from personal_agent.adapters.tools.mcp_stdio import McpStdioServer
+from personal_agent.adapters.tools.mcp_stdio import (
+    HttpToolDispatch,
+    McpStdioServer,
+    McpToolReply,
+)
 from personal_agent.adapters.tools.scope import (
     ToolScopeRegistry,
     is_public_address,
@@ -360,72 +365,77 @@ def _request(*, token: str, tool: str) -> ToolRequest:
     )
 
 
-async def test_mcp_stdio_requires_handshake_and_registered_tools_only() -> None:
-    service, _scopes, token = await _tool_service()
-    server = McpStdioServer(service, handshake_token="handshake-token")
+async def test_mcp_stdio_speaks_the_official_protocol() -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
 
-    rejected = await server.handle(
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"handshake_token": "bad"}}
-    )
-    assert rejected is not None and rejected["error"]["code"] == "HANDSHAKE_REJECTED"
+    async def dispatch(name: str, arguments: Any) -> McpToolReply:
+        calls.append((name, dict(arguments)))
+        return McpToolReply([{"type": "text", "text": '{"results":[]}'}])
 
-    not_initialized = await server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
-    assert not_initialized is not None
-    assert not_initialized["error"]["code"] == "NOT_INITIALIZED"
-
-    initialized = await server.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "initialize",
-            "params": {"handshake_token": "handshake-token"},
-        }
-    )
+    server = McpStdioServer(dispatch)
+    initialized = await server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "dsh", "version": "0.2.1-rc.2"},
+        },
+    })
     assert initialized is not None
+    assert initialized["result"]["protocolVersion"] == "2025-06-18"
     assert initialized["result"]["serverInfo"]["name"] == "personal-agent-tools"
+    # Notifications never get a response.
+    assert await server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
 
-    listed = await server.handle({"jsonrpc": "2.0", "id": 4, "method": "tools/list"})
+    listed = await server.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     assert listed is not None
     assert {tool["name"] for tool in listed["result"]["tools"]} == {
-        "search.web",
-        "http.fetch",
-        "browser.read",
-        "content.extract",
+        "search_web", "http_fetch", "browser_read", "content_extract",
     }
 
-    call = await server.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 5,
-            "method": "tools/call",
-            "params": {
-                "name": "search.web",
-                "scope_token": token,
-                "run_id": "run-1",
-                "attempt_id": "attempt-1",
-                "epoch": 1,
-                "operation_id": "op-1",
-                "arguments": {"query": "主题"},
-            },
-        }
-    )
-    assert call is not None
-    assert call["result"]["isError"] is False
+    call = await server.handle({
+        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+        "params": {"name": "search_web", "arguments": {"query": "主题"},
+                   "scope_token": "forged", "run_id": "forged-run", "epoch": 99},
+    })
+    assert call is not None and call["result"]["isError"] is False
+    # The business name (and only the name/arguments) reaches the gateway.
+    assert calls == [("search.web", {"query": "主题"})]
 
-    forbidden = await server.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 6,
-            "method": "tools/call",
-            "params": {
-                "name": "shell.exec",
-                "scope_token": token,
-                "run_id": "run-1",
-                "attempt_id": "attempt-1",
-                "epoch": 1,
-                "arguments": {"command": "dir"},
-            },
+    unknown = await server.handle({
+        "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+        "params": {"name": "shell.exec", "arguments": {"command": "dir"}},
+    })
+    assert unknown is not None and unknown["error"]["code"] == -32602
+    assert calls == [("search.web", {"query": "主题"})]
+
+
+async def test_http_tool_dispatch_returns_the_body_and_hides_refusals() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/tools/call"
+        assert request.headers["x-api-key"] == "attempt-token"
+        assert json.loads(request.content) == {
+            "name": "http.fetch", "arguments": {"url": "https://example.org"},
         }
+        return httpx.Response(200, json={
+            "content": [{"type": "text", "text": "page body"}],
+            "isError": False, "source_refs": ["https://example.org"],
+        })
+
+    dispatch = HttpToolDispatch(
+        "http://127.0.0.1:1", "attempt-token",
+        transport=httpx.MockTransport(handler),
     )
-    assert forbidden is not None
-    assert forbidden["error"]["code"] == "TOOL_SCOPE_DENIED"
+    reply = await dispatch("http.fetch", {"url": "https://example.org"})
+    assert reply.is_error is False
+    assert reply.content[0]["text"] == "page body"
+    assert reply.source_refs == ["https://example.org"]
+
+    refused = HttpToolDispatch(
+        "http://127.0.0.1:1", "attempt-token",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(403, json={"error": "SECRET_DETAIL"})
+        ),
+    )
+    denied = await refused("http.fetch", {"url": "https://example.org"})
+    assert denied.is_error is True
+    assert "SECRET_DETAIL" not in json.dumps(denied.content)
