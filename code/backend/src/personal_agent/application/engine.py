@@ -61,9 +61,11 @@ from personal_agent.domain.workflow_validation import ALLOWED_TRANSFORMS
 from personal_agent.ports.contracts import (
     Clock,
     Owner,
+    RuntimeCapabilities,
     RuntimePort,
     RuntimeTask,
     SessionContext,
+    SessionHandle,
     ToolPort,
     ToolRequest,
     Usage,
@@ -115,6 +117,7 @@ class WorkflowEngine:
         self._deps = deps
         self._evidence_summary: dict[str, Any] = {}
         self._sources: list[dict[str, Any]] = []
+        self._pending_output_attempt: StepAttempt | None = None
 
     async def run(self, run_id: str, *, resume: bool = False) -> str:
         # The engine instance is reused; per-run evidence state must never leak.
@@ -132,12 +135,9 @@ class WorkflowEngine:
         current: str | None = definition.entry_step
         if resume or run.parent_run_id is not None:
             outputs, current = await self._resume_point(run, definition)
-            # Resumed and reused outputs carry the evidence needed by Transform
-            # and Output; restoring only their raw values loses the document.
-            for output in outputs.values():
-                self._sources.extend(output.get("sources") or [])
-                if output.get("__evidence__"):
-                    self._evidence_summary = dict(output["__evidence__"])
+            # Reused work must carry the evidence and sources the Output step
+            # needs; restoring only the raw values loses the document.
+            await self._restore_reuse(run)
         guard = 0
         active_tick = self._deps.clock.monotonic_ms()
 
@@ -177,7 +177,20 @@ class WorkflowEngine:
                 if outcome.waiting:
                     return await self._status(run_id)
                 if outcome.terminal:
-                    await self._deliver(run, definition, step, outcome, inputs)
+                    attempt = self._pending_output_attempt
+                    self._pending_output_attempt = None
+                    try:
+                        # The artifact must exist before the Output attempt can
+                        # be called successful.
+                        await self._deliver(run, definition, step, outcome, inputs)
+                    except AppError as error:
+                        if attempt is not None:
+                            await self._finish_attempt(
+                                run, attempt, StepOutcome(), Usage(), error=error,
+                            )
+                        raise
+                    if attempt is not None:
+                        await self._finish_attempt(run, attempt, outcome, Usage())
                     return await self._status(run_id)
                 outputs[step.id] = outcome.output
                 edge = self._pick_transition(definition, step, outcome.on)
@@ -220,11 +233,13 @@ class WorkflowEngine:
         tick: Callable[[], Awaitable[None]],
     ) -> StepOutcome:
         offset = await self._attempt_offset(run, step)
+        payload = self._attempt_payload(step, inputs, outputs)
         if step.type == "Output":
-            attempt = await self._start_attempt(run, step, attempt_no=offset + 1)
-            outcome = StepOutcome(terminal=True)
-            await self._finish_attempt(run, attempt, outcome, Usage())
-            return outcome
+            attempt = await self._start_attempt(
+                run, step, attempt_no=offset + 1, payload=payload,
+            )
+            self._pending_output_attempt = attempt
+            return StepOutcome(terminal=True)
 
         policy = definition.execution_policy
         attempts = 0
@@ -235,7 +250,9 @@ class WorkflowEngine:
             await tick()
             await self._require_budget(run)
             attempts += 1
-            attempt = await self._start_attempt(run, step, attempt_no=offset + attempts)
+            attempt = await self._start_attempt(
+                run, step, attempt_no=offset + attempts, payload=payload,
+            )
             try:
                 outcome = await self._dispatch_bounded(
                     run, definition, step, inputs, outputs, attempt
@@ -379,6 +396,9 @@ class WorkflowEngine:
                 policy_hash=run.budget_policy_hash,
             )
         )
+        # Persist the local association before the task can leave the process.
+        capabilities = await self._deps.runtime.capabilities()
+        await self._link_session(run, attempt, session, capabilities)
         submission = await self._deps.runtime.submit(
             RuntimeTask(
                 operation_id=f"{attempt.id}:agent",
@@ -404,8 +424,10 @@ class WorkflowEngine:
                 budget_root_run_id=run.root_run_id,
             )
         )
+        await self._set_session_status(attempt.id, "SUBMITTED")
         result = await self._deps.runtime.wait_result(submission.submission_id)
         if result.status == "unknown":
+            await self._set_session_status(attempt.id, "UNKNOWN")
             await self._request_runtime_uncertain(run, step, result)
             return StepOutcome(waiting=True)
         if result.completion_evidence_ref and not self._deps.per_call_model_budget:
@@ -638,9 +660,27 @@ class WorkflowEngine:
             )
         return int(value or 0)
 
+    @staticmethod
+    def _attempt_payload(
+        step: Step, inputs: dict[str, Any], outputs: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """The exact input facts an attempt ran with, hashed for recovery checks."""
+        return {
+            "step": step.id,
+            "inputs": inputs,
+            "dependencies": {
+                dependency: stable_hash(outputs.get(dependency, {}))
+                for dependency in step.depends_on
+            },
+        }
+
     async def _start_attempt(
-        self, run: WorkflowRun, step: Step, *, attempt_no: int
+        self, run: WorkflowRun, step: Step, *, attempt_no: int,
+        payload: dict[str, Any] | None = None,
     ) -> StepAttempt:
+        attempt_input = payload if payload is not None else {
+            "step": step.id, "inputs": {}, "dependencies": {},
+        }
         async with self._deps.database.session() as session:
             step_run = await session.scalar(
                 select(StepRun).where(StepRun.run_id == run.id, StepRun.step_id == step.id)
@@ -670,8 +710,8 @@ class WorkflowEngine:
                 attempt_no=attempt_no,
                 epoch=run.epoch,
                 status="RUNNING",
-                input_json={},
-                input_hash=stable_hash({"step": step.id, "attempt": attempt_no}),
+                input_json=attempt_input,
+                input_hash=stable_hash(attempt_input),
                 output_json=None,
                 output_hash=None,
                 started_at=self._deps.clock.now(),
@@ -726,7 +766,15 @@ class WorkflowEngine:
             row.output_json = {
                 key: value for key, value in outcome.output.items() if not key.startswith("__")
             }
-            row.output_hash = stable_hash(row.output_json)
+            evidence = outcome.output.get("__evidence__")
+            if isinstance(evidence, dict) and evidence:
+                row.output_json["__evidence__"] = evidence
+            if self._sources:
+                row.output_json["__sources__"] = list(self._sources)
+            row.output_hash = stable_hash({
+                key: value for key, value in row.output_json.items()
+                if not key.startswith("__")
+            })
             run_row = await session.get(WorkflowRun, run.id)
             if (
                 run_row is not None
@@ -756,6 +804,61 @@ class WorkflowEngine:
                     )
                 )
             await session.commit()
+
+    async def _link_session(
+        self, run: WorkflowRun, attempt: StepAttempt, session: SessionHandle,
+        capabilities: RuntimeCapabilities,
+    ) -> None:
+        """Persist the local association before the task is submitted."""
+        from personal_agent.adapters.persistence.session_models import SessionLink
+
+        operation_id = f"{attempt.id}:session"
+        async with self._deps.database.session() as db:
+            link = await db.scalar(
+                select(SessionLink).where(SessionLink.operation_id == operation_id)
+            )
+            if link is None:
+                link = SessionLink(
+                    id=new_id(),
+                    operation_id=operation_id,
+                    run_id=run.id,
+                    attempt_id=attempt.id,
+                    draft_id=None,
+                    adapter_session_id=session.adapter_session_id,
+                    provider_session_id=session.provider_session_id,
+                    runtime_id=session.runtime_id,
+                    provider="harness-cli",
+                    sdk_version=capabilities.sdk_version,
+                    runtime_version=capabilities.runtime_version,
+                    profile_hash=capabilities.profile_hash or self._deps.profile_hash,
+                    capability_hash=stable_hash(self._deps.capability_token),
+                    store_ref=None,
+                    status="READY",
+                    revision=1,
+                    created_at=self._deps.clock.now(),
+                )
+                db.add(link)
+            else:
+                link.status = "READY"
+                link.adapter_session_id = session.adapter_session_id
+                link.revision += 1
+            attempt_row = await db.get(StepAttempt, attempt.id)
+            if attempt_row is not None:
+                attempt_row.session_link_id = link.id
+            await db.commit()
+
+    async def _set_session_status(self, attempt_id: str, status: str) -> None:
+        from personal_agent.adapters.persistence.session_models import SessionLink
+
+        async with self._deps.database.session() as db:
+            link = await db.scalar(
+                select(SessionLink).where(SessionLink.operation_id == f"{attempt_id}:session")
+            )
+            if link is None or link.status == status:
+                return
+            link.status = status
+            link.revision += 1
+            await db.commit()
 
     async def _mark_step_cancelled(self, session: Any, step_run_id: str) -> None:
         step_run = await session.get(StepRun, step_run_id)
@@ -844,7 +947,12 @@ class WorkflowEngine:
             if row is None or row.status != StepStatus.SUCCEEDED.value:
                 continue
             if attempt.status == "SUCCEEDED":
-                outputs[row.step_id] = dict(attempt.output_json or {})
+                # Internal reuse facts are restored separately, never mixed into
+                # the business output a Transform or Output step consumes.
+                outputs[row.step_id] = {
+                    key: value for key, value in dict(attempt.output_json or {}).items()
+                    if not key.startswith("__")
+                }
         if run.parent_run_id is not None:
             # A branch reuses the validated results of its ancestors. They are
             # evidence carried over, not new attempts of this run.
@@ -870,6 +978,31 @@ class WorkflowEngine:
                 return outputs, None
             current = edge.to
         return outputs, None
+
+    async def _restore_reuse(self, run: WorkflowRun) -> None:
+        """Restore the evidence and sources carried by the latest reused attempt.
+
+        A resumed run must be able to deliver the same document without redoing
+        research, so the evidence summary and every collected source are read
+        back from the attempt that produced them.
+        """
+        async with self._deps.database.session() as session:
+            attempts = list((await session.scalars(
+                select(StepAttempt)
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(StepRun.run_id == run.id, StepAttempt.status == "SUCCEEDED")
+                .order_by(StepAttempt.ended_at.desc())
+            )).all())
+        for attempt in attempts:
+            data = dict(attempt.output_json or {})
+            evidence = data.get("__evidence__")
+            if not self._evidence_summary and isinstance(evidence, dict) and evidence:
+                self._evidence_summary = dict(evidence)
+            sources = data.get("__sources__")
+            if not self._sources and isinstance(sources, list):
+                self._sources = [dict(item) for item in sources if isinstance(item, dict)]
+            if self._evidence_summary and self._sources:
+                return
 
     async def _inherited_outputs(
         self, run: WorkflowRun, outputs: dict[str, dict[str, Any]]
@@ -912,7 +1045,19 @@ class WorkflowEngine:
                         or row.step_id not in reused
                     ):
                         continue
-                    outputs[row.step_id] = dict(attempt.output_json or {})
+                    data = dict(attempt.output_json or {})
+                    # Reused work carries the evidence/sources the new branch
+                    # needs; they are restored here and kept out of the public
+                    # output consumed by Transform and Output steps.
+                    evidence = data.get("__evidence__")
+                    if isinstance(evidence, dict) and evidence:
+                        self._evidence_summary = dict(evidence)
+                    sources = data.get("__sources__")
+                    if isinstance(sources, list) and sources:
+                        self._sources = [dict(item) for item in sources if isinstance(item, dict)]
+                    outputs[row.step_id] = {
+                        key: value for key, value in data.items() if not key.startswith("__")
+                    }
                 parent_id = parent.parent_run_id
         return outputs
 

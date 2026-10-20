@@ -343,7 +343,7 @@ flowchart TD
 - [ ] T135 MEDIUM（F32）修正 code/backend/src/personal_agent/api/settings.py 与 code/frontend/src/pages/SetupPage.vue：完成状态必须同时核验实际迁移/数据目录保护、已验证执行能力、适用凭据及当前 data_policy_acknowledged/budget_policy_acknowledged 均为真，不以任一确认行存在或非空 capabilities 当就绪；落实配置更新并发前提及失败反馈，mock 与 live 能力如实区分，补拒绝 false 政策同意的契约与 UI 用例 per T001/T025/T093/T094；plan: 首次配置与授权 (partial)
 - [ ] T136 MEDIUM（F33）将 code/backend/pyproject.toml、code/frontend/package.json 与 code/runtime-policy/package.json 的运行/开发直接依赖精确固定到已核验版本，遵守 CPython 3.12.9、Node24/npm11/uv 范围并经 uv/npm 重新生成锁文件、更新 docs/dependency-baseline.md 指纹；验证后端与 E2E 的 Playwright 浏览器 revision 一致，禁止手改锁文件或用未核验的本机浏览器替代发布证据 per plan: Dependency Management；T006；AGENTS.md §2–3 (partial)
 - [ ] T137 MEDIUM（F34）在 code/backend/src/personal_agent/api/runs.py、code/backend/src/personal_agent/api/workflows.py、code/backend/src/personal_agent/application/data_lifecycle.py 与相关前端列表中落实契约规定的稳定排序和绑定筛选条件的游标，避免仅用可漂移 offset；验证翻页间插入/删除同时间记录、非法/不同筛选游标、重复页及下一页 UI，保持数据不重复不遗漏，保留已有 10000 记录性能阈值 per T024/T033/T039；plan: 稳定分页 (partial)
-- [ ] T138 LOW（F35）核对 code/backend/src/personal_agent/domain/zz1.txt 的用途与引用；若无一期规格、计划或任务依据则移除该单字符残留，若确有用途则在相应实施证据中说明必要性，避免将无用途文件随后端 wheel 交付 per plan: Source Code 领域模块范围；T010 (unrequested)
+- [x] T138 LOW（F35）核对 code/backend/src/personal_agent/domain/zz1.txt 的用途与引用；若无一期规格、计划或任务依据则移除该单字符残留，若确有用途则在相应实施证据中说明必要性，避免将无用途文件随后端 wheel 交付 per plan: Source Code 领域模块范围；T010 (unrequested)
 
 ### 2026-10-20 实施记录
 
@@ -394,3 +394,11 @@ flowchart TD
 - 复核并补齐：引擎以 `clock.monotonic_ms()` 累计有效研究时长，等待/暂停不计时；更严格执行预算与节点/模型/工具 deadline 生效；工具边界新增过期 deadline 拒绝与代理超时显式计费。
 - 回归覆盖：更严格的 model/active/tokens 限额进入 WAITING_USER/BUDGET_LIMIT；等待 7200 秒不新增消耗；仅讨论、未回应、缺任一确认标志均不能继续；足额追加后原 run id 成功；节点尝试上限更严格；运行时 deadline 含剩余有效预算；活动时间到限停止等待。
 - 验证：后端 355、前端 47、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T106 勾选，合计 99/138。
+
+### 2026-10-20 Phase 11 恢复事实与残留清理（T109 部分 / T138）
+
+- T109 部分：attempt 记录真实输入与依赖 hash；submit 前持久化 SessionLink 并在提交/未知时更新状态；Output attempt 仅在制品写入成功后标成功（写入失败标 FAILED 且 run 失败）；恢复与分支复用会重建证据与来源（`__evidence__`/`__sources__`），不再只恢复 output 字典。
+- 新增 2 项集成回归（真实 attempt 输入/会话关联/复用事实、制品失败时 Output attempt 不得成功）；分支复用与恢复回归保持通过。
+- T109 仍未勾选：运行时事件流消费与“结果/转换/步骤完成/检查点/事件同事务”尚未实现。
+- T138：`domain/zz1.txt` 为 1 字节且无规格/代码引用，已移除并勾选。
+- 验证：后端 357、前端 47、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T138 勾选，合计 100/138。
