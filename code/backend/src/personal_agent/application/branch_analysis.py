@@ -10,11 +10,13 @@ start point on its own.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from sqlalchemy import select
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
+from personal_agent.adapters.persistence.blob_store import BlobStore
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.persistence.execution_models import StepRun, WorkflowRun
 from personal_agent.application.workflow_registry import WorkflowRegistry
@@ -30,10 +32,16 @@ from personal_agent.ports.contracts import Clock
 
 class BranchAnalyzer:
     def __init__(
-        self, database: Database, clock: Clock, registry: WorkflowRegistry
+        self,
+        database: Database,
+        clock: Clock,
+        registry: WorkflowRegistry,
+        *,
+        store: BlobStore | None = None,
     ) -> None:
         self._database = database
         self._clock = clock
+        self._store = store
         self._registry = registry
 
     async def analyze(
@@ -104,11 +112,22 @@ class BranchAnalyzer:
             )
         reachable = _reachable_from(declared, selected_step_id)
 
-        invalid_artifacts = [
-            artifact.id
-            for artifact in artifacts
-            if not self._artifact_usable(artifact, blobs.get(artifact.id))
-        ]
+        invalid_artifacts: list[str] = []
+        for artifact in artifacts:
+            blob = blobs.get(artifact.id)
+            if not self._artifact_usable(artifact, blob):
+                invalid_artifacts.append(artifact.id)
+                continue
+            # Reuse carries the exact bytes: verify the stored hash instead of
+            # trusting the row alone.
+            if self._store is not None and blob is not None:
+                try:
+                    data = await self._store.get(blob.managed_relative_path)
+                except FileNotFoundError:
+                    invalid_artifacts.append(artifact.id)
+                    continue
+                if hashlib.sha256(data).hexdigest() != blob.sha256:
+                    invalid_artifacts.append(artifact.id)
         invalid_steps = {
             step_of_attempt[artifact.attempt_id]
             for artifact in artifacts
@@ -227,13 +246,14 @@ class BranchAnalyzer:
                     paths.add(normalize_path(key))
         return sorted(paths)
 
-    @staticmethod
-    def _artifact_usable(artifact: Artifact, blob: Blob | None) -> bool:
+    def _artifact_usable(self, artifact: Artifact, blob: Blob | None) -> bool:
         if artifact.access_state != "AVAILABLE":
             return False
         if blob is None:
             return False
         if blob.deleted_at is not None:
+            return False
+        if blob.expires_at is not None and blob.expires_at <= self._clock.now():
             return False
         return True
 

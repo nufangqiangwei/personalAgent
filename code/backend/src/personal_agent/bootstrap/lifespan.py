@@ -305,7 +305,7 @@ async def build_context(
     )
     assistance = AssistanceService(database, clock, budget, control, recovery, writer)
     registry = WorkflowRegistry(database, clock)
-    analyzer = BranchAnalyzer(database, clock, registry)
+    analyzer = BranchAnalyzer(database, clock, registry, store=store)
     branches = BranchService(
         database,
         clock,
