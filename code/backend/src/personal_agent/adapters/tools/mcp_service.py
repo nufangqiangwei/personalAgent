@@ -49,6 +49,13 @@ class ToolService:
         self._budget_guard = budget_guard
 
     async def execute(self, request: ToolRequest) -> ToolResult:
+        if request.deadline <= self._clock.now():
+            raise AppError(
+                code="TOOL_DEADLINE_EXPIRED",
+                message="the tool deadline has expired; no new action may start",
+                category=ErrorCategory.TIMEOUT,
+                status=504,
+            )
         if self._should_stop():
             raise AppError(
                 code="INTERRUPTED",

@@ -350,8 +350,8 @@ async def test_tool_service_honours_stop_and_budget_guards() -> None:
     assert budget.value.code == "BUDGET_ASSISTANCE_REQUIRED"
 
 
-def _request(*, token: str, tool: str) -> ToolRequest:
-    from datetime import UTC, datetime
+def _request(*, token: str, tool: str, seconds_left: int = 60) -> ToolRequest:
+    from datetime import UTC, datetime, timedelta
 
     return ToolRequest(
         operation_id="op-1",
@@ -361,8 +361,15 @@ def _request(*, token: str, tool: str) -> ToolRequest:
         tool_name=tool,
         args={"query": "主题"},
         scope_token=token,
-        deadline=datetime.now(UTC),
+        deadline=datetime.now(UTC) + timedelta(seconds=seconds_left),
     )
+
+
+async def test_expired_tool_deadline_is_rejected_before_the_handler() -> None:
+    service, _scopes, token = await _tool_service()
+    with pytest.raises(AppError) as error:
+        await service.execute(_request(token=token, tool="search.web", seconds_left=-1))
+    assert error.value.code == "TOOL_DEADLINE_EXPIRED"
 
 
 async def test_mcp_stdio_speaks_the_official_protocol() -> None:

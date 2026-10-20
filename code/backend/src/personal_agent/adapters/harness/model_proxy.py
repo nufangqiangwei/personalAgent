@@ -322,17 +322,34 @@ class ModelProxy:
                     "api_error",
                     "the tool gateway refused the request",
                 )
+        deadline = self._clock.now() + timedelta(seconds=binding.timeout_seconds)
         try:
-            result = await self._tools.execute(ToolRequest(
-                operation_id=f"{request_id}:tool",
-                run_id=binding.owner.run_id or "",
-                attempt_id=binding.owner.attempt_id or "",
-                epoch=binding.epoch,
-                tool_name=name,
-                args=dict(arguments),
-                scope_token=scope_token,
-                deadline=self._clock.now() + timedelta(seconds=binding.timeout_seconds),
-            ))
+            async with asyncio.timeout(
+                max(0.001, (deadline - self._clock.now()).total_seconds())
+            ):
+                result = await self._tools.execute(ToolRequest(
+                    operation_id=f"{request_id}:tool",
+                    run_id=binding.owner.run_id or "",
+                    attempt_id=binding.owner.attempt_id or "",
+                    epoch=binding.epoch,
+                    tool_name=name,
+                    args=dict(arguments),
+                    scope_token=scope_token,
+                    deadline=deadline,
+                ))
+        except TimeoutError:
+            # The handler may already have performed work; charge the call and
+            # report an explicit timeout instead of pretending it never ran.
+            if tool_meter is not None and grant is not None:
+                await tool_meter.settle(root_run_id=binding.root_run_id, grant=grant)
+            return JSONResponse({
+                "content": [{
+                    "type": "text",
+                    "text": json.dumps({"status": "timeout", "code": "TOOL_TIMEOUT"}),
+                }],
+                "isError": True,
+                "source_refs": [],
+            })
         except AppError as error:
             if tool_meter is not None and grant is not None:
                 # Refused before execution: no tool call was actually made.
