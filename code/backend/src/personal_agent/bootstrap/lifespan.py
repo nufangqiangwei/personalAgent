@@ -225,7 +225,7 @@ async def build_context(
     live_adapter = None
     if config.is_live and live_provider is not None and runtime is None:
         live_proxy, live_adapter = await _mount_cli_bridge(
-            config, clock, gateway, live_provider, tools, tool_scopes,
+            config, clock, database, gateway, live_provider, tools, tool_scopes,
         )
     if runtime is None:
         if config.is_live:
@@ -270,6 +270,7 @@ async def build_context(
             scopes=tool_scopes,
             control=control,
             profile_hash=_profile_hash(config),
+            per_call_model_budget=live_proxy is not None,
         )
     )
     runtime_fingerprint = stable_hash(capabilities.as_dict())
@@ -430,6 +431,7 @@ def _live_tools(
 async def _mount_cli_bridge(
     config: config_module.AppConfig,
     clock: Clock,
+    database: Database,
     gateway: ModelGateway,
     provider: Any,
     tools: ToolPort,
@@ -446,6 +448,7 @@ async def _mount_cli_bridge(
     from personal_agent.adapters.harness.cli_runtime import CliRuntime
     from personal_agent.adapters.harness.model_proxy import ModelProxy, ProxyTokenRegistry
     from personal_agent.adapters.harness.patch import write_cli_patch
+    from personal_agent.application.model_meter import RunModelMeter, RunToolMeter
 
     installation = configured_installation()
     profile = config.profile_path
@@ -453,7 +456,11 @@ async def _mount_cli_bridge(
     if installation is None or profile is None or not plugin.exists():
         return None, None
     tokens = ProxyTokenRegistry()
-    proxy = ModelProxy(gateway, tokens, provider, clock, tools=tools)
+    meter = RunModelMeter(database, BudgetService(clock))
+    tool_meter = RunToolMeter(database, BudgetService(clock))
+    proxy = ModelProxy(
+        gateway, tokens, provider, clock, tools=tools, meter=meter, tool_meter=tool_meter,
+    )
     try:
         await proxy.start()
     except (OSError, RuntimeError):

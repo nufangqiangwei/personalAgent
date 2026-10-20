@@ -134,6 +134,8 @@ class RuntimeTask:
     model_timeout_seconds: float = 120
     # Domains the node may reach; issued into per-tool scope tokens by the caller.
     allowed_domains: Sequence[str] = ()
+    # The run ledger that pays for every model call inside this attempt.
+    budget_root_run_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +292,49 @@ class ModelGatewayPort(Protocol):
         reserved_tokens: int,
         timeout_seconds: float,
     ) -> ModelResponse: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ModelCallGrant:
+    """One per-call budget reservation for a model call inside a Loop."""
+
+    reservation_id: str
+    reserved_tokens: int
+
+
+@runtime_checkable
+class ModelCallMeterPort(Protocol):
+    """Per-call model accounting; unknown usage keeps the reservation."""
+
+    async def begin(
+        self, *, root_run_id: str, attempt_id: str, output_limit: int,
+        estimated_input: int,
+    ) -> ModelCallGrant: ...
+
+    async def settle(
+        self, *, root_run_id: str, grant: ModelCallGrant, usage: Usage,
+    ) -> None: ...
+
+    async def release(self, *, root_run_id: str, grant: ModelCallGrant) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallGrant:
+    """One per-call budget reservation for a managed tool call."""
+
+    reservation_id: str
+    reserved: Mapping[str, int]
+
+
+@runtime_checkable
+class ToolCallMeterPort(Protocol):
+    async def begin(
+        self, *, root_run_id: str, attempt_id: str, tool_name: str,
+    ) -> ToolCallGrant: ...
+
+    async def settle(self, *, root_run_id: str, grant: ToolCallGrant) -> None: ...
+
+    async def release(self, *, root_run_id: str, grant: ToolCallGrant) -> None: ...
 
 
 # --------------------------------------------------------------------------

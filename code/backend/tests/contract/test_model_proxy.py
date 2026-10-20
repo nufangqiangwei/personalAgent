@@ -21,8 +21,10 @@ from personal_agent.adapters.harness.model_provider import AnthropicMessagesProv
 from personal_agent.adapters.harness.model_proxy import ModelProxy, ProxyTokenRegistry
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
 from personal_agent.ports.contracts import (
+    ModelCallGrant,
     ModelRequest,
     Owner,
+    ToolCallGrant,
     ToolRequest,
     ToolResult,
     Usage,
@@ -219,6 +221,49 @@ async def test_only_one_request_holds_the_persistent_slot(proxy: Any) -> None:
     assert await gateway.non_terminal_request() is None
 
 
+async def test_a_gateway_refusal_releases_only_the_refused_call(
+    database: Any, clock: Any,
+) -> None:
+    class Meter:
+        def __init__(self) -> None:
+            self.begins = 0
+            self.settles = 0
+            self.releases: list[ModelCallGrant] = []
+
+        async def begin(self, **kwargs: Any) -> ModelCallGrant:
+            self.begins += 1
+            return ModelCallGrant(f"attempt:model:{self.begins}", 128)
+
+        async def settle(self, **kwargs: Any) -> None:
+            self.settles += 1
+
+        async def release(self, **kwargs: Any) -> None:
+            self.releases.append(kwargs["grant"])
+
+    provider = FixedProvider()
+    provider.release.clear()
+    meter = Meter()
+    tokens = ProxyTokenRegistry()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(gateway, tokens, provider, clock, meter=meter)
+    await server.start()
+    try:
+        token = binding(registry=tokens, root_run_id="root-run")
+        first = asyncio.create_task(post(server, body(), token))
+        for _ in range(200):
+            if provider.specs:
+                break
+            await asyncio.sleep(0.01)
+        second = await post(server, body(), token)
+        assert second.status_code == 409
+        assert len(meter.releases) == 1
+        provider.release.set()
+        assert (await first).status_code == 200
+        assert meter.settles == 1
+    finally:
+        await server.stop()
+
+
 async def test_proxy_rejects_a_model_outside_its_binding(proxy: Any) -> None:
     server, registry, _, gateway = proxy
     token = binding(registry=registry, model_id="deepseek-flash")
@@ -289,6 +334,156 @@ async def test_tool_calls_use_the_bound_scope_and_return_the_body(
                 server.url("/tools/call"), json={"name": "http.fetch", "arguments": {}},
             )
             assert missing.status_code == 401
+    finally:
+        await server.stop()
+
+
+async def test_each_loop_call_reserves_and_settles_on_its_own_boundary(
+    database: Any, clock: Any,
+) -> None:
+    class FakeMeter:
+        def __init__(self) -> None:
+            self.begins: list[tuple[str, str, int]] = []
+            self.settles: list[tuple[str, Usage]] = []
+            self.releases: list[ModelCallGrant] = []
+
+        async def begin(
+            self, *, root_run_id: str, attempt_id: str, output_limit: int,
+            estimated_input: int,
+        ) -> ModelCallGrant:
+            self.begins.append((root_run_id, attempt_id, estimated_input))
+            grant = ModelCallGrant(
+                f"{attempt_id}:model:{len(self.begins)}", output_limit + estimated_input,
+            )
+            return grant
+
+        async def settle(
+            self, *, root_run_id: str, grant: ModelCallGrant, usage: Usage,
+        ) -> None:
+            self.settles.append((grant.reservation_id, usage))
+
+        async def release(self, *, root_run_id: str, grant: ModelCallGrant) -> None:
+            self.releases.append(grant)
+
+    meter = FakeMeter()
+    registry = ProxyTokenRegistry()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(gateway, registry, FixedProvider(), clock, meter=meter)
+    await server.start()
+    try:
+        token = binding(registry=registry, root_run_id="root-run")
+        response = await post(server, body(), token)
+        assert response.status_code == 200
+        assert meter.begins and meter.begins[0][0] == "root-run"
+        assert meter.begins[0][2] > 0
+        assert len(meter.settles) == 1
+        assert meter.settles[0][0].endswith(":model:1")
+        assert meter.settles[0][1].tokens == 23
+        assert meter.releases == []
+    finally:
+        await server.stop()
+
+
+async def test_cli_loop_meter_keeps_an_unknown_reservation(database: Any, clock: Any) -> None:
+    class FakeMeter:
+        def __init__(self) -> None:
+            self.settles = 0
+            self.releases = 0
+
+        async def begin(self, **kwargs: Any) -> ModelCallGrant:
+            return ModelCallGrant("attempt:model:1", 128)
+
+        async def settle(self, **kwargs: Any) -> None:
+            self.settles += 1
+
+        async def release(self, **kwargs: Any) -> None:
+            self.releases += 1
+
+    meter = FakeMeter()
+    registry = ProxyTokenRegistry()
+    provider = FixedProvider(outcome=ProviderOutcome(
+        status="unknown",
+        error=AppError(
+            code="MODEL_TIMEOUT", message="timeout",
+            category=ErrorCategory.TIMEOUT, status=504,
+        ),
+    ))
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(gateway, registry, provider, clock, meter=meter)
+    await server.start()
+    try:
+        token = binding(registry=registry, root_run_id="root-run")
+        response = await post(server, body(), token)
+        assert response.status_code >= 500
+        assert meter.settles == 0 and meter.releases == 0
+    finally:
+        await server.stop()
+
+
+async def test_tool_calls_are_metered_once_and_release_on_refusal(
+    database: Any, clock: Any,
+) -> None:
+    class FakeToolMeter:
+        def __init__(self) -> None:
+            self.begins: list[tuple[str, str]] = []
+            self.settles = 0
+            self.releases = 0
+
+        async def begin(
+            self, *, root_run_id: str, attempt_id: str, tool_name: str,
+        ) -> ToolCallGrant:
+            self.begins.append((root_run_id, tool_name))
+            return ToolCallGrant(f"a:tool:{len(self.begins)}", {"tool_calls": 1})
+
+        async def settle(self, **kwargs: Any) -> None:
+            self.settles += 1
+
+        async def release(self, **kwargs: Any) -> None:
+            self.releases += 1
+
+    class Tools:
+        def __init__(self) -> None:
+            self.refuse = False
+
+        async def execute(self, request: ToolRequest) -> ToolResult:
+            if self.refuse:
+                raise AppError(
+                    code="TOOL_SCOPE_DENIED", message="denied",
+                    category=ErrorCategory.PERMISSION, status=403,
+                )
+            return ToolResult(status="ok", content={"ok": True}, usage=Usage(tool_calls=1))
+
+    meter = FakeToolMeter()
+    tools = Tools()
+    registry = ProxyTokenRegistry()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(
+        gateway, registry, FixedProvider(), clock, tools=tools, tool_meter=meter,
+    )
+    await server.start()
+    try:
+        token = binding(
+            registry=registry, root_run_id="root-run",
+            tool_scopes={"http.fetch": "scope-token"},
+        )
+        async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+            allowed = await client.post(
+                server.url("/tools/call"),
+                json={"name": "http.fetch", "arguments": {"url": "https://example.org"}},
+                headers={"x-api-key": token},
+            )
+            assert allowed.status_code == 200
+            assert meter.begins == [("root-run", "http.fetch")]
+            assert meter.settles == 1
+
+            tools.refuse = True
+            refused = await client.post(
+                server.url("/tools/call"),
+                json={"name": "http.fetch", "arguments": {"url": "https://example.org"}},
+                headers={"x-api-key": token},
+            )
+            assert refused.status_code == 200 and refused.json()["isError"] is True
+            assert meter.settles == 1 and meter.releases == 1
     finally:
         await server.stop()
 

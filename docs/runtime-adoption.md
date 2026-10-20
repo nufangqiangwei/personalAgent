@@ -146,7 +146,7 @@ T021/T104/T121/T129/T100/T132 保持未勾选，总任务仍 94/138；按 implem
 
 仍未完成 / 下一个阻断：
 
-- **T105**：官方 Loop 内一次 attempt 可能发起多次模型调用，而生产网关的 `enforce_owner=True` 目前只认 attempt 级单次预留；工具型 Loop 需要每次调用独立预留与结算。固定观测门禁使用 `enforce_owner=False`，不能据此宣布 T104/T105 通过。
+- **T104/T105 已收敛**：新增逐次模型/工具 meter；生产 owner 路径（RUNNING run/attempt、`enforce_owner=True`）已验证逐次预留、真实用量结算、未知结果保留预留、并发拒绝只释放被拒调用。T104/T105 已勾选。
 - **T021**：需要用户提供供应商凭据并授权一次真实请求，生成经评审的 `docs/runtime-adoption.json`；在此之前 `execution_available` 恒为 false，真实模式继续禁用。
 - 未运行：真实供应商、Brave、真实页面抓取与两流程真实交付（T100/T132）。
 

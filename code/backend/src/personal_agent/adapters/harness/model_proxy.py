@@ -16,7 +16,7 @@ import asyncio
 import json
 import secrets
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from typing import Any, Protocol
 
@@ -30,9 +30,11 @@ from personal_agent.adapters.harness.model_gateway import ModelGateway, Provider
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
 from personal_agent.ports.contracts import (
     Clock,
+    ModelCallMeterPort,
     ModelMessage,
     ModelRequest,
     Owner,
+    ToolCallMeterPort,
     ToolPort,
     ToolRequest,
 )
@@ -64,6 +66,8 @@ class ProxyBinding:
     # They never leave the gateway process; the MCP client only holds the
     # attempt token and cannot name a tool outside this mapping.
     tool_scopes: Mapping[str, str] = field(default_factory=dict)
+    # Ledger paid by the per-call meter; empty for direct component tests.
+    root_run_id: str = ""
 
 
 class ProxyTokenRegistry:
@@ -83,6 +87,7 @@ class ProxyTokenRegistry:
         output_limit: int,
         timeout_seconds: float,
         tool_scopes: Mapping[str, str] | None = None,
+        root_run_id: str = "",
     ) -> ProxyBinding:
         if epoch < 1:
             raise ValueError("a gateway token needs a positive epoch")
@@ -98,6 +103,7 @@ class ProxyTokenRegistry:
             output_limit=output_limit,
             timeout_seconds=timeout_seconds,
             tool_scopes=dict(tool_scopes or {}),
+            root_run_id=root_run_id,
         )
         self._bindings[binding.token] = binding
         return binding
@@ -128,6 +134,8 @@ class ModelProxy:
         clock: Clock,
         *,
         tools: ToolPort | None = None,
+        meter: ModelCallMeterPort | None = None,
+        tool_meter: ToolCallMeterPort | None = None,
         host: str = LOOPBACK_HOST,
     ) -> None:
         if host != LOOPBACK_HOST:
@@ -137,6 +145,8 @@ class ModelProxy:
         self._provider = provider
         self._clock = clock
         self._tools = tools
+        self._meter = meter
+        self._tool_meter = tool_meter
         self._host = host
         self._port = 0
         self._server: uvicorn.Server | None = None
@@ -219,19 +229,45 @@ class ModelProxy:
             deadline=deadline,
             reservation_id=binding.reservation_id,
         )
+        grant = None
+        meter = self._meter if binding.root_run_id else None
+        reserved_tokens = binding.reserved_tokens
+        if meter is not None:
+            # Each Loop call gets its own reservation and operation id; an
+            # attempt-level reservation could only pay for the first call.
+            grant = await meter.begin(
+                root_run_id=binding.root_run_id,
+                attempt_id=binding.owner.attempt_id or "",
+                output_limit=binding.output_limit,
+                estimated_input=_estimate_input_tokens(body.get("messages")),
+            )
+            spec = replace(spec, reservation_id=grant.reservation_id)
+            reserved_tokens = grant.reserved_tokens
         try:
             outcome = await self._gateway.exchange(
                 spec,
-                reserved_tokens=binding.reserved_tokens,
+                reserved_tokens=reserved_tokens,
                 timeout_seconds=binding.timeout_seconds,
                 send=lambda bound: self._provider.complete(body, bound),
             )
         except AppError as error:
+            if meter is not None and grant is not None:
+                # The call never started; return its reservation instead of
+                # charging a request that was refused before sending.
+                await meter.release(root_run_id=binding.root_run_id, grant=grant)
             return _error(
                 error.status if 400 <= error.status < 600 else 502,
                 "api_error",
                 "the model gateway refused the request",
             )
+        if meter is not None and grant is not None:
+            if outcome.status == "completed" or (
+                outcome.status == "failed" and outcome.completion_evidence_ref
+            ):
+                await meter.settle(
+                    root_run_id=binding.root_run_id, grant=grant, usage=outcome.usage,
+                )
+            # An unknown outcome keeps its reservation and the gateway slot.
         if outcome.status != "completed" or outcome.payload is None:
             return _error(_error_status(outcome.error), "api_error",
                           "the model request did not complete verifiably")
@@ -271,6 +307,21 @@ class ModelProxy:
         if self._tools is None:
             return _error(503, "api_error", "the managed tool service is not mounted")
         request_id = new_id()
+        grant = None
+        tool_meter = self._tool_meter if binding.root_run_id else None
+        if tool_meter is not None:
+            try:
+                grant = await tool_meter.begin(
+                    root_run_id=binding.root_run_id,
+                    attempt_id=binding.owner.attempt_id or "",
+                    tool_name=name,
+                )
+            except AppError as error:
+                return _error(
+                    error.status if 400 <= error.status < 600 else 502,
+                    "api_error",
+                    "the tool gateway refused the request",
+                )
         try:
             result = await self._tools.execute(ToolRequest(
                 operation_id=f"{request_id}:tool",
@@ -283,6 +334,9 @@ class ModelProxy:
                 deadline=self._clock.now() + timedelta(seconds=binding.timeout_seconds),
             ))
         except AppError as error:
+            if tool_meter is not None and grant is not None:
+                # Refused before execution: no tool call was actually made.
+                await tool_meter.release(root_run_id=binding.root_run_id, grant=grant)
             # A refusal is a tool result, not an HTTP bypass; keep the code and
             # drop message details that could carry arguments or targets.
             return JSONResponse({
@@ -295,6 +349,10 @@ class ModelProxy:
                 "isError": True,
                 "source_refs": [],
             })
+        if tool_meter is not None and grant is not None:
+            # The handler ran (even if it reported a failure), so the tool
+            # dimensions are consumed and must not be charged twice.
+            await tool_meter.settle(root_run_id=binding.root_run_id, grant=grant)
         content = result.content if result.content is not None else {"status": result.status}
         text = json.dumps(content, ensure_ascii=False, sort_keys=True)
         if len(text.encode("utf-8")) > TOOL_CONTENT_LIMIT:
@@ -445,3 +503,11 @@ def _anthropic_events(message: Mapping[str, Any]) -> bytes:
 
 def _int(value: Any) -> int:
     return value if type(value) is int and value >= 0 else 0
+
+
+def _estimate_input_tokens(value: Any) -> int:
+    """A bounded worst-case prompt estimate; settlement always uses real usage."""
+    if not isinstance(value, list):
+        return 0
+    raw = json.dumps(value, ensure_ascii=False)
+    return min(len(raw.encode("utf-8")) // 2 + 32, 1_000_000)

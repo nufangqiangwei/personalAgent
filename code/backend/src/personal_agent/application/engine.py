@@ -97,6 +97,9 @@ class EngineDeps:
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     control: Any | None = None
     profile_hash: str = "profile"
+    # The live CLI Loop meters each model call itself (T105); the engine then
+    # must not hold a single attempt-level model reservation.
+    per_call_model_budget: bool = False
 
 
 @dataclass(slots=True)
@@ -359,11 +362,12 @@ class WorkflowEngine:
         timeout_seconds = min(step.policy.timeout_seconds, await self._remaining_seconds(run))
         reservation = self._deps.policy.model.max_output_tokens + len(goal) * 2 + 64
         ledger = await self._ledger(run)
-        await self._reserve(
-            ledger,
-            {"model_requests": 1, "tokens": reservation},
-            operation_id=f"{attempt.id}:model",
-        )
+        if not self._deps.per_call_model_budget:
+            await self._reserve(
+                ledger,
+                {"model_requests": 1, "tokens": reservation},
+                operation_id=f"{attempt.id}:model",
+            )
         session = await self._deps.runtime.create_session(
             SessionContext(
                 operation_id=f"{attempt.id}:agent",
@@ -397,13 +401,14 @@ class WorkflowEngine:
                     timeout_seconds,
                 ),
                 allowed_domains=tuple(step.policy.allowed_domains),
+                budget_root_run_id=run.root_run_id,
             )
         )
         result = await self._deps.runtime.wait_result(submission.submission_id)
         if result.status == "unknown":
             await self._request_runtime_uncertain(run, step, result)
             return StepOutcome(waiting=True)
-        if result.completion_evidence_ref:
+        if result.completion_evidence_ref and not self._deps.per_call_model_budget:
             await self._settle(
                 ledger,
                 {"model_requests": 1, "tokens": reservation},

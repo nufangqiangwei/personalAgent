@@ -184,6 +184,7 @@ class CliRuntime:
             output_limit=task.model_output_limit,
             timeout_seconds=task.model_timeout_seconds,
             tool_scopes=tool_scopes,
+            root_run_id=task.budget_root_run_id,
         )
         self._session_tokens[task.session_id] = binding.token
         self._session_scope_tokens[task.session_id] = list(tool_scopes.values())
