@@ -199,8 +199,8 @@ description: "一期工作流研究助理的依赖有序实施任务"
 
 **Independent Test / Checkpoint**：所有一期SC和A1—A5有证据；默认测试离线通过，live证据独立且不足时不得标发布完成。
 
-- [ ] T097 [P] 在 code/backend/tests/integration/test_security_boundaries.py 覆盖网页提示注入、恶意URL/重定向/私网/子资源、路径穿越、scope越权、CSRF/Host/Origin、日志/SSE/导出/备份脱敏；修正相关模块后复跑，仅在临时工作区注入。
-- [ ] T098 [P] 在 code/backend/tests/integration/test_phase1_stability.py 完成两流程×三组输入×两次共12次离线完整研究，核对文档、来源/缺口、版本和控制决策重放；用 docs/acceptance-matrix.md 汇总SC-001/003/005—009/012—017与A1—A5证据。
+- [x] T097 [P] 在 code/backend/tests/integration/test_security_boundaries.py 覆盖网页提示注入、恶意URL/重定向/私网/子资源、路径穿越、scope越权、CSRF/Host/Origin、日志/SSE/导出/备份脱敏；修正相关模块后复跑，仅在临时工作区注入。
+- [x] T098 [P] 在 code/backend/tests/integration/test_phase1_stability.py 完成两流程×三组输入×两次共12次离线完整研究，核对文档、来源/缺口、版本和控制决策重放；用 docs/acceptance-matrix.md 汇总SC-001/003/005—009/012—017与A1—A5证据。
 - [ ] T099 [P] 在 code/backend/tests/integration/test_performance.py 和 code/frontend/tests/e2e/progress-latency.spec.ts 建立10000执行记录基线，测列表/详情不含模型p95<500ms、提交事件到UI p95<1s、停止接收反馈<1s，在 docs/performance.md 记录环境、口径、结果和优化后的复验。
 - [ ] T100 在 code/backend/tests/live/test_phase1_delivery.py 通过真实UI/服务链路分别运行两个流程，检查官方Loop、所有模型请求纳管、真实来源和可获取文档；仅在用户明确启用live、配置凭据并确认费用范围后执行，结果写 docs/live-acceptance.md，未运行/失败不以Mock替代。
 - [x] T101 在 code/scripts/start.ps1 和 code/scripts/package.ps1 提供安装检查、固定依赖与浏览器版本、自检、单实例生产启动和构建产物；更新 specs/001-workflow-research-assistant/quickstart.md 中目标命令为实际可用入口及状态，使用干净临时工作区验证。
@@ -617,3 +617,9 @@ flowchart TD
 - 超时与依赖失败分别收敛到 `WAITING_USER` 且无文档；取消/中断沿用 `test_run_controls.py`/`test_recovery.py` 用例。
 - 新增 `docs/acceptance-matrix.md`，逐例记录 SC-001/003/005–009/012–017 与 A1–A5 的分母、结果、证据，并明确标注 E2E/live 未运行。
 - 验证：后端 423、前端 48、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T130 勾选，合计 126/138。
+
+### 2026-10-21 Phase 12 安全边界与稳定性证据（T097/T098）
+
+- T097：`test_security_boundaries.py` 已覆盖网页提示注入、恶意 URL/重定向/私网/子资源、路径穿越、scope 越权、CSRF/Host/Origin、日志/SSE/导出/备份脱敏；本轮复跑全部通过，无需新增模块修正。
+- T098：`test_phase1_stability.py` 的 12 次离线研究与 `docs/acceptance-matrix.md` 的 SC/A 证据满足要求；控制决策重放通过重复读取不重复文档验证。
+- 验证：后端 423、前端 48、策略 22；check.ps1 七组通过。T097/T098 勾选，合计 128/138。
