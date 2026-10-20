@@ -66,6 +66,7 @@ def requirement_service(app_context: AppContext) -> RequirementService:
         policy_hash=policy.policy_hash,
         policy_version=policy.version,
         draft_limits=policy.draft.as_dict(),
+        run_limits=policy.budget.as_dict(),
     )
 
 

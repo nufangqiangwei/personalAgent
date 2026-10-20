@@ -357,3 +357,107 @@ async def test_change_selection_marks_old_confirmation_stale(
     assert body["workflow_version_id"] == public["id"]
     assert body["status"] == "STALE"
     assert body["confirmation_id"] is None
+
+
+async def _ready_draft(
+    client: httpx.AsyncClient, api_context: Any, workflow_name: str = "技术选型对比",
+) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    version = await pick_version(client, workflow_name)
+    draft = await create_draft(client, version["id"])
+    await client.post(
+        f"/api/v1/requirements/{draft['id']}/messages",
+        json={"text": "我们团队想比较几个 AI 编程工具"}, headers=keys("ready-1"),
+    )
+    latest = (await client.get(f"/api/v1/requirements/{draft['id']}")).json()
+    suggestion = next(item for item in latest["suggestions"] if item["status"] == "PENDING")
+    await client.post(
+        f"/api/v1/requirements/{draft['id']}/suggestions/{suggestion['id']}/accept",
+        json={"draft_revision": latest["revision"]},
+        headers=keys("ready-accept", **{"If-Match": f'"{latest["revision"]}"'}),
+    )
+    await client.post(
+        f"/api/v1/requirements/{draft['id']}/messages",
+        json={"text": "12 人团队，预算每人每月 40 元，需要私有化部署"},
+        headers=keys("ready-2"),
+    )
+    latest = (await client.get(f"/api/v1/requirements/{draft['id']}")).json()
+    assert latest["status"] == "READY", latest
+    return version, draft["id"], latest
+
+
+def _confirm_body(
+    latest: dict[str, Any], policies: dict[str, Any], version_id: str,
+) -> dict[str, Any]:
+    return {
+        "draft_revision": latest["revision"],
+        "summary_hash": latest["summary_hash"],
+        "workflow_version_id": version_id,
+        "budget_policy_hash": policies["hash"],
+        "data_policy_version": policies["version"],
+        "action": "START",
+        "explicit_start_confirmation": True,
+    }
+
+
+async def test_double_confirmation_is_consumed_once(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    import asyncio
+
+    from sqlalchemy import func
+
+    _, context = api_context
+    version, draft_id, latest = await _ready_draft(client, api_context)
+    policies = (await client.get("/policies")).json()
+    body = _confirm_body(latest, policies, version["id"])
+    headers = keys("double-confirm", **{"If-Match": f'"{latest["revision"]}"'})
+    results = await asyncio.gather(*[
+        client.post(f"/api/v1/requirements/{draft_id}/confirm", json=body, headers=headers)
+        for _ in range(2)
+    ])
+    statuses = sorted(item.status_code for item in results)
+    assert statuses[0] == 201 and statuses[1] in {409, 412}, [
+        item.text for item in results
+    ]
+    async with context.database.session() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(Confirmation)
+            .where(Confirmation.draft_id == draft_id)
+        )
+    assert count == 1
+
+
+async def test_a_newer_executable_version_requires_reconfirmation(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    import copy
+
+    from personal_agent.application.workflow_registry import WorkflowRegistry
+
+    _, context = api_context
+    version, draft_id, latest = await _ready_draft(client, api_context)
+    registry = WorkflowRegistry(context.database, context.clock)
+    old, _ = await registry.definition_of(version["id"])
+    definition = copy.deepcopy(old.definition_json)
+    definition["description"] = str(definition.get("description", "")) + "（修订）"
+    saved = await registry.save_version(
+        workflow_id=old.workflow_id,
+        base_version_id=old.id,
+        definition=definition,
+        change_summary="newer version for reconfirmation",
+        confirm_executable=True,
+    )
+    assert saved.version.id != version["id"]
+    policies = (await client.get("/policies")).json()
+    response = await client.post(
+        f"/api/v1/requirements/{draft_id}/confirm",
+        json=_confirm_body(latest, policies, version["id"]),
+        headers=keys("newer-version", **{"If-Match": f'"{latest["revision"]}"'}),
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "VERSION_CHANGED"
+    assert response.json()["error"]["details"]["latest_version_id"] == saved.version.id

@@ -106,4 +106,8 @@ class Confirmation(Base):
 
     __table_args__ = (
         CheckConstraint("action IN ('START','BRANCH')", name="confirmation_action_enum"),
+        UniqueConstraint(
+            "draft_id", "draft_revision", "action",
+            name="uq_confirmations_draft_revision_action",
+        ),
     )

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from personal_agent.adapters.persistence.budget_models import BudgetLedger
@@ -25,6 +26,7 @@ from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 from personal_agent.adapters.rendering.requirement_summary import render_summary
 from personal_agent.application.budget_service import BudgetService
+from personal_agent.domain.budget import effective_run_limits
 from personal_agent.domain.common import (
     CONFIRMATION_STALE,
     INPUT_INCOMPLETE,
@@ -63,6 +65,7 @@ class RequirementService:
         policy_hash: str,
         policy_version: str,
         draft_limits: dict[str, int],
+        run_limits: dict[str, int] | None = None,
     ) -> None:
         self._database = database
         self._clock = clock
@@ -70,6 +73,7 @@ class RequirementService:
         self._policy_hash = policy_hash
         self._policy_version = policy_version
         self._draft_limits = draft_limits
+        self._run_limits = dict(run_limits or {})
 
     # ------------------------------------------------------------------
     # Creation and queries
@@ -363,6 +367,15 @@ class RequirementService:
                     message="the workflow version changed since the summary was rendered",
                     status=409,
                 )
+            workflow = await session.get(Workflow, version.workflow_id)
+            latest = workflow.latest_executable_version_id if workflow else None
+            if latest is not None and latest != version.id:
+                raise AppError(
+                    code=VERSION_CHANGED,
+                    message="a newer executable version exists; reselect and reconfirm",
+                    status=409,
+                    details={"latest_version_id": latest},
+                )
             if budget_policy_hash != self._policy_hash:
                 raise AppError(
                     code=POLICY_CHANGED,
@@ -431,10 +444,29 @@ class RequirementService:
                 field_snapshot_json=input_snapshot,
             )
             session.add(confirmation)
+            # Conditional update: only the transaction that still sees this exact
+            # revision may consume the draft. The unique index is the backstop.
+            await cas_update(
+                session, RequirementDraft, identity={"id": draft.id},
+                expected_revision=draft.revision,
+                values={
+                    "status": DraftStatus.CONFIRMED.value,
+                    "updated_at": self._clock.now(),
+                },
+                stale_code=CONFIRMATION_STALE, stale_status=409,
+            )
             draft.status = DraftStatus.CONFIRMED.value
             draft.revision += 1
             draft.updated_at = self._clock.now()
-            await session.commit()
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                raise AppError(
+                    code="CONFIRMATION_CONSUMED",
+                    message="this draft revision was already confirmed",
+                    status=409,
+                ) from None
             return {
                 "confirmation_id": confirmation.id,
                 "confirmed_input_hash": confirmation.input_hash,
@@ -653,6 +685,23 @@ class RequirementService:
             | set(validate_field_values(definition.input_schema, fields))
         )
         conflicts = list(draft.conflicts_json)
+        accepted_rows = list((await session.scalars(
+            select(Suggestion)
+            .where(Suggestion.draft_id == draft.id, Suggestion.status == "ACCEPTED")
+            .order_by(Suggestion.created_at)
+        )).all())
+        accepted = [
+            {
+                "field_path": row.field_path,
+                "value": row.value_json,
+                "rationale": row.rationale,
+            }
+            for row in accepted_rows
+        ]
+        run_budget = (
+            effective_run_limits(self._run_limits, definition.execution_policy.model_dump())
+            if self._run_limits else {}
+        )
         draft.missing_fields_json = missing
         draft.summary_markdown = render_summary(
             workflow_name=definition.name,
@@ -661,8 +710,25 @@ class RequirementService:
             missing=missing,
             conflicts=conflicts,
             preference_order=list(draft.preference_order_json),
+            accepted_suggestions=accepted,
+            output_spec=dict(draft.output_spec_json),
+            policy_hash=self._policy_hash,
+            run_budget=run_budget,
         )
-        draft.summary_hash = stable_hash({"summary": draft.summary_markdown})
+        # The hash binds every input that shapes execution, not only the prose:
+        # fields, accepted suggestions, preference order, output spec, version,
+        # policy and budget.
+        draft.summary_hash = stable_hash({
+            "summary": draft.summary_markdown,
+            "fields": draft.field_values_json,
+            "preference_order": draft.preference_order_json,
+            "output_spec": draft.output_spec_json,
+            "accepted_suggestions": accepted,
+            "policy_hash": self._policy_hash,
+            "policy_version": self._policy_version,
+            "run_budget": run_budget,
+            "workflow_version_id": draft.selected_version_id,
+        })
         if draft.status != DraftStatus.STALE.value:
             current = DraftStatus(draft.status)
             draft.status = derive_status(

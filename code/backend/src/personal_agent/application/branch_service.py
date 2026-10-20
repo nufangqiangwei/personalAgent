@@ -50,6 +50,7 @@ from personal_agent.domain.common import (
     AppError,
     ErrorCategory,
     new_id,
+    stable_hash,
 )
 from personal_agent.domain.execution import EventKind, RunStatus
 from personal_agent.ports.contracts import Clock
@@ -138,6 +139,7 @@ class BranchService:
                 policy_hash=source.budget_policy_hash,
                 policy_version=source.data_policy_version,
                 draft_limits=self._draft_limits,
+                run_limits=self._budget_limits,
             )
             await requirements.recompute(session, draft)
             proposal = BranchProposal(
@@ -296,6 +298,25 @@ class BranchService:
             parent = await session.get(WorkflowRun, proposal.parent_run_id)
             if parent is None:
                 raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
+            confirmed_snapshot = {
+                "fields": dict(draft.field_values_json),
+                "preference_order": list(draft.preference_order_json),
+                "output_spec": dict(draft.output_spec_json),
+            }
+            if (
+                confirmation.input_hash != stable_hash(confirmed_snapshot)
+                or confirmation.workflow_version_id != parent.workflow_version_id
+            ):
+                # The BRANCH confirmation is bound to one fixed version and one
+                # exact field snapshot; anything else is stale, not reusable.
+                raise AppError(
+                    code="CONFIRMATION_STALE",
+                    message=(
+                        "the branch confirmation no longer matches its fixed "
+                        "version and fields"
+                    ),
+                    status=409,
+                )
             original = dict(parent.input_snapshot_json)
             changed = BranchAnalyzer.changed_paths(original, {
                 "fields": draft.field_values_json,

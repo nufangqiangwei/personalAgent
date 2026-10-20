@@ -18,6 +18,15 @@ HEADINGS = {
     "recency": "时效要求",
 }
 
+_BUDGET_LABELS = {
+    "active_ms": "有效研究时长（毫秒）",
+    "model_requests": "模型请求",
+    "tool_calls": "工具调用",
+    "search_calls": "搜索",
+    "page_reads": "页面读取",
+    "tokens": "tokens",
+}
+
 
 def _format_value(value: Any) -> str:
     if value is None:
@@ -37,6 +46,10 @@ def render_summary(
     missing: list[str],
     conflicts: list[dict[str, Any]],
     preference_order: list[str],
+    accepted_suggestions: list[dict[str, Any]] | None = None,
+    output_spec: dict[str, Any] | None = None,
+    policy_hash: str | None = None,
+    run_budget: dict[str, int] | None = None,
 ) -> str:
     lines: list[str] = [f"# {workflow_name} · 需求确认", ""]
 
@@ -75,6 +88,32 @@ def render_summary(
     else:
         lines.append("- 未发现冲突。")
     lines.append("")
+
+    if accepted_suggestions:
+        lines.append("## 四、已接受建议")
+        for item in accepted_suggestions:
+            path = HEADINGS.get(str(item.get("field_path")), str(item.get("field_path")))
+            rationale = str(item.get("rationale") or "").strip()
+            rendered = _format_value(item.get("value"))
+            lines.append(
+                f"- **{path}**：{rendered}" + (f"（依据：{rationale}）" if rationale else "")
+            )
+        lines.append("")
+
+    if output_spec or run_budget or policy_hash:
+        lines.append("## 五、交付与策略")
+        if output_spec:
+            for key, value in output_spec.items():
+                lines.append(f"- {HEADINGS.get(str(key), str(key))}：{_format_value(value)}")
+        if run_budget:
+            budget_text = "，".join(
+                f"{_BUDGET_LABELS.get(key, key)} {value}" for key, value in run_budget.items()
+            )
+            lines.append(f"- 执行预算上限：{budget_text}")
+        if policy_hash:
+            lines.append(f"- 政策指纹：{policy_hash}")
+        lines.append("")
+
     lines.append(f"> 流程版本：v{workflow_version_no}。确认后才会创建执行。")
     return "\n".join(lines)
 
