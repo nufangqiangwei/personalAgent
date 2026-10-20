@@ -1,0 +1,694 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "mode": "mock",
+  "source": "isolated Playwright workspace; application services with fixed external observations",
+  "runs": [
+    {
+      "id": "be096065-eac4-4746-b573-625295a33f3f",
+      "root_run_id": "be096065-eac4-4746-b573-625295a33f3f",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:66650b4ac1cc9cf78c58d9e4690bfe75822b8491f72d34ba3baa73963fed8b09",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "bdce5bd2-2226-4efd-827d-1c349b29a248",
+      "root_run_id": "bdce5bd2-2226-4efd-827d-1c349b29a248",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:522b84962d7665a5c30b902905793fd105e15ba13ff6dea90b4dea470fb525a0",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "e1d3ed5e-8736-4818-80b8-e7b9859ba87e",
+      "root_run_id": "e1d3ed5e-8736-4818-80b8-e7b9859ba87e",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:0904805c9aeb335f5e888268a8a8261f790b87d15b864e1a573bef56cfce2643",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "6a295bf0-23ce-4c0e-9ba0-3e3682fe994d",
+      "root_run_id": "6a295bf0-23ce-4c0e-9ba0-3e3682fe994d",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:3acd09e5064476635dc781ca341fa121ef257b356255b0f643f3de341ea27281",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "ecaa6e09-48b8-4934-8173-1a4a6066dd3c",
+      "root_run_id": "ecaa6e09-48b8-4934-8173-1a4a6066dd3c",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:ecfc215a3b5e8fc74cfd18d873cac6d81c5befe40a364f35bf06ca914a6bd09d",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 3,
+      "event_count": 13,
+      "control_decision_hash": "sha256:7b679b3c140ecc6f291ede91dd22b1351dbf42e638adaf15367af797cec72dfb",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "e556306b-7b8b-4501-b30d-5c961cefc0b3",
+      "root_run_id": "e556306b-7b8b-4501-b30d-5c961cefc0b3",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:848c2acb45b8c044546a34119b01a57b28e1e963e188aefeed210502ac68a076",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "d3945e69-06c3-43fd-93ad-ad878b118ec6",
+      "root_run_id": "e556306b-7b8b-4501-b30d-5c961cefc0b3",
+      "parent_run_id": "e556306b-7b8b-4501-b30d-5c961cefc0b3",
+      "fork_step_id": "collect_background",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:848c2acb45b8c044546a34119b01a57b28e1e963e188aefeed210502ac68a076",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:e1c251704e05b88001ab42a361692cdc7c0b5bd71b3176b506ad733ccd0aaa2a",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "9a4e024f-efd6-4c7b-8dad-dd01349c6b9f",
+      "root_run_id": "e556306b-7b8b-4501-b30d-5c961cefc0b3",
+      "parent_run_id": "d3945e69-06c3-43fd-93ad-ad878b118ec6",
+      "fork_step_id": "collect_background",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:848c2acb45b8c044546a34119b01a57b28e1e963e188aefeed210502ac68a076",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:e1c251704e05b88001ab42a361692cdc7c0b5bd71b3176b506ad733ccd0aaa2a",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "2c0805a9-d1b6-42b8-b3e1-cba352ffe4da",
+      "root_run_id": "2c0805a9-d1b6-42b8-b3e1-cba352ffe4da",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:95346c14adb4ba12d559ebf670fbf02cc81de1d95e29582b87c6b5848e79ace5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "ed82a4a7-b42e-449b-acae-5861be3bdc7b",
+      "root_run_id": "2c0805a9-d1b6-42b8-b3e1-cba352ffe4da",
+      "parent_run_id": "2c0805a9-d1b6-42b8-b3e1-cba352ffe4da",
+      "fork_step_id": "merge_findings",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:95346c14adb4ba12d559ebf670fbf02cc81de1d95e29582b87c6b5848e79ace5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:218d1cc87ea591ebf314d872a0e31a2293219b157e9753cf5487f375328ed5a0",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "49e348a8-1fee-41a9-b965-a0dc72d1b545",
+      "root_run_id": "2c0805a9-d1b6-42b8-b3e1-cba352ffe4da",
+      "parent_run_id": "ed82a4a7-b42e-449b-acae-5861be3bdc7b",
+      "fork_step_id": "merge_findings",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:95346c14adb4ba12d559ebf670fbf02cc81de1d95e29582b87c6b5848e79ace5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:218d1cc87ea591ebf314d872a0e31a2293219b157e9753cf5487f375328ed5a0",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "1bce03cd-0e76-46fe-b430-1670a85ec39b",
+      "root_run_id": "1bce03cd-0e76-46fe-b430-1670a85ec39b",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:b559fc7160f58ecdf4d7129f317a6af481bfefc21fca7a5b1d7c647563e028c4",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "263e566b-a381-45cc-9e97-cd3c4f8857b0",
+      "root_run_id": "1bce03cd-0e76-46fe-b430-1670a85ec39b",
+      "parent_run_id": "1bce03cd-0e76-46fe-b430-1670a85ec39b",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:b559fc7160f58ecdf4d7129f317a6af481bfefc21fca7a5b1d7c647563e028c4",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:8793f2fa47de86c294a11056e347f7fc82b6c6cdb70afbbd9b5297cf77a84a5c",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "69d7c34d-16ae-4811-b384-066290a1997f",
+      "root_run_id": "1bce03cd-0e76-46fe-b430-1670a85ec39b",
+      "parent_run_id": "263e566b-a381-45cc-9e97-cd3c4f8857b0",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:b559fc7160f58ecdf4d7129f317a6af481bfefc21fca7a5b1d7c647563e028c4",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:8793f2fa47de86c294a11056e347f7fc82b6c6cdb70afbbd9b5297cf77a84a5c",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "6b634083-f4c0-4c1a-9ddc-978bd4adf0ad",
+      "root_run_id": "6b634083-f4c0-4c1a-9ddc-978bd4adf0ad",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:3b161b4402de379a2b0e8e1ac19765c2ab7f955f0b71da8ae703d394933138a2",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "024ebe4a-9395-452c-8743-442aa352e17d",
+      "root_run_id": "024ebe4a-9395-452c-8743-442aa352e17d",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:0dd4b07996bf40a8cbafd9ffb9a6a48556de87d8659629bbda290e81ce07a6a7",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:822a28c5afb50168d27ddbcf6a8427cc0904c553f5c20d949df0b9c6082d6a0f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED"
+        }
+      ]
+    },
+    {
+      "id": "86f3a598-cf9f-4ca5-ad47-48afc52fc7ea",
+      "root_run_id": "86f3a598-cf9f-4ca5-ad47-48afc52fc7ea",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "2c438e06-9165-4130-a765-c3dbded87a65",
+      "input_hash": "sha256:f07c6ca87de71bcaa7b230c4880275eb6ea41be0dd3e69188b28e0c461585e49",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "CANCELLED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:40b0c0194d13adacdf192ada25715bbd7eae346c03acc1a880ee728b843422e6",
+      "attempts": [
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "CANCELLED"
+        }
+      ]
+    }
+  ]
+}

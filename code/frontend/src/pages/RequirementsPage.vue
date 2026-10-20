@@ -49,6 +49,8 @@ const props = defineProps<{ id: string }>()
 const route = useRoute()
 const router = useRouter()
 const client = new ApiClient()
+const branchProposalId = computed(() => typeof route.query.branch_proposal_id === 'string'
+  ? route.query.branch_proposal_id : null)
 
 const draft = ref<Draft | null>(null)
 const policy = ref<Policy | null>(null)
@@ -166,12 +168,14 @@ async function confirm(): Promise<void> {
         workflow_version_id: current.workflow_version_id,
         budget_policy_hash: policies.hash,
         data_policy_version: policies.version,
-        action: 'START',
+        action: branchProposalId.value ? 'BRANCH' : 'START',
         explicit_start_confirmation: true,
       },
       { etag: `"${current.revision}"` },
     )
-    notice.value = `已确认（${result.confirmation_id}）。点击“开始研究”才会创建执行。`
+    notice.value = branchProposalId.value
+      ? `已确认（${result.confirmation_id}）。返回分支提案确认起点后才会创建分支。`
+      : `已确认（${result.confirmation_id}）。点击“开始研究”才会创建执行。`
     draft.value = await client.get<Draft>(`/api/v1/requirements/${current.id}`)
     explicitConfirm.value = false
   } catch (caught) {
@@ -280,14 +284,17 @@ async function startResearch(): Promise<void> {
         </button>
         <p v-if="draft.status === 'CONFIRMED'" class="muted">该草稿已确认，修改要求需回到聊天。</p>
         <button
-          v-if="draft.status === 'CONFIRMED' && draft.confirmation_id"
+          v-if="!branchProposalId && draft.status === 'CONFIRMED' && draft.confirmation_id"
           type="button"
           :disabled="busy"
           @click="startResearch"
         >
           {{ busy ? '启动中…' : '开始研究' }}
         </button>
-        <p v-if="draft.status === 'CONFIRMED' && draft.confirmation_id" class="muted">
+        <RouterLink v-if="branchProposalId" :to="{ path: '/runs', query: {
+          run: route.query.parent_run_id, proposal: branchProposalId,
+        } }">返回分支提案并确认起点</RouterLink>
+        <p v-if="!branchProposalId && draft.status === 'CONFIRMED' && draft.confirmation_id" class="muted">
           确认本身不会启动研究；点击“开始研究”才会创建执行。
         </p>
       </section>

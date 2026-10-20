@@ -1,22 +1,24 @@
 # Implementation Plan: Personal-Agent 工作流驱动的信息研究助理
 
-**Branch**: `001-workflow-research-assistant`（setup-plan 返回的功能标识；当前目录没有 Git 仓库，未创建 Git 分支）  
+**Branch**: `001-workflow-research-assistant`（setup-plan 返回的功能标识；当前已为 Git 仓库，实施工作区在 `main`，未创建此功能名分支）
 **Date**: 2026-10-19 | **Spec**: [spec.md](spec.md)  
 **Input**: 当前分期规格、项目宪章 1.0.0、用户提供的《Personal-Agent 技术规划说明》。历史技术方案仅供背景参考。
 
 ## Summary
 
-采用 Python 模块化单体、Vue 本地 Web UI、SQLite WAL 与本地不可变产物。Workflow Engine 是唯一业务推进者；官方 DeepSeek Harness Python SDK 承担节点内 Agent Loop，适配器处理权限、事件和生命周期，不重写模型循环。
+采用 Python 模块化单体、Vue 本地 Web UI、SQLite WAL 与本地不可变产物。Workflow Engine 是唯一业务推进者；按 2026-10-20 用户确认，主运行时载体固定为官方 DeepSeek Harness `headless --json` CLI 子进程，复用官方节点内 Agent Loop。Python 适配器处理权限、事件和生命周期，不重写模型循环，也不以 Web RPC 或 Python SDK API 为默认入口。已验证调用方式及工程边界见 [Harness CLI 使用约定](../../docs/harness-cli-usage.md)。
 
-当前一期交付：列表选流、聊天补齐并确认要求、固定流程执行、多方向采集、Markdown 文档、版本管理、暂停/取消/中断恢复、节点重跑分支、上限求助及完整 UI。二期匹配、探索、沉淀、长期偏好仅保留扩展边界，不建设其表/页面，不作为一期发布前置。设计与任务拆分已完成：任务清单见 [tasks.md](tasks.md)（T001–T103，全部未开始）；本计划不含业务实现代码，实现进度与验证证据以 tasks.md 和 docs/release-evidence.md 为准。
+当前一期交付目标：列表选流、聊天补齐并确认要求、固定流程执行、多方向采集、Markdown 文档、版本管理、暂停/取消/中断恢复、节点重跑分支、上限求助及完整 UI。二期匹配、探索、沉淀、长期偏好仅保留扩展边界，不建设其表/页面，不作为一期发布前置。2026-10-20 的实施任务见 [tasks.md](tasks.md)（T001–T138，94 项已勾选、44 项未勾选）；Phase 8 的 T086/T087 已补齐 Mock 验收，真实官方 Loop 接线和 Phase 11 整改仍未完成。实施进度与验证限制见 [release-evidence.md](../../docs/release-evidence.md)，当前不可声明一期完成或发布。
 
 ## Technical Context
+
+2026-10-20 最新 Phase 8 验收见 [recovery-verification.md](../../docs/recovery-verification.md)：先前两个预算失败已修复，新增到限等待、足额追加、有效时间/deadline、前置不足、写入核验、超时 UNKNOWN 及分支切换验收。18 个实际页面 Mock 用例通过；统一检查后端 285、前端 47、策略 16 项通过。T086/T087 已勾选，但不替代 Phase 11 的跨阶段整改或真实发布门禁。用户授权本次真实测试合计人民币 25 元；其后两次独立 headless CLI 模型探针通过，证据与未核验费用预留见 [CLI 约定](../../docs/harness-cli-usage.md)，不替代项目真实链路验收。
 
 | 项目 | 决策 |
 |---|---|
 | Language/Version | Python 3.12.x；TypeScript 5.x；Vue 3.x；Windows x64 |
 | Primary Dependencies | FastAPI >=0.115,<1；Pydantic >=2.10,<3；SQLAlchemy >=2.0,<2.1；Alembic >=1.14,<2；aiosqlite >=0.20,<1；httpx >=0.28,<1；Playwright >=1.50,<2；jsonschema >=4.23,<5 |
-| Agent Runtime | 候选 deepseek-harness-sdk==0.2.1rc2 + deepseek-harness-runtime-bin==0.2.1rc2；专用受限 profile、官方 Loop，MCP Python 工具边界及最小 TS guard 插件 |
+| Agent Runtime | 固定 `@deepseek-ai/dsh@0.2.1-rc.2` headless CLI；独立连通通过、项目采用未通过。专用受限 profile、官方 Loop、MCP Python 工具边界及最小 TS guard/provider 插件；原 Python SDK/wheel 留作历史候选资料，不是默认入口 |
 | Frontend | Vite >=7,<8，Vue Router 4.x，Node.js 24.x；REST 管理，SSE 进度；生产同源 |
 | Dependency Management | uv >=0.8,<1、npm 11.x；接入通过后提交 uv.lock、package-lock.json，精确固定全部依赖、插件与浏览器 revision，禁止浮动 latest/master 交付 |
 | Storage | 本机 SQLite WAL、foreign_keys=ON、synchronous=FULL、busy_timeout=5000ms；Repository/UoW；大日志和文档在文件系统 |
@@ -28,7 +30,7 @@
 
 命名约定：产品对外名统一为 **Personal-Agent**，Python 包名 `personal_agent`、本机数据目录 `%LOCALAPPDATA%/Personal-Agent` 与此一致；本地仓库目录名 `spiderAgent` 仅为磁盘路径，不作为产品名或交付名称。
 
-上述范围是依赖候选要求，未宣称组合已验证。2026-10-19 实施前实测与处置：Node 24.21.0 满足要求；uv 0.5.30、系统 Python 3.11.3 不满足，已升级 uv 至 0.13.1 并用 `uv python install 3.12` 安装 CPython 3.12.9，实施统一使用该 3.12 解释器。Harness SDK/runtime 0.2.1rc2 仍未安装、未验证。真实 wheel 的权限、Windows、事件、模型门与日志行为必须通过 [research.md](research.md) 的接入门禁后才采用，不把官方文档核验等同运行测试。
+上述范围是依赖候选要求，未宣称组合已验证。2026-10-19 实施前实测与处置：Node 24.21.0 满足要求；uv 0.5.30、系统 Python 3.11.3 不满足，已升级 uv 至 0.13.1 并用 `uv python install 3.12` 安装 CPython 3.12.9，实施统一使用该 3.12 解释器。2026-10-20 已经 uv frozen 安装 Harness SDK/runtime 0.2.1rc2，但真实接线与采用尚未通过。真实 wheel 的权限、Windows、事件、模型门与日志行为必须通过 [research.md](research.md) 的接入门禁后才采用，不把安装或官方文档核验等同运行测试。
 
 ## Constitution Check
 
@@ -152,4 +154,4 @@ code/
 
 ## Complexity Tracking
 
-无宪章违规。Repository、操作账本、模型网关、运行时进程分别服务当前存储隔离、中断一致性、全局串行及供应商生命周期需求；没有引入通用工作流平台、消息队列或分布式调度。
+上述设计未申请宪章例外；当前实现仍有 tasks.md Phase 11 所列待修缺口，不能将设计检查的 PASS 作为实现合规结论。Repository、操作账本、模型网关、运行时进程分别服务当前存储隔离、中断一致性、全局串行及供应商生命周期需求；没有引入通用工作流平台、消息队列或分布式调度。

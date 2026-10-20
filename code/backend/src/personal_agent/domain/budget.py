@@ -65,9 +65,8 @@ class Ledger:
             for key, value in values.items():
                 if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                     raise ValueError(f"{name}.{key} must be a non-negative integer")
-        for key in dimensions:
-            if self.consumed.get(key, 0) > self.limits.get(key, 0) + self.reserved.get(key, 0):
-                raise ValueError(f"consumed.{key} exceeds limits + reserved")
+        # Limits guard admission, not the recording of facts. A dependency may
+        # report an overrun; preserve it so exhaustion and assistance stay truthful.
 
     def remaining(self) -> dict[str, int]:
         return {
@@ -108,6 +107,20 @@ def empty_ledger(scope: LedgerScope, limits: Mapping[str, int]) -> Ledger:
         raise ValueError(f"limits has unknown dimensions: {sorted(unknown)}")
     zero = {key: 0 for key in limits}
     return Ledger(scope=scope, limits=dict(limits), consumed=zero, reserved=zero)
+
+
+def effective_run_limits(
+    defaults: Mapping[str, int], workflow_policy: Mapping[str, int]
+) -> dict[str, int]:
+    """A confirmed workflow may tighten the global limits, never expand them."""
+    declared = {
+        "active_ms": workflow_policy.get(
+            "max_active_seconds", defaults["active_ms"] // 1000
+        ) * 1000,
+        **{key: workflow_policy.get(f"max_{key}", value)
+           for key, value in defaults.items() if key != "active_ms"},
+    }
+    return {key: min(value, declared[key]) for key, value in defaults.items()}
 
 
 def _require_positive(scope: LedgerScope, amount: Mapping[str, int]) -> dict[str, int]:

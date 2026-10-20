@@ -41,7 +41,7 @@ TOPIC_WORKFLOW = "公开主题资料研究"
 
 
 class GatedRuntime:
-    """Hold the first submission open so a stop/resume is genuinely concurrent."""
+    """Hold a submitted result before the engine can commit its completion."""
 
     def __init__(self, inner: Any) -> None:
         self._inner = inner
@@ -50,10 +50,13 @@ class GatedRuntime:
         self.block = True
 
     async def submit(self, task: Any) -> Any:
+        return await self._inner.submit(task)
+
+    async def wait_result(self, submission_id: str) -> Any:
         self.entered.set()
         if self.block:
             await self.release.wait()
-        return await self._inner.submit(task)
+        return await self._inner.wait_result(submission_id)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)

@@ -59,6 +59,7 @@ export interface StreamHandlers {
   onEvent: (frame: RunEventFrame) => void
   onReset: (snapshotUrl: string) => void
   onError?: (error: unknown) => void
+  onOpen?: () => void
 }
 
 export function parseFrame(raw: string): RunEventFrame | null {
@@ -102,12 +103,21 @@ export class RunEventStream {
       : (new EventSource(url) as unknown as EventSourceLike)
     this.source = source
 
+    source.addEventListener('error', () => {
+      if (this.source === source) this.handlers.onError?.(new Error('event stream disconnected'))
+    })
+    source.addEventListener('open', () => {
+      if (this.source === source) this.handlers.onOpen?.()
+    })
+
     const handle = (kind: string) => (message: MessageEvent): void => {
+      if (this.source !== source) return
       const frame = parseFrame(String(message.data))
       if (frame) this.handlers.onEvent({ ...frame, event: kind })
     }
     for (const kind of KNOWN_EVENT_KINDS) source.addEventListener(kind, handle(kind))
     source.addEventListener('stream.reset', (message: MessageEvent) => {
+      if (this.source !== source) return
       let snapshotUrl = `/api/v1/runs/${this.runId}`
       try {
         const parsed = JSON.parse(String(message.data)) as { snapshot_url?: string }

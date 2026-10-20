@@ -46,10 +46,14 @@ logs/
 *.db-shm
 
 # IDE / OS
+.DS_Store
 .idea/
 .vscode/
 Thumbs.db
 Desktop.ini
+*.log
+*.tmp
+*.swp
 
 # pytest 临时目录（在工作区运行并指定 basetemp 时产生）
 pytest-of-*/

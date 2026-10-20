@@ -46,6 +46,13 @@ def test_actual_usage_above_reservation_is_still_charged() -> None:
     assert settled.consumed["tokens"] == 55
 
 
+def test_observed_usage_above_limit_remains_visible_for_assistance() -> None:
+    state = rules.settle(rules.reserve(ledger(), {"tokens": 20}), {"tokens": 20}, {"tokens": 150})
+    assert state.consumed["tokens"] == 150
+    assert state.remaining()["tokens"] == 0
+    assert state.exhausted
+
+
 def test_release_returns_only_unspent_reservation() -> None:
     reserved = rules.reserve(ledger(), {"tokens": 30})
     released = rules.release(reserved, {"tokens": 30})

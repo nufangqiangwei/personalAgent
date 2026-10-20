@@ -88,7 +88,10 @@ class BranchAnalyzer:
             StepImpact(
                 step_id=step.id,
                 depends_on=tuple(step.depends_on),
-                input_reads=tuple(step.input_reads),
+                input_reads=tuple(step.input_reads) + (
+                    ("/preference_order",) if step.type == "AgentTask"
+                    else ("/output_spec",) if step.type == "Output" else ()
+                ),
             )
             for step in definition.steps
         ]
@@ -129,6 +132,13 @@ class BranchAnalyzer:
             reachable_from_start=reachable,
             invalid_artifact_step_ids=invalid_steps,
         )
+        declared_inputs = set(definition.input_schema.get("properties", {}))
+        unclassified = [path for path in changed_paths if normalize_path(path).split("/")[1]
+                        not in declared_inputs | {"preference_order", "output_spec"}]
+        if unclassified:
+            report.blocked_reasons.append(
+                "要求差异无法匹配流程输入声明，影响范围无法确定：" + "、".join(unclassified)
+            )
         if untraceable:
             report.blocked_reasons.append(
                 "以下失效成果无法追溯到产生它的步骤，需人工确认："
@@ -211,6 +221,10 @@ class BranchAnalyzer:
         for key in original_fields:
             if key not in updated_fields:
                 paths.add(normalize_path(str(key)))
+        if "fields" in updated:
+            for key, default in (("preference_order", []), ("output_spec", {})):
+                if original.get(key, default) != updated.get(key, default):
+                    paths.add(normalize_path(key))
         return sorted(paths)
 
     @staticmethod

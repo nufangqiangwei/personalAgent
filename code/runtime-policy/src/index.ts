@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import {
   PLUGIN_NAME,
   createModelTransportHook,
+  createToolGuard,
   installGuard,
   type InstalledGuard,
   type ToolPolicy,
@@ -13,6 +14,7 @@ import {
 export * from './guard.js'
 
 interface ProfileFile {
+  scope?: { scopeToken: string; epoch: number }
   tools: {
     allow: string[]
     denyPrefixes: string[]
@@ -43,12 +45,56 @@ export function toolPolicyFromProfile(profile: ProfileFile): ToolPolicy {
  * Cordis plugin entry. It mounts only the guard/provider hooks; business
  * orchestration stays in the Python engine and the official Loop.
  */
-export function apply(ctx: { tools: ToolServiceLike }, profile: ProfileFile): InstalledGuard {
-  const installed = installGuard(ctx.tools, toolPolicyFromProfile(profile))
-  return installed
+interface AgentScope {
+  ctx: { tools: ToolServiceLike }
+}
+
+interface AgentEvent {
+  agent: AgentScope
+}
+
+interface PolicyContext {
+  tools: ToolServiceLike
+  on(
+    event: 'agent/created' | 'agent/disposed',
+    listener: (payload: AgentEvent) => void,
+  ): () => void
+}
+
+export function apply(ctx: PolicyContext, profile?: ProfileFile): InstalledGuard {
+  // The pinned service rejects global restrict(). Mount on the published Agent
+  // scope before queued model work is released by the official registry.
+  // A missing inline config reads the deployment profile named by the launch
+  // patch; the CLI never receives the profile inline, so its hash stays bound.
+  const resolved = profile ?? loadProfile(process.env.PERSONAL_AGENT_PROFILE_PATH)
+  const policy = toolPolicyFromProfile(resolved)
+  const scope = resolved.scope
+  const installed = new Map<AgentScope, InstalledGuard>()
+  // dsh-agent 0.2.1-rc.2 dispatches { agent, source, signal }, not the agent itself.
+  const created = ctx.on('agent/created', event => {
+    const agent = event.agent
+    if (!installed.has(agent)) {
+      installed.set(agent, installGuard(agent.ctx.tools, policy, scope))
+    }
+  })
+  const disposed = ctx.on('agent/disposed', event => {
+    const agent = event.agent
+    installed.get(agent)?.dispose()
+    installed.delete(agent)
+  })
+  return {
+    decision: createToolGuard(policy),
+    dispose: () => {
+      created()
+      disposed()
+      for (const guard of installed.values()) guard.dispose()
+      installed.clear()
+    },
+  }
 }
 
 export const name = PLUGIN_NAME
+export const inject = ['tools']
 
 export function createHooks(profile: ProfileFile, gatewayBaseUrl: string) {
   return {

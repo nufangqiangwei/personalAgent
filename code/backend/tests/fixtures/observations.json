@@ -361,6 +361,7 @@
         "note": "Arrives after a cancel request; must be appended as a quarantined fact and must not turn CANCELLED into SUCCEEDED."
       },
       "runtime.dependency_failure": {
+        "completion_confirmed": true,
         "finish_reason": null,
         "status": "failed",
         "usage": {

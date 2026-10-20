@@ -324,7 +324,6 @@ async def test_incompatible_backup_and_tampered_manifest_are_refused(
 async def test_failed_migration_restores_the_verified_backup(
     client: httpx.AsyncClient, api_context: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _, context = api_context
     _run_id, artifact_id = await _seed_marker(api_context)
     await _enter_maintenance(client)
     backup = await _create_backup(client)

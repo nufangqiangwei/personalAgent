@@ -13,6 +13,27 @@ const policy = {
 const scopeToken = 'scope-token'
 
 describe('restricted tool guard', () => {
+  it('uses the pinned Harness guard convention: a string denies, undefined allows', () => {
+    let check: ((execution: { name: string }) => string | undefined) | undefined
+    const releaseRestriction = vi.fn()
+    const releaseGuard = vi.fn()
+    const tools = {
+      restrict: vi.fn(() => releaseRestriction),
+      guard: vi.fn((callback: typeof check) => { check = callback; return releaseGuard }),
+    }
+    const installed = installGuard(tools, policy, { scopeToken, epoch: 1 })
+    expect(check?.({ name: 'shell.exec' })).toEqual(expect.any(String))
+    expect(check?.({ name: 'search.web' })).toBeUndefined()
+    installed.dispose()
+    expect(releaseGuard).toHaveBeenCalledOnce()
+    expect(releaseRestriction).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed when the official guard or restriction service is absent', () => {
+    expect(() => installGuard({ restrict: vi.fn() }, policy)).toThrow()
+    expect(() => installGuard({ guard: vi.fn() }, policy)).toThrow()
+  })
+
   it('allows a profile tool with a scope token', () => {
     const guard = createToolGuard(policy)
     expect(guard({ tool: 'search.web', scopeToken, epoch: 1, domains: ['example.com'] })).toEqual({
@@ -83,11 +104,41 @@ describe('restricted tool guard', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('skips restrict when no allowed tool exists yet and still guards', () => {
+    // The pinned service rejects unknown global names; an empty roster must not
+    // turn the guard into a startup failure. The guard stays authoritative.
+    const restrict = vi.fn()
+    const guard = vi.fn(() => () => undefined)
+    const tools = { restrict, guard, get: () => undefined }
+
+    const installed = installGuard(tools, policy)
+    expect(restrict).not.toHaveBeenCalled()
+    expect(guard).toHaveBeenCalledOnce()
+    expect(installed.decision({ tool: 'http.fetch', scopeToken, epoch: 1 }).allowed).toBe(true)
+    expect(installed.decision({ tool: 'auto_fix', scopeToken, epoch: 1 }).allowed).toBe(false)
+  })
+
+  it('restricts exactly the registered allowlist names', () => {
+    const restrict = vi.fn()
+    const guard = vi.fn(() => () => undefined)
+    const registered = new Set(['search.web'])
+    const tools = { restrict, guard, get: (name: string) => registered.has(name) ? {} : undefined }
+
+    installGuard(tools, policy)
+    expect(restrict).toHaveBeenCalledWith({ allow: ['search.web'] })
+  })
+
   it('loads the shipped profile and mounts only the guard hook', () => {
     const profile = loadProfile()
     const guard = vi.fn(() => () => undefined)
     const restrict = vi.fn()
-    const installed = apply({ tools: { guard, restrict } }, profile)
+    const listeners = new Map<string, (payload: { agent: { ctx: { tools: { guard: typeof guard; restrict: typeof restrict } } } }) => void>()
+    const on = vi.fn((name, listener) => { listeners.set(name, listener); return () => undefined })
+    const installed = apply({ tools: { guard, restrict }, on }, profile)
+    expect(restrict).not.toHaveBeenCalled()
+    // The pinned dsh-agent dispatches { agent, source, signal }.
+    listeners.get('agent/created')?.({ agent: { ctx: { tools: { guard, restrict } } } })
+    expect(restrict).toHaveBeenCalledOnce()
     expect(toolPolicyFromProfile(profile)).toEqual({
       allow: profile.tools.allow,
       denyPrefixes: profile.tools.denyPrefixes,

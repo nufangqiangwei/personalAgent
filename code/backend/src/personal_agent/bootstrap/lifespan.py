@@ -48,9 +48,9 @@ from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.bootstrap import config as config_module
 from personal_agent.bootstrap.clock import SystemClock
 from personal_agent.bootstrap.executor import RunExecutor
-from personal_agent.domain.common import new_id, stable_hash
+from personal_agent.domain.common import AppError, ErrorCategory, new_id, stable_hash
 from personal_agent.domain.execution import EventKind, RunStatus
-from personal_agent.ports.contracts import Clock, RuntimePort
+from personal_agent.ports.contracts import Clock, ModelRequest, ModelResponse, RuntimePort
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
@@ -86,12 +86,22 @@ def _observations() -> dict:
         return json.load(handle)
 
 
-def _execution_available(config: config_module.AppConfig) -> bool:
+def _execution_available(
+    config: config_module.AppConfig, *, capabilities: dict | None = None,
+    migration_version: str | None = None, expected_migration: str | None = None,
+) -> bool:
     if config.mode == "mock":
         return True
     # The real runtime stays disabled until the adoption gate has recorded
     # passing evidence. A configured credential is not evidence.
-    return os.environ.get("PERSONAL_AGENT_RUNTIME_ADOPTED") == "1"
+    from personal_agent.adapters.harness.runtime import adoption_evidence
+
+    return (
+        adoption_evidence(profile_path=config.profile_path) is not None
+        and bool(capabilities and capabilities.get("tool_policy_enforced") is True
+                 and capabilities.get("model_gateway_enforced") is True)
+        and migration_version is not None and migration_version == expected_migration
+    )
 
 
 async def ensure_execution_slot(database: Database, clock: Clock) -> None:
@@ -181,7 +191,14 @@ async def build_context(
         clock,
         _transport_for(config, runtime),
         runtime_id=config.mode,
+        allowed_model_ids={
+            os.environ.get("PERSONAL_AGENT_MODEL", "deepseek-v4-flash")
+            if config.is_live else "mock-deepseek-phase1"
+        },
+        enforce_owner=True,
     )
+    if isinstance(runtime, MockRuntime):
+        runtime.bind_model_gateway(gateway)
     store = BlobStore(config.artifacts_dir)
     writer = ManagedWriter(database, store, clock)
     artifacts = ArtifactService(database, writer, store, clock)
@@ -257,6 +274,7 @@ async def build_context(
         config_fingerprint=config_fingerprint,
         runtime_fingerprint=runtime_fingerprint,
         budget_limits=config.policy.budget.as_dict(),
+        draft_limits=config.policy.draft.as_dict(),
         submit=executor.submit,
     )
     async with database.session() as session:
@@ -282,6 +300,8 @@ async def build_context(
         data_dir=config.data_dir,
     ).apply_retention()
     unknown = await gateway.non_terminal_request()
+    current_migration = await migration_current(database)
+    expected_migration = migration_head()
     return AppContext(
         config=config,
         database=database,
@@ -303,19 +323,44 @@ async def build_context(
         sessions=sessions or SessionManager(),
         origin_policy=origin_policy
         or OriginPolicy(config.host, config.port, config.dev_origin),
-        execution_available=_execution_available(config),
-        migration_current=await migration_current(database),
-        migration_head=migration_head(),
+        execution_available=_execution_available(
+            config, capabilities=capabilities.as_dict(),
+            migration_version=current_migration, expected_migration=expected_migration,
+        ),
+        migration_current=current_migration,
+        migration_head=expected_migration,
         runtime_capabilities=capabilities.as_dict(),
         unknown_model_request_id=unknown.id if unknown else None,
     )
 
 
+class UnavailableModelTransport:
+    """Permits startup diagnostics, never sends a request or supplies Mock output."""
+
+    async def complete(self, spec: ModelRequest) -> ModelResponse:
+        raise AppError(
+            code="RUNTIME_INCOMPATIBLE", message="the live model bridge is not mounted",
+            category=ErrorCategory.DEPENDENCY, status=503,
+        )
+
+
 def _transport_for(
     config: config_module.AppConfig, runtime: RuntimePort
 ) -> ModelTransport:
-    if config.is_live and hasattr(runtime, "model_transport"):
-        return runtime.model_transport  # type: ignore[attr-defined]
+    if config.is_live:
+        try:
+            transport = getattr(runtime, "model_transport", None)
+        except AppError as error:
+            if error.code != "RUNTIME_INCOMPATIBLE":
+                raise
+            return UnavailableModelTransport()
+        if transport is None:
+            raise AppError(
+                code="RUNTIME_INCOMPATIBLE",
+                message="live mode requires a verified provider transport",
+                category=ErrorCategory.DEPENDENCY, status=503,
+            )
+        return transport
     from personal_agent.adapters.harness.mock_runtime import MockModelTransport
 
     return MockModelTransport(_observations())

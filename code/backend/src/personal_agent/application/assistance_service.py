@@ -181,6 +181,7 @@ class AssistanceService:
                         increment=increment,
                         operation_id=f"grant:{request.id}",
                         note=note,
+                        required_budget=(request.decision_schema_json or {}).get("required_budget"),
                     )
                 await self._resolve(session, request)
                 session.add(

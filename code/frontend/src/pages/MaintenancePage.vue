@@ -6,7 +6,7 @@
  * refused until quiescent; restoring keeps maintenance mode and never auto-resumes a
  * run. Every risky action needs an explicit confirmation.
  */
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { ApiClient, ApiError, messageFor } from '@/api/client'
 
@@ -47,6 +47,7 @@ const message = ref<string | null>(null)
 const busy = ref(false)
 const selectedBackup = ref<Backup | null>(null)
 const acknowledgeRestore = ref(false)
+let timer: ReturnType<typeof setInterval> | null = null
 
 function describe(caught: unknown): string {
   return caught instanceof ApiError ? messageFor(caught.code, caught.message) : '操作失败。'
@@ -158,7 +159,21 @@ async function restore(): Promise<void> {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // ENTERING/EXITING only becomes final after convergence; poll instead of claiming
+  // the switch is done.
+  timer = setInterval(() => {
+    if (status.value && ['ENTERING', 'EXITING'].includes(status.value.mode)) {
+      void load()
+    }
+  }, 1500)
+})
+
+onBeforeUnmount(() => {
+  if (timer !== null) clearInterval(timer)
+})
+
 </script>
 
 <template>

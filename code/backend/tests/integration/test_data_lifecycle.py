@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy import select
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
-from personal_agent.adapters.persistence.branch_models import ReusedResult, BranchProposal
+from personal_agent.adapters.persistence.branch_models import BranchProposal, ReusedResult
 from personal_agent.adapters.persistence.lifecycle_models import (
     BackupManifest,
     DeletionRecord,
@@ -42,11 +42,11 @@ async def _artifact_fixture(
     version_id = next(
         item["latest_version"]["id"] for item in summaries if item["name"] == "公开主题资料研究"
     )
+    from personal_agent.adapters.persistence.execution_models import WorkflowRun
     from personal_agent.adapters.persistence.requirement_models import (
         Confirmation,
         RequirementDraft,
     )
-    from personal_agent.adapters.persistence.execution_models import WorkflowRun
 
     field_values = {
         "topic": {
@@ -212,7 +212,7 @@ async def test_deletion_takes_effect_before_the_physical_cleanup(
         assert "content to delete" not in str(stored.affected_ids)
         assert "content to delete" not in (stored.tombstone_hash or "")
     assert not await context.writer.store.exists(
-        (await _blob_relative(api_context, blob_id))
+        await _blob_relative(api_context, blob_id)
     )
     page = (await client.get(f"/api/v1/runs/{run_id}")).json()
     assert page["status"] == "SUCCEEDED"  # deleting a document does not rewrite history

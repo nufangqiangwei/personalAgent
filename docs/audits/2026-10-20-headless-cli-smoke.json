@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "status": "CLI_SMOKE_PASS",
+  "runtime_adoption_passed": false,
+  "project_live_available": false,
+  "package": "@deepseek-ai/dsh@0.2.1-rc.2",
+  "runner": "verified-installed-cli",
+  "profile": "headless",
+  "patch": "code/backend/tests/live/fixtures/headless-smoke.patch.yml",
+  "patch_sha256": "2b834e3c95571229b3896e004c78f4c1131fccc5e85405a2fa7ea3032d60e3e0",
+  "credentials": {
+    "source": "Harness-managed credential service, existing Web API key",
+    "secret_read_by_test": false,
+    "secret_exported": false,
+    "web_bootstrap_token_used": false,
+    "model_api_key_in_launch_environment": false
+  },
+  "failed_preflights": [
+    {"runner": "npx-offline", "codes": ["ENOTCACHED"], "model_reply_received": false},
+    {"runner": "npx", "codes": ["EPERM"], "model_reply_received": false},
+    {"runner": "verified-installed-cli", "codes": ["MISSING_CREDENTIAL"], "model_reply_received": false}
+  ],
+  "successful_model_probes": [
+    {
+      "exit_code": 0,
+      "elapsed_seconds": 3.78,
+      "expected_answer_received": true,
+      "usage": null,
+      "unreconciled_cost_reservation_cny": 2.01
+    },
+    {
+      "exit_code": 0,
+      "elapsed_seconds": 3.50,
+      "expected_answer": "CLI_SMOKE_OK",
+      "event_types": ["session", "status", "text", "final"],
+      "completed_steps": 1,
+      "turn_reasons": ["completed"],
+      "tool_calls": 0,
+      "thinking_events": 0,
+      "durable_session_logs": 0,
+      "usage": {
+        "inputTokens": 313,
+        "cacheReadTokens": 1280,
+        "cacheWriteTokens": 0,
+        "outputTokens": 7,
+        "reasoningTokens": 0,
+        "totalTokens": 1600
+      },
+      "estimated_cny_peak_no_cache": 0.003242
+    }
+  ],
+  "billing": {
+    "authorized_total_cny": 25,
+    "successful_model_probe_count": 2,
+    "platform_invoice_verified": false,
+    "conservative_budget_occupation_cny": 2.013242,
+    "first_probe_bound": "One no-tools/no-retry Flash request, at most 1M input and 32 output tokens; round 2.000256 CNY upward to 2.01 CNY until reconciled.",
+    "second_probe_estimate": "Treat all 1593 input tokens as peak cache-miss input plus 7 output tokens; cache discounts ignored.",
+    "price_source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+    "price_cny_per_million_tokens": {"input_peak_cache_miss": 2, "output_peak": 8}
+  },
+  "web_listener": {"address": "127.0.0.1", "port": 8730, "pid_before_and_after": 26948},
+  "raw_stdout_saved": false,
+  "raw_stderr_saved": false,
+  "nonfatal_diagnostic_codes": ["EPERM"],
+  "limitations": [
+    "The npx wrapper encountered cache/permission errors in the executor; the successful probes launched the version-checked installed CLI entrypoint.",
+    "No project workflow, managed tool, model-gateway hook, stop/reconcile or restore adoption claim follows from this connectivity probe.",
+    "The selected credential store was consumed by Harness itself; the production project must still keep provider secrets at its gateway boundary."
+  ]
+}

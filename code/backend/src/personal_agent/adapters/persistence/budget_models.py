@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from personal_agent.adapters.persistence.base import Base, JsonObject, UtcDateTime
@@ -79,6 +79,8 @@ class ModelRequest(Base):
     reserved_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     actual_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     request_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    reservation_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     started_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     completion_evidence_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -96,4 +98,11 @@ class ModelRequest(Base):
         ),
         Index("ix_model_requests_status", "status"),
         Index("ix_model_requests_owner", "owner_type", "owner_id"),
+        Index("uq_model_requests_reservation_id", "reservation_id", unique=True),
+        Index(
+            "uq_model_requests_active",
+            text("(1)"),
+            unique=True,
+            sqlite_where=text("status IN ('RESERVED','IN_FLIGHT','UNKNOWN')"),
+        ),
     )

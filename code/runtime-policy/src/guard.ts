@@ -90,9 +90,12 @@ export function createToolGuard(policy: ToolPolicy): (call: GuardedToolCall) => 
 
 /** Minimal surface of the official Cordis tool service used by this plugin. */
 export interface ToolServiceLike {
-  restrict?(options: { allow: readonly string[] }): void
-  guard?(predicate: (call: GuardedToolCall) => boolean): () => void
+  restrict?(options: { allow: readonly string[] }): (() => void) | void
+  // dsh-tools 0.2.1-rc.2: ToolExecution.name, string = deny, undefined = allow.
+  guard?(predicate: (execution: { readonly name: string }) => string | undefined): () => void
   register?(definition: { name: string }, handler: unknown): void
+  /** Global lookup; a name that is not registered yet cannot be restricted. */
+  get?(name: string): unknown
 }
 
 export interface InstalledGuard {
@@ -104,13 +107,37 @@ export interface InstalledGuard {
  * Installs `restrict` plus `guard`. Returns a disposer so a profile reload can
  * drop the previous predicate instead of stacking guards.
  */
-export function installGuard(tools: ToolServiceLike, policy: ToolPolicy): InstalledGuard {
+export function installGuard(
+  tools: ToolServiceLike,
+  policy: ToolPolicy,
+  // Bound by the trusted node session, never taken from model tool arguments.
+  scope: { readonly scopeToken?: string; readonly epoch?: number } = {},
+): InstalledGuard {
   const decide = createToolGuard(policy)
-  tools.restrict?.({ allow: policy.allow.map(normalizeToolName) })
-  const dispose = tools.guard?.((call) => decide(call).allowed)
+  if (typeof tools.restrict !== 'function' || typeof tools.guard !== 'function') {
+    throw new Error('the pinned Harness restrict and guard services are required')
+  }
+  // The pinned service refuses unknown global names. Restrict only the tools
+  // that exist now; the guard below still rejects every name outside the
+  // allowlist, including one registered later in this scope.
+  const known = policy.allow.filter(
+    (name) => typeof tools.get !== 'function' || tools.get(name) !== undefined,
+  )
+  const releaseRestriction =
+    known.length > 0 ? tools.restrict({ allow: known.map(normalizeToolName) }) : undefined
+  let releaseGuard: () => void
+  try {
+    releaseGuard = tools.guard((execution) => {
+      const decision = decide({ tool: execution.name, ...scope })
+      return decision.allowed ? undefined : decision.code ?? 'TOOL_NOT_ALLOWED'
+    })
+  } catch (error) {
+    releaseRestriction?.()
+    throw error
+  }
   return {
     decision: decide,
-    dispose: () => dispose?.(),
+    dispose: () => { releaseGuard(); releaseRestriction?.() },
   }
 }
 

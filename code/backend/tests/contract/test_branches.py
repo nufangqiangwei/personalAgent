@@ -12,6 +12,7 @@ import hashlib
 from typing import Any
 
 import httpx
+import pytest
 from sqlalchemy import select
 
 from personal_agent.adapters.persistence.artifact_models import SideEffectOperation
@@ -187,9 +188,9 @@ async def test_a_proposal_never_moves_its_start_point(
     assert proposal["draft_id"]
 
     unchanged = await _validate(client, proposal["id"])
-    assert unchanged["proposal"]["status"] == "BLOCKED"
+    assert unchanged["proposal"]["status"] == "READY"
     assert unchanged["proposal"]["changed_paths"] == []
-    assert unchanged["analysis"]["blocked_reasons"]
+    assert not unchanged["analysis"]["blocked_reasons"]
 
     # Changing the topic makes an earlier collecting step re-run; starting at
     # merge_findings is therefore blocked and only suggests an earlier point.
@@ -235,8 +236,8 @@ async def test_confirm_creates_one_run_that_reuses_validated_results(
 ) -> None:
     run_id, version_id = await _started_run(client, api_context)
     proposal = await _proposal(client, run_id, "write_report")
-    # A new field that no step reads leaves every earlier result reusable.
-    await _edit_draft(api_context, proposal["draft_id"], {"audience": "夜间读者"})
+    # A declared output-only field leaves every earlier result reusable.
+    await _edit_draft(api_context, proposal["draft_id"], {"output_structure": "checklist"})
     validated = await _validate(client, proposal["id"])
     assert validated["proposal"]["status"] == "READY", validated["proposal"]
     reusable = set(validated["analysis"]["reusable_step_ids"])
@@ -396,3 +397,69 @@ async def test_unknown_proposal_and_start_step_are_rejected(
     )
     assert rejected.status_code == 422
     assert rejected.json()["error"]["code"] == "START_POINT_INVALID"
+
+
+@pytest.mark.parametrize("start_step", ["collect_background", "merge_findings", "write_report"])
+async def test_unchanged_branch_runs_from_its_confirmed_start_and_can_fork_again(
+    client: httpx.AsyncClient, api_context: Any, start_step: str
+) -> None:
+    parent_id, version_id = await _started_run(client, api_context)
+    _, context = api_context
+    original = (await client.get(f"/api/v1/runs/{parent_id}")).json()
+    for _ in range(2):
+        proposal = await _proposal(client, parent_id, start_step)
+        validated = await _validate(client, proposal["id"])
+        assert validated["analysis"]["status"] == "READY", validated
+        confirmation = await _branch_confirmation(api_context, proposal["draft_id"], version_id)
+        response = await client.post(
+            f"/api/v1/branch-proposals/{proposal['id']}/confirm",
+            json={"confirmation_id": confirmation.id, "effective_step_id": start_step,
+                  "report_hash": validated["analysis"]["report_hash"],
+                  "explicit_start_confirmation": True},
+            headers={"Idempotency-Key": new_id()},
+        )
+        assert response.status_code == 201, response.text
+        branch = response.json()
+        assert branch["id"] != parent_id
+        assert branch["parent_run_id"] == parent_id
+        assert branch["root_run_id"] == original["id"]
+        assert branch["fork_step_id"] == start_step
+        assert await context.executor.wait(branch["id"], max_wait=60) == "SUCCEEDED"
+        steps = (await client.get(f"/api/v1/runs/{branch['id']}/steps")).json()["items"]
+        reused = set(validated["analysis"]["reusable_step_ids"])
+        assert all(not step["attempts"] for step in steps if step["step_id"] in reused)
+        assert next(step for step in steps if step["step_id"] == start_step)["attempts"]
+        final = (await client.get(f"/api/v1/runs/{branch['id']}")).json()
+        assert final["artifact_ids"]
+        document = await client.get(f"/api/v1/artifacts/{final['artifact_ids'][0]}/content")
+        assert document.status_code == 200, document.text
+        assert "公共图书馆夜间开放试点扩大" in document.text
+        parent_id = branch["id"]
+    old = (await client.get(f"/api/v1/runs/{original['id']}")).json()
+    assert old["artifact_ids"] == original["artifact_ids"]
+    assert old["confirmed_input_hash"] == original["confirmed_input_hash"]
+
+
+async def test_unclassified_input_difference_is_blocked_conservatively(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    run_id, _ = await _started_run(client, api_context)
+    proposal = await _proposal(client, run_id, "write_report")
+    await _edit_draft(api_context, proposal["draft_id"], {"unclassified_requirement": "未知影响"})
+    validated = await _validate(client, proposal["id"])
+    assert validated["analysis"]["status"] == "BLOCKED"
+    assert validated["analysis"]["blocked_reasons"]
+
+
+def test_branch_difference_includes_priority_and_output_contract() -> None:
+    from personal_agent.application.branch_analysis import BranchAnalyzer
+
+    original = {
+        "fields": {}, "preference_order": ["accuracy", "cost"], "output_spec": {"detail": "brief"}
+    }
+    updated = {
+        "fields": {},
+        "preference_order": ["cost", "accuracy"],
+        "output_spec": {"detail": "standard"},
+    }
+    assert BranchAnalyzer.changed_paths(original, updated) == ["/output_spec", "/preference_order"]

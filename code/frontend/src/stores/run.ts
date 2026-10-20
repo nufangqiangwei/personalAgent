@@ -82,6 +82,12 @@ export class RunStore {
 
   private applied = new Set<string>()
   private stream: RunEventStream | null = null
+  private sequence: number | null = null
+  private floor = 0
+  private connectionOptions: { sourceFactory?: (url: string) => EventSourceLike } = {}
+  private generation = 0
+  private refreshing: Promise<void> | null = null
+  private refreshAgain = false
   private readonly client: ApiClient
   private readonly runId: string
 
@@ -103,18 +109,18 @@ export class RunStore {
 
   /** Last sequence applied to the UI, used for reconnects and backfill. */
   get lastSequence(): number {
-    return this.state.run?.last_event_sequence ?? 0
+    return this.sequence ?? 0
   }
 
   async load(): Promise<void> {
+    const generation = this.generation
     try {
-      this.state.run = await this.client.get<RunSnapshot>(`/api/v1/runs/${this.runId}`)
-      if (this.terminal.value && this.state.terminalAt === null) {
-        this.state.terminalAt = this.state.run.updated_at
-      }
-      this.state.steps = (
+      const snapshot = await this.client.get<RunSnapshot>(`/api/v1/runs/${this.runId}`)
+      const steps = (
         await this.client.get<{ items: StepView[] }>(`/api/v1/runs/${this.runId}/steps`)
       ).items
+      if (generation !== this.generation) return
+      this.applySnapshot(snapshot, steps)
       this.state.error = null
     } catch (caught) {
       this.state.error = describe(caught)
@@ -124,6 +130,11 @@ export class RunStore {
   }
 
   applySnapshot(snapshot: RunSnapshot, steps: StepView[] = this.state.steps): void {
+    if (this.state.run && snapshot.revision < this.state.run.revision) return
+    if (this.sequence === null) {
+      this.sequence = snapshot.last_event_sequence
+      this.floor = this.sequence
+    }
     this.state.run = snapshot
     if (TERMINAL.has(snapshot.status)) {
       this.state.terminalAt = snapshot.updated_at
@@ -135,6 +146,7 @@ export class RunStore {
   applyEvents(frames: RunEventFrame[]): RunEventFrame[] {
     const accepted: RunEventFrame[] = []
     for (const frame of frames) {
+      if (frame.data.run_id !== this.runId || frame.data.sequence <= this.floor) continue
       const key = `${frame.data.run_id}:${frame.data.sequence}`
       if (this.applied.has(key)) continue
       this.applied.add(key)
@@ -147,17 +159,51 @@ export class RunStore {
       if (late) this.state.lateEvents.push(stamped)
     }
     this.state.events.sort((left, right) => left.data.sequence - right.data.sequence)
+    while (this.applied.has(`${this.runId}:${this.lastSequence + 1}`)) {
+      this.sequence = this.lastSequence + 1
+    }
     return accepted
   }
 
   async backfill(): Promise<RunEventFrame[]> {
-    const page = await fetchEventHistory(this.client, this.runId, this.lastSequence)
-    return this.applyEvents(
-      page.items.map((item) => ({ id: item.id, event: item.event, data: item.data })),
-    )
+    const generation = this.generation
+    let cursor = this.lastSequence
+    const accepted: RunEventFrame[] = []
+    try {
+      for (;;) {
+        const page = await fetchEventHistory(this.client, this.runId, cursor)
+        if (generation !== this.generation) return accepted
+        accepted.push(...this.applyEvents(page.items))
+        if (page.next_cursor === null) break
+        if (page.next_cursor <= cursor) throw new Error('event cursor did not advance')
+        cursor = page.next_cursor
+      }
+      return accepted
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === 'EVENT_CURSOR_EXPIRED') {
+        await this.handleReset()
+        return []
+      }
+      this.state.error = describe(caught)
+      throw caught
+    }
+  }
+
+  private refresh(): Promise<void> {
+    this.refreshAgain = true
+    if (!this.refreshing) {
+      this.refreshing = (async () => {
+        while (this.refreshAgain) {
+          this.refreshAgain = false
+          await this.load()
+        }
+      })().finally(() => { this.refreshing = null })
+    }
+    return this.refreshing
   }
 
   connect(options: { sourceFactory?: (url: string) => EventSourceLike } = {}): void {
+    this.connectionOptions = options
     this.stream?.close()
     const streamOptions: { sourceFactory?: (url: string) => EventSourceLike } = {}
     if (options.sourceFactory) streamOptions.sourceFactory = options.sourceFactory
@@ -165,13 +211,16 @@ export class RunStore {
       this.runId,
       {
         onEvent: (frame) => {
-          this.applyEvents([frame])
+          if (this.applyEvents([frame]).length > 0) void this.refresh()
         },
         onReset: () => {
           void this.handleReset()
         },
         onError: (error) => {
           this.state.error = describe(error)
+        },
+        onOpen: () => {
+          void this.backfill().then(() => this.refresh()).catch(() => undefined)
         },
       },
       streamOptions,
@@ -180,14 +229,19 @@ export class RunStore {
   }
 
   async handleReset(): Promise<void> {
+    this.stream?.close()
+    this.generation += 1
     this.state.resetRequired = true
     this.applied.clear()
     this.state.events = []
     this.state.lateEvents = []
+    this.sequence = null
     await this.load()
+    if (!this.state.error) this.connect(this.connectionOptions)
   }
 
   disconnect(): void {
+    this.generation += 1
     this.stream?.close()
     this.stream = null
   }

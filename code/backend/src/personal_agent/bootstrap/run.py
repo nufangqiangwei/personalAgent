@@ -123,7 +123,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    if config.is_live and os.environ.get("PERSONAL_AGENT_RUNTIME_ADOPTED") != "1":
+    from personal_agent.adapters.harness.runtime import adoption_evidence
+
+    if config.is_live and adoption_evidence(profile_path=config.profile_path) is None:
         print(
             "live mode is disabled: the runtime adoption gate has not passed "
             "(see docs/runtime-adoption.md)",

@@ -7,7 +7,7 @@
  * an answer that satisfies the step's declared decision schema. The server re-reads
  * every unresolved write, so this panel never offers to "declare" it applied.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { ApiClient, ApiError, messageFor } from '@/api/client'
 import type { RunSnapshot, RunStore } from '@/stores/run'
@@ -162,6 +162,10 @@ async function submit(item: Assistance): Promise<void> {
 }
 
 onMounted(load)
+watch(
+  () => props.store.state.run?.assistance_ids.join(','),
+  () => { void load() },
+)
 </script>
 
 <template>

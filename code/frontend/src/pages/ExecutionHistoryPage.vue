@@ -6,9 +6,11 @@
  * proposal; it never asks the user to know anything about Git.
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { ApiClient, ApiError, messageFor } from '@/api/client'
 import BranchProposalPanel from '@/components/BranchProposalPanel.vue'
+import SideEffectsPanel from '@/components/SideEffectsPanel.vue'
 
 interface RunSummary {
   id: string
@@ -35,6 +37,8 @@ interface StepView {
 }
 
 const client = new ApiClient()
+const route = useRoute()
+const router = useRouter()
 const runs = ref<RunSummary[]>([])
 const selectedId = ref<string | null>(null)
 const history = ref<{ root_run_id: string; items: HistoryEntry[] } | null>(null)
@@ -75,6 +79,7 @@ async function loadDetail(runId: string): Promise<void> {
 
 function select(runId: string): void {
   selectedId.value = runId
+  void router.replace({ path: '/runs', query: { run: runId } })
 }
 
 function onBranchCreated(runId: string): void {
@@ -86,7 +91,10 @@ watch(selectedId, (value) => {
   if (value) void loadDetail(value)
 })
 
-onMounted(loadRuns)
+onMounted(async () => {
+  await loadRuns()
+  if (typeof route.query.run === 'string') selectedId.value = route.query.run
+})
 </script>
 
 <template>
@@ -146,9 +154,12 @@ onMounted(loadRuns)
         </li>
       </ul>
 
+      <SideEffectsPanel :key="`writes-${selected.id}`" :run-id="selected.id" />
       <BranchProposalPanel
+        :key="selected.id"
         :parent-run-id="selected.id"
         :steps="steps"
+        :proposal-id="typeof route.query.proposal === 'string' ? route.query.proposal : undefined"
         @created="onBranchCreated"
       />
     </template>

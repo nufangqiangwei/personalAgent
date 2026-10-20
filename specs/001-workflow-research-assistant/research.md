@@ -2,7 +2,13 @@
 
 日期：2026-10-19。依据当前 spec.md、宪章 1.0.0 和用户技术规划输入。这里区分官方资料证据、项目设计决策与尚未执行的接入测试；后者不冒充已验证能力。设计问题均有明确选择及失败处置，不遗留需要用户决定的技术选型。
 
-## R1 官方 Python SDK 与 Windows
+## R0 2026-10-20 生效的接入决定：headless CLI
+
+用户要求先真实测试 CLI，再固定调用方式。`@deepseek-ai/dsh@0.2.1-rc.2 headless --patch <profile> --json` 两次真实模型探针通过；默认 headless 缺凭据的失败、通过 Harness 自有凭据服务复用 Web 已存 API Key、无工具/无推理/无持久会话日志及版本校验均有记录。正式项目以 Python 适配器管理 CLI 子进程并通过 stdin 传任务，不依赖 8730 Web 或 Python SDK API，不绕过已有网关、工具、预算与恢复门禁。
+
+完整决定与限制见 [harness-cli-usage.md](../../docs/harness-cli-usage.md)，证据见 [headless-cli-smoke.json](../../docs/audits/2026-10-20-headless-cli-smoke.json)。精确平台账单未核验，按 25 元总授权保守预留。以下 R1 等关于 SDK API/wheel 的调查保留为历史候选资料；涉及主入口的内容由本 R0 覆盖，不把 SDK 方法名冒充 CLI 接口。
+
+## R1 官方 Python SDK 与 Windows（历史候选）
 
 - **Decision**：候选锁定 `deepseek-harness-sdk==0.2.1rc2`，配套 `deepseek-harness-runtime-bin==0.2.1rc2`，Python 3.12、Windows x64；不采用旧方案的 TypeScript SDK 作为主业务入口。
 - **Evidence**：PyPI 固定版本页标注 Python >=3.10；runtime README 列出 Windows x64 wheel，SDK 以 stdio JSON-RPC 启动 bundled runtime，普通运行无需另装 Node。Node 24 用于前端和薄插件构建。本机仅发现 Python311 路径，未安装或运行目标 SDK。[SDK 发行页](https://pypi.org/project/deepseek-harness-sdk/0.2.1rc2/)、[runtime 发行页](https://pypi.org/project/deepseek-harness-runtime-bin/0.2.1rc2/)、[runtime 文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/python/sdk-runtime/README.md)。

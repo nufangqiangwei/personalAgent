@@ -1,8 +1,8 @@
 """Run control contract tests (T071).
 
 Pause, cancel, resume, recovery diagnosis and history are exercised against a
-deterministic runtime gate: the first model submission blocks until the test
-releases it, so a stop request can arrive while an action is genuinely in flight.
+deterministic runtime gate: submitted results wait until the test releases them,
+so a stop request can arrive before the engine observes the completed action.
 
 The run id never changes, a stop is reported as draining until the in-flight action
 returns, and a resumed run continues from the recorded transition instead of redoing
@@ -34,7 +34,7 @@ TOPIC_WORKFLOW = "公开主题资料研究"
 
 
 class GatedRuntime:
-    """Wraps the mock runtime so a submission can be held open on purpose."""
+    """Hold a submitted result before it is observed by the engine."""
 
     def __init__(self, inner: Any) -> None:
         self._inner = inner
@@ -43,10 +43,13 @@ class GatedRuntime:
         self.block = True
 
     async def submit(self, task: Any) -> Any:
+        return await self._inner.submit(task)
+
+    async def wait_result(self, submission_id: str) -> Any:
         self.entered.set()
         if self.block:
             await self.release.wait()
-        return await self._inner.submit(task)
+        return await self._inner.wait_result(submission_id)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)

@@ -24,6 +24,8 @@ class Owner:
     draft_id: str | None = None
 
     def __post_init__(self) -> None:
+        if self.draft_id and (self.run_id or self.attempt_id):
+            raise ValueError("a draft owner cannot also own a research attempt")
         provided = [value for value in (self.run_id, self.attempt_id, self.draft_id) if value]
         if len(provided) == 0:
             raise ValueError("an owner requires run_id, attempt_id or draft_id")
@@ -127,6 +129,9 @@ class RuntimeTask:
     tool_scope: Sequence[str]
     budget_reservation_id: str
     direction_ids: Sequence[str] = ()
+    model_reserved_tokens: int = 0
+    model_output_limit: int = 8192
+    model_timeout_seconds: float = 120
 
 
 @dataclass(frozen=True, slots=True)

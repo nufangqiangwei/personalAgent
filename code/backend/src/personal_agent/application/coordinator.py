@@ -28,6 +28,7 @@ from personal_agent.adapters.persistence.workflow_models import Workflow, Workfl
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.run_snapshots import serialize_run
 from personal_agent.domain.assistance import AssistanceKind  # noqa: F401  (typing aid)
+from personal_agent.domain.budget import effective_run_limits
 from personal_agent.domain.common import (
     MODEL_BUSY,
     MODEL_OUTCOME_UNKNOWN,
@@ -190,7 +191,10 @@ class ExecutionCoordinator:
             )
             session.add(run)
             await self._budget.ensure_run_ledger(
-                session, root_run_id=run_id, limits=self._budget_limits
+                session, root_run_id=run_id,
+                limits=effective_run_limits(
+                    self._budget_limits, version.definition_json.get("execution_policy") or {}
+                ),
             )
             session.add(
                 ExecutionEvent(

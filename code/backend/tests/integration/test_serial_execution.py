@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+from dataclasses import replace
 from typing import Any
 
 import httpx
+import pytest
 from sqlalchemy import func, select
 
 from personal_agent.adapters.persistence.budget_models import ModelRequest
@@ -173,11 +175,108 @@ async def test_double_click_creates_one_run_and_one_model_request(
     await asyncio.wait_for(gate.entered.wait(), timeout=10)
     gate.release.set()
     assert await context.executor.wait(first.json()["id"], max_wait=60) == "SUCCEEDED"
-    # One execution branch advanced the run: no duplicate submission ever overlapped.
     assert gate.submits >= 1
     assert gate.max_concurrent == 1
     assert await _count(api_context, WorkflowRun) == 1
 
+
+async def test_research_model_requests_have_attempts_and_nonempty_downstream_samples(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    _, context = api_context
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    started = await _start(client, confirmation_id)
+    assert started.status_code == 201, started.text
+    run_id = started.json()["id"]
+    assert await context.executor.wait(run_id, max_wait=60) == "SUCCEEDED"
+    async with context.database.session() as session:
+        requests = list((await session.scalars(
+            select(ModelRequest).where(
+                ModelRequest.owner_type == "RUN", ModelRequest.owner_id == run_id
+            )
+        )).all())
+        attempts = set((await session.scalars(select(StepAttempt.id))).all())
+    assert requests, "a successful research must contain actual downstream model requests"
+    assert all(row.attempt_id in attempts for row in requests)
+    assert all(row.status == "COMPLETED" and row.completion_evidence_ref for row in requests)
+    assert all(row.ended_at is not None for row in requests)
+
+    downstream = context.gateway._transport.calls
+    assert downstream, "submit counters cannot substitute for actual model calls"
+    assert {row.id for row in requests} <= {call.request_id for call in downstream}
+
+
+async def test_actual_downstream_is_occupied_and_rejects_second_request(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    _, context = api_context
+
+    class DownstreamGate:
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+            self.calls: list[Any] = []
+            self.active = 0
+            self.max_active = 0
+
+        async def complete(self, spec: Any) -> Any:
+            self.calls.append(spec)
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            self.entered.set()
+            try:
+                await self.release.wait()
+                return await self.inner.complete(spec)
+            finally:
+                self.active -= 1
+
+    transport = DownstreamGate(context.gateway._transport)
+    context.gateway._transport = transport
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    started = await _start(client, confirmation_id)
+    assert started.status_code == 201, started.text
+    await asyncio.wait_for(transport.entered.wait(), timeout=10)
+    occupied = await context.gateway.non_terminal_request()
+    assert occupied is not None and occupied.status == "IN_FLIGHT"
+    assert occupied.owner_id == started.json()["id"]
+    original = transport.calls[0]
+    assert occupied.attempt_id == original.owner.attempt_id
+    for changed in (
+        replace(original, request_id=new_id(), epoch=original.epoch + 1),
+        replace(original, request_id=new_id(), owner=Owner(
+            run_id=original.owner.run_id, attempt_id=new_id()
+        )),
+    ):
+        with pytest.raises(AppError) as invalid_owner:
+            await context.gateway.request(
+                changed, reserved_tokens=occupied.reserved_tokens, timeout_seconds=5
+            )
+        assert invalid_owner.value.code == "MODEL_OWNER_INVALID"
+    with pytest.raises(AppError) as invalid_reservation:
+        await context.gateway.request(
+            replace(original, request_id=new_id(), reservation_id=new_id()),
+            reserved_tokens=occupied.reserved_tokens, timeout_seconds=5,
+        )
+    assert invalid_reservation.value.code == "MODEL_RESERVATION_INVALID"
+    with pytest.raises(AppError) as blocked:
+        await context.gateway.request(
+            replace(original, request_id=new_id()), reserved_tokens=occupied.reserved_tokens,
+            timeout_seconds=5,
+        )
+    assert blocked.value.code == "MODEL_BUSY"
+    assert len(transport.calls) == 1
+    transport.release.set()
+    assert await context.executor.wait(started.json()["id"], max_wait=60) == "SUCCEEDED"
+    assert len(transport.calls) >= 2
+    assert transport.max_active == 1
+    completed_calls = len(transport.calls)
+    with pytest.raises(AppError):
+        await context.gateway.request(
+            replace(original, request_id=new_id()), reserved_tokens=occupied.reserved_tokens,
+            timeout_seconds=5,
+        )
+    assert len(transport.calls) == completed_calls
 
 async def test_second_task_is_refused_while_the_slot_is_held(
     client: httpx.AsyncClient, api_context: Any
@@ -237,9 +336,9 @@ async def test_branch_confirmation_is_refused_while_another_execution_runs(
         draft = await session.get(RequirementDraft, draft_id)
         assert draft is not None
         fields = dict(draft.field_values_json)
-        fields["audience"] = {
-            "path": "audience",
-            "value": "夜间读者",
+        fields["output_structure"] = {
+            "path": "output_structure",
+            "value": "checklist",
             "source": "user",
             "message_id": None,
             "suggestion_id": None,
@@ -365,6 +464,8 @@ async def test_retry_after_timeout_never_overlaps_model_requests(
         requests = list((await session.scalars(select(ModelRequest))).all())
     # Every request finished before the next one started: never two in flight.
     spans = [(row.started_at, row.ended_at) for row in requests if row.ended_at is not None]
+    assert len(spans) >= 2, "an empty sample cannot prove serial model execution"
+    assert len(context.gateway._transport.calls) == len(requests)
     spans.sort()
     for (_started_at, previous_end), (next_start, _ended_at) in itertools.pairwise(spans):
         assert previous_end <= next_start
@@ -405,7 +506,15 @@ async def test_unknown_request_after_restart_blocks_a_new_run(
 ) -> None:
     _, context = api_context
     confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
-    unknown = await context.gateway.request(
+    from personal_agent.adapters.harness.mock_runtime import MockModelTransport
+    from personal_agent.adapters.harness.model_gateway import ModelGateway
+
+    # Deliberately seed a stranded low-level request, as if a previous process
+    # died. The application's strict owner checks must stay enabled.
+    previous = ModelGateway(context.database, context.clock, MockModelTransport({
+        "model": {"scenarios": {"runtime.timeout.unknown": {"status": "unknown"}}}
+    }))
+    unknown = await previous.request(
         ModelRequestSpec(
             request_id="",
             owner=Owner(draft_id="draft-restart"),
@@ -422,9 +531,6 @@ async def test_unknown_request_after_restart_blocks_a_new_run(
     assert unknown.status == "unknown"
 
     # A "restarted" application still reads the persisted outcome.
-    from personal_agent.adapters.harness.mock_runtime import MockModelTransport
-    from personal_agent.adapters.harness.model_gateway import ModelGateway
-
     restarted = ModelGateway(context.database, context.clock, MockModelTransport({}))
     assert await restarted.has_unknown() is True
     blocked = await _start(client, confirmation_id)

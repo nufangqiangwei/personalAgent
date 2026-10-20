@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "carrier": "headless-cli",
+  "adopted": false,
+  "verification_kind": "installed-runtime-with-fixed-model-observations",
+  "provider_requests": 0,
+  "new_paid_cost_cny": 0,
+  "prior_budget_occupied_cny": 2.013242,
+  "authorized_total_cny": 25,
+  "checks": {
+    "windows_start": true,
+    "cli_protocol": true,
+    "events_redacted": true,
+    "restore_missing_session_fails": true,
+    "cli_exit_code": true,
+    "no_reasoning_persisted": true,
+    "tool_scope_denied": true,
+    "trusted_completion_unlocks": true,
+    "unknown_blocks": true,
+    "gateway_binding_mounted": false,
+    "managed_tools_mounted": false,
+    "gateway_no_bypass": null
+  },
+  "raw_output_saved": false,
+  "cli_fingerprint": "sha256:1211e7869d3b73286e6bf80dba1b478e32c3fd2cbe7b67c3ac33f2932fb03c93",
+  "profile_sha256": "a567ad3f114337455c528d2399545ceb33fe562f32908fd22ed9975a5a6c4683",
+  "versions": {
+    "sdk_version": "not-used",
+    "runtime_version": "0.2.1-rc.2",
+    "platform": "windows-x64"
+  },
+  "blockers": [
+    "production CLI llm/stream provider-to-ModelGateway bridge is not mounted",
+    "production managed tool/MCP handlers and retrievable bodies are not mounted",
+    "all-model no-bypass acceptance must run against those mounted boundaries"
+  ],
+  "validation": {
+    "offline_backend_passed": 332,
+    "frontend_unit_passed": 47,
+    "policy_unit_passed": 18,
+    "static_and_type_checks": "PASS",
+    "adoption_passed": 3,
+    "adoption_failed": 1,
+    "adoption_seconds": 11.24,
+    "offline_backend_seconds": 88.06,
+    "default_live_tests_skipped": 4,
+    "e2e": "NOT RUN in this CLI-only change"
+  },
+  "test_command": "uv run --project code/backend --python 3.12 python -m pytest code/backend/tests/live/test_runtime_adoption.py --live -q -s --tb=short"
+}

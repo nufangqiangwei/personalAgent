@@ -39,6 +39,7 @@ from personal_agent.adapters.persistence.requirement_models import (
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 from personal_agent.application.branch_analysis import BranchAnalyzer
 from personal_agent.application.budget_service import BudgetService
+from personal_agent.application.requirement_confirmation import RequirementService
 from personal_agent.application.run_snapshots import serialize_run
 from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.domain.branches import BranchStatus
@@ -69,6 +70,7 @@ class BranchService:
         config_fingerprint: str,
         runtime_fingerprint: str,
         budget_limits: dict[str, int],
+        draft_limits: dict[str, int],
         submit: Any = None,
     ) -> None:
         self._database = database
@@ -80,6 +82,7 @@ class BranchService:
         self._config_fingerprint = config_fingerprint
         self._runtime_fingerprint = runtime_fingerprint
         self._budget_limits = budget_limits
+        self._draft_limits = draft_limits
         self._submit = submit
 
     # ------------------------------------------------------------------
@@ -127,6 +130,16 @@ class BranchService:
             )
             session.add(draft)
             await session.flush()
+            await self._budget.ensure_draft_ledger(
+                session, draft_id=draft.id, limits=self._draft_limits
+            )
+            requirements = RequirementService(
+                self._database, self._clock, self._budget,
+                policy_hash=source.budget_policy_hash,
+                policy_version=source.data_policy_version,
+                draft_limits=self._draft_limits,
+            )
+            await requirements.recompute(session, draft)
             proposal = BranchProposal(
                 id=new_id(),
                 parent_run_id=parent.id,
@@ -180,7 +193,11 @@ class BranchService:
             if parent is None:
                 raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
             original = dict(parent.input_snapshot_json)
-            changed = BranchAnalyzer.changed_paths(original, draft.field_values_json)
+            changed = BranchAnalyzer.changed_paths(original, {
+                "fields": draft.field_values_json,
+                "preference_order": draft.preference_order_json,
+                "output_spec": draft.output_spec_json,
+            })
             analysis = await self._analyzer.analyze(
                 run_id=parent.id, selected_step_id=start, changed_paths=changed
             )
@@ -280,7 +297,11 @@ class BranchService:
             if parent is None:
                 raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
             original = dict(parent.input_snapshot_json)
-            changed = BranchAnalyzer.changed_paths(original, draft.field_values_json)
+            changed = BranchAnalyzer.changed_paths(original, {
+                "fields": draft.field_values_json,
+                "preference_order": draft.preference_order_json,
+                "output_spec": draft.output_spec_json,
+            })
             analysis = await self._analyzer.analyze(
                 run_id=parent.id,
                 selected_step_id=effective_step_id,

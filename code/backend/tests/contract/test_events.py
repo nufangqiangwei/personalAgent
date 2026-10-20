@@ -15,6 +15,7 @@ from sqlalchemy import delete, select
 from personal_agent.adapters.persistence.execution_models import ExecutionEvent
 from personal_agent.api.events import HEARTBEAT_SECONDS, MAX_BUFFER
 from personal_agent.bootstrap.seed import seed
+from personal_agent.domain.common import new_id
 
 
 async def _completed_run(client: httpx.AsyncClient, api_context: Any) -> str:
@@ -248,3 +249,49 @@ async def test_unknown_run_and_bad_cursor_are_rejected(
 
 def test_heartbeat_window_is_fifteen_seconds() -> None:
     assert HEARTBEAT_SECONDS == 15.0
+
+
+async def test_maximum_history_page_preserves_the_1001st_event(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    run_id = await _completed_run(client, api_context)
+    _, context = api_context
+    async with context.database.session() as session:
+        await session.execute(delete(ExecutionEvent).where(ExecutionEvent.run_id == run_id))
+        session.add_all([
+            ExecutionEvent(
+                id=new_id(), run_id=run_id, sequence=sequence,
+                workflow_version_id=None, occurred_at=context.clock.now(),
+                kind="run.state_changed", status="SUCCEEDED", payload_json={},
+                schema_version=1,
+            ) for sequence in range(1, 1002)
+        ])
+        await session.commit()
+    page = (await client.get(f"/api/v1/runs/{run_id}/event-history?limit=1000")).json()
+    assert len(page["items"]) == 1000
+    assert page["next_cursor"] == 1000
+    rest = (await client.get(
+        f"/api/v1/runs/{run_id}/event-history?after={page['next_cursor']}&limit=1000"
+    )).json()
+    assert [item["id"] for item in rest["items"]] == [1001]
+    assert rest["next_cursor"] is None
+    # A slow consumer sees the entire backlog in bounded batches, in order.
+    frames = await _frames(api_context, run_id, cursor=0, budget=3)
+    ids = [int(frame.split("\n", 1)[0][4:]) for frame in frames if frame.startswith("id: ")]
+    assert ids == list(range(1, 1002))
+
+
+async def test_history_reports_a_cleaned_cursor_instead_of_a_silent_gap(
+    client: httpx.AsyncClient, api_context: Any
+) -> None:
+    run_id = await _completed_run(client, api_context)
+    rows = await _events(api_context, run_id)
+    _, context = api_context
+    async with context.database.session() as session:
+        await session.execute(delete(ExecutionEvent).where(
+            ExecutionEvent.run_id == run_id, ExecutionEvent.sequence <= rows[1].sequence
+        ))
+        await session.commit()
+    response = await client.get(f"/api/v1/runs/{run_id}/event-history?after=0")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "EVENT_CURSOR_EXPIRED"

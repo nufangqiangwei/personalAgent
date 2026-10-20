@@ -74,17 +74,31 @@ Python `playwright` 与 npm `@playwright/test` 在补丁号上相差一位（1.6
 Chromium 二进制尚未安装（`uv run --project code/backend python -m playwright install chromium`
 只在需要浏览器工具/E2E 时执行）。未安装不阻塞离线单元/契约测试。
 
-## 候选真实运行时（未安装、未验证）
+## 候选真实运行时（已安装，采用未通过）
 
 | 包 | 版本 | 状态 |
 |---|---|---|
-| deepseek-harness-sdk | 0.2.1rc2 | 候选，声明在 `[project.optional-dependencies].live`；**未安装** |
-| deepseek-harness-runtime-bin | 0.2.1rc2 | 由 SDK 同版本传递依赖；**未安装** |
+| deepseek-harness-sdk | 0.2.1rc2 | 2026-10-20 已通过 uv frozen 安装，采用未通过 |
+| deepseek-harness-runtime-bin | 0.2.1rc2 | 已安装，由 SDK 同版本传递依赖；真实接线未通过 |
 
 - SDK wheel `sha256:30fc72c67f20ff4b46c6952087ea596fc70c2692001aa372185a24f9866bdc46`（PyPI 0.2.1rc2）。
 - 采用门禁见 `docs/runtime-adoption.md`（T021）。门禁未通过前：
   `--mode live` 必须返回不可用，真实 provider 凭据不会被读取，发布不得宣称真实模式完成。
-- `--extra live` 尚未安装，因此本文件不对其依赖闭包或 Windows 行为作任何已验证声明。
+- 2026-10-20 使用 `uv sync --project code/backend --python 3.12 --frozen --extra live --extra dev` 安装固定闭包，SDK 可 import；三个锁文件未改。安装成功不构成 Windows 运行时、provider/guard、无旁路或会话恢复通过的证据，T021 仍未闭合。
+
+## 2026-10-20 CLI 载体追加决定
+
+主调用方式固定为 npm `@deepseek-ai/dsh@0.2.1-rc.2` 的 headless CLI，Node v24.21.0；不再以 Python SDK API 为默认入口。两次独立真实模型连通通过，完整边界见 [harness-cli-usage.md](harness-cli-usage.md)。这不是完整项目运行时采用通过；原三个项目锁文件未改，正式 CLI 依赖闭包的分发锁定仍须由 T121/T136 完成。
+
+成功探针直接启动当前已安装包的版本校验入口，记录以下 SHA-256 以便复核；npx 包装器的缓存/权限错误不作为 CLI 实际模型失败混淆，也不隐瞒。
+
+| 本机已安装资料 | SHA-256 |
+|---|---|
+| `@deepseek-ai/dsh/lib/bin.js` | `80112efe368efb1a39720c7ada0af00442e5131fb2744edaaff8a3e8bb499e6f` |
+| 所在 npx 安装闭包的 `package-lock.json` | `88fb50fe05c6a3ea2355ce40627aa76a01f5b39c83743438bc4eca22cdae5f8d` |
+| 诊断 profile 覆盖文件 | `2b834e3c95571229b3896e004c78f4c1131fccc5e85405a2fa7ea3032d60e3e0` |
+
+以上是本机安装证据，不是把用户 npm-cache 哈希目录作为发布路径，也不代替应提交的项目锁文件。
 
 ## 锁文件指纹（SHA-256）
 

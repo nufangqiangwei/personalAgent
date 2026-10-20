@@ -11,6 +11,7 @@ before the real adapter is allowed to run.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
@@ -18,6 +19,8 @@ from personal_agent.adapters.harness.events import normalize_event
 from personal_agent.domain.common import AppError, ErrorCategory, new_id, stable_hash
 from personal_agent.ports.contracts import (
     Clock,
+    ModelGatewayPort,
+    ModelMessage,
     ModelResponse,
     Owner,
     ReconcileResult,
@@ -61,6 +64,11 @@ class MockRuntime:
         self._stopped: set[str] = set()
         self._disposed: set[str] = set()
         self.session_creation_count = 0
+        self._gateway: ModelGatewayPort | None = None
+        self._session_contexts: dict[str, SessionContext] = {}
+
+    def bind_model_gateway(self, gateway: ModelGatewayPort) -> None:
+        self._gateway = gateway
 
     # -- capabilities ---------------------------------------------------
     async def capabilities(self) -> RuntimeCapabilities:
@@ -74,7 +82,7 @@ class MockRuntime:
             supports_cooperative_stop=True,
             remote_cancel_verifiable=False,
             tool_policy_enforced=True,
-            model_gateway_enforced=True,
+            model_gateway_enforced=self._gateway is not None,
             persistence_mode="none-no-reasoning",
         )
 
@@ -96,6 +104,7 @@ class MockRuntime:
             runtime_id=f"mock-runtime-{context.owner.run_id or context.owner.draft_id}",
         )
         self._sessions[session.adapter_session_id] = session
+        self._session_contexts[session.adapter_session_id] = context
         self._session_by_operation[context.operation_id] = session.adapter_session_id
         self._session_events[session.adapter_session_id] = []
         self.session_creation_count += 1
@@ -127,6 +136,25 @@ class MockRuntime:
                 else "engine.topic.directions"
             )
         observation = self._scenario(scenario)
+        response = None
+        if self._gateway is not None:
+            context = self._session_contexts[task.session_id]
+            response = await self._gateway.request(
+                ModelRequestSpec(
+                    request_id=new_id(), owner=context.owner, epoch=task.epoch,
+                    model_id=context.model_id,
+                    messages=[ModelMessage(role="system", content=f"scenario:{scenario}"),
+                              ModelMessage(role="user", content=task.goal)],
+                    output_limit=task.model_output_limit, deadline=task.deadline,
+                    reservation_id=task.budget_reservation_id,
+                ),
+                reserved_tokens=task.model_reserved_tokens,
+                timeout_seconds=task.model_timeout_seconds,
+            )
+            observation = {
+                "status": response.status,
+                "output": json.loads(response.content) if response.content else None,
+            }
         submission_id = new_id()
         self._scenario_by_submission[submission_id] = scenario
         self._emit(
@@ -148,10 +176,10 @@ class MockRuntime:
             payload={"status": str(observation.get("status", "completed"))},
         )
 
-        usage = self._usage(observation.get("usage"))
+        usage = response.usage if response else self._usage(observation.get("usage"))
         status = str(observation.get("status", "completed"))
         error_payload = observation.get("error")
-        error = None
+        error = response.error if response else None
         if error_payload:
             error = AppError(
                 code=str(error_payload.get("code", "MOCK_ERROR")),
@@ -164,7 +192,8 @@ class MockRuntime:
             structured_output=observation.get("output"),
             usage=usage,
             completion_evidence_ref=(
-                f"mock-evidence:{submission_id}" if status == "completed" else None
+                response.completion_evidence_ref if response
+                else f"mock-evidence:{submission_id}" if status == "completed" else None
             ),
             error=error,
         )
@@ -341,16 +370,21 @@ class MockModelTransport:
             await asyncio.sleep(self._latency)
         status = str(observation.get("status", "completed"))
         if status != "completed":
+            raw_error = observation.get("error") or {}
+            verified = status == "failed" and observation.get("completion_confirmed") is True
             return ModelResponse(
                 status=status,
+                usage=self._usage(observation.get("usage")),
+                completion_evidence_ref=(
+                    f"mock-model-evidence:{spec.request_id}" if verified else None
+                ),
                 error=AppError(
-                    code="MODEL_UNKNOWN",
-                    message="the mock transport reported an unknown outcome",
-                    category=ErrorCategory.UNKNOWN_OUTCOME,
+                    code=str(raw_error.get("code", "MODEL_UNKNOWN")),
+                    message=str(raw_error.get("message", "the mock transport outcome is unknown")),
+                    category=ErrorCategory(raw_error.get("category", "UNKNOWN_OUTCOME")),
+                    retryable=bool(raw_error.get("retryable", False)) if verified else False,
                 ),
             )
-        import json
-
         return ModelResponse(
             status="completed",
             content=json.dumps(observation.get("output") or {}, ensure_ascii=False),
@@ -360,4 +394,12 @@ class MockModelTransport:
                 model_requests=1,
             ),
             completion_evidence_ref=f"mock-model-evidence:{spec.request_id}",
+        )
+
+    @staticmethod
+    def _usage(raw: Any) -> Usage:
+        raw = raw if isinstance(raw, dict) else {}
+        return Usage(
+            input_tokens=int(raw.get("input_tokens") or 0),
+            output_tokens=int(raw.get("output_tokens") or 0), model_requests=1,
         )

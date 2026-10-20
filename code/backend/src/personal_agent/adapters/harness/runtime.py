@@ -1,26 +1,32 @@
-"""Live Harness adapter (adoption-gated).
+"""Production CLI runtime: deployment evidence AND mounted boundaries required.
 
-Interface mapping follows the pinned contract, not assumptions from the master
-branch: the protocol exposes no ``session/cancel`` or ``session/close``, so a stop
-request is cooperative and ``remote_cancel_verifiable`` remains false. Until the
-T021 adoption tests record passing evidence, this adapter reports all capability
-flags as false and refuses to create sessions; Mock remains the only mode that can
-execute.
+No SDK fallback or Web RPC. Installing a CLI or setting an environment flag
+cannot create the gateway/tool binding or grant execution.
 """
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from personal_agent.adapters.harness.adoption import (
+    ADOPTION_RECORD as ADOPTION_RECORD,
+)
+from personal_agent.adapters.harness.adoption import (
+    PROFILE_PATH,
+    configured_installation,
+    read_adoption_evidence,
+)
+from personal_agent.adapters.harness.adoption import (
+    REQUIRED_CLI_CHECKS as REQUIRED_CLI_CHECKS,
+)
+from personal_agent.adapters.harness.cli import CLI_VERSION
+from personal_agent.adapters.harness.cli_runtime import CliRuntime
+from personal_agent.adapters.harness.model_gateway import ModelTransport
 from personal_agent.bootstrap.config import AppConfig
-from personal_agent.domain.common import AppError, ErrorCategory, new_id, stable_hash
+from personal_agent.domain.common import AppError, ErrorCategory, stable_hash
 from personal_agent.ports.contracts import (
-    ModelResponse,
-    Owner,
     ReconcileResult,
     RestoredSession,
     RuntimeCapabilities,
@@ -33,194 +39,106 @@ from personal_agent.ports.contracts import (
     WaitResult,
 )
 
-ADOPTION_RECORD = Path(__file__).resolve().parents[4] / "docs" / "runtime-adoption.json"
 
-
-def adoption_evidence() -> dict[str, Any] | None:
-    if not ADOPTION_RECORD.exists():
-        return None
-    try:
-        data = json.loads(ADOPTION_RECORD.read_text(encoding="utf-8"))
-    except (OSError, ValueError):  # pragma: no cover - corrupt evidence
-        return None
-    if data.get("adopted") is not True:
-        return None
-    checks = data.get("checks") or {}
-    required = {
-        "windows_start",
-        "wheel_interfaces",
-        "tool_scope_denied",
-        "gateway_no_bypass",
-        "events_redacted",
-        "no_reasoning_persisted",
-        "unknown_blocks",
-        "restore_missing_session_fails",
-    }
-    if not required <= set(checks):
-        return None
-    if not all(checks[name] is True for name in required):
-        return None
-    return data
+def adoption_evidence(
+    *, record_path: Path | None = None, profile_path: Path | None = None,
+    cli_fingerprint: str | None = None,
+) -> dict[str, Any] | None:
+    if cli_fingerprint is None:
+        installation = configured_installation()
+        cli_fingerprint = installation.fingerprint if installation else None
+    return read_adoption_evidence(
+        record_path=record_path or ADOPTION_RECORD, profile_path=profile_path or PROFILE_PATH,
+        cli_fingerprint=cli_fingerprint,
+    )
 
 
 class LiveRuntime:
-    """Real adapter. Only usable when recorded adoption evidence exists."""
+    """Production composition must provide a gateway-bound CLI and transport.
 
-    def __init__(self, config: AppConfig) -> None:
+    Neither is defaulted to a direct supplier CLI. Until the actual bridge is
+    available, no production session can start.
+    """
+
+    def __init__(
+        self, config: AppConfig, *, adapter: CliRuntime | None = None,
+        transport: ModelTransport | None = None,
+    ) -> None:
         self._config = config
-        self._evidence = adoption_evidence()
-        self._sessions: dict[str, SessionHandle] = {}
-        self._submissions: dict[str, str] = {}
+        self._adapter = adapter
+        self._transport = transport
 
     def _require_adopted(self) -> dict[str, Any]:
-        if self._evidence is None:
+        evidence = adoption_evidence(profile_path=self._config.profile_path)
+        if evidence is None or self._adapter is None or self._transport is None:
             raise AppError(
                 code="RUNTIME_INCOMPATIBLE",
-                message=(
-                    "the live runtime has not passed its adoption gate; "
-                    "see docs/runtime-adoption.md"
-                ),
-                category=ErrorCategory.DEPENDENCY,
-                status=503,
+                message="the CLI runtime needs current adoption and mounted gateway/tool bindings",
+                category=ErrorCategory.DEPENDENCY, status=503,
             )
-        return self._evidence
+        return evidence
+
+    def _bound_adapter(self) -> CliRuntime:
+        self._require_adopted()
+        assert self._adapter is not None
+        return self._adapter
 
     async def capabilities(self) -> RuntimeCapabilities:
-        evidence = self._evidence
-        if evidence is None:
+        try:
+            self._require_adopted()
+        except AppError:
             return RuntimeCapabilities(
-                adapter_version="unadopted",
-                sdk_version="unverified",
-                runtime_version="unverified",
-                platform="windows-x64",
-                profile_hash=stable_hash({"profile": "unadopted"}),
-                supports_resume=False,
-                supports_cooperative_stop=False,
-                remote_cancel_verifiable=False,
-                tool_policy_enforced=False,
-                model_gateway_enforced=False,
-                persistence_mode="unknown",
+                "harness-cli-1-unadopted", "not-used", "unverified", "windows-x64",
+                stable_hash({"profile": "unadopted"}),
+                False, False, False, False, False, "unknown",
             )
-        versions = evidence.get("versions", {})
+        capabilities = await self._bound_adapter().capabilities()
         return RuntimeCapabilities(
-            adapter_version="harness-live-1",
-            sdk_version=str(versions.get("sdk_version", "unverified")),
-            runtime_version=str(versions.get("runtime_version", "unverified")),
-            platform=str(versions.get("platform", "windows-x64")),
-            profile_hash=stable_hash(evidence.get("profile", {})),
-            supports_resume=bool(evidence.get("supports_resume", False)),
-            supports_cooperative_stop=True,
-            # The protocol has no verifiable remote cancel; never claim it.
-            remote_cancel_verifiable=False,
-            tool_policy_enforced=bool(evidence.get("tool_policy_enforced", False)),
-            model_gateway_enforced=bool(evidence.get("model_gateway_enforced", False)),
-            persistence_mode=str(evidence.get("persistence_mode", "none")),
+            "harness-cli-1", "not-used", CLI_VERSION, "windows-x64", capabilities.profile_hash,
+            False, True, False, True, True, "none-no-reasoning",
         )
 
     async def create_session(self, context: SessionContext) -> SessionHandle:
-        self._require_adopted()
-        self._load_sdk()
-        raise AppError(
-            code="RUNTIME_ADAPTER_INCOMPLETE",
-            message="the recorded adoption evidence does not cover this deployment",
-            category=ErrorCategory.DEPENDENCY,
-            status=503,
-        )
+        return await self._bound_adapter().create_session(context)
 
     async def submit(self, task: RuntimeTask) -> Submission:
-        self._require_adopted()
-        raise AppError(
-            code="RUNTIME_INCOMPATIBLE",
-            message="submission is unavailable without a created session",
-            category=ErrorCategory.DEPENDENCY,
-            status=503,
-        )
+        return await self._bound_adapter().submit(task)
 
     async def events(
-        self, session_id: str, cursor: int | None = None
+        self, session_id: str, cursor: int | None = None,
     ) -> AsyncIterator[RuntimeEvent]:
-        self._require_adopted()
-        if False:  # pragma: no cover - makes this an async generator
-            yield RuntimeEvent(
-                schema_version=1,
-                event_id=new_id(),
-                session_id=session_id,
-                sequence=0,
-                occurred_at=datetime.now(UTC),
-                kind="session.started",
-                owner=Owner(run_id="unused"),
-            )
+        async for event in self._bound_adapter().events(session_id, cursor):
+            yield event
 
     async def wait_result(self, submission_id: str) -> WaitResult:
-        self._require_adopted()
-        return WaitResult(status="unknown", error=self._unknown_error())
+        return await self._bound_adapter().wait_result(submission_id)
 
     async def request_stop(self, session_id: str, reason: str) -> StopResult:
-        self._require_adopted()
-        # Cooperative stop only: revoke new tool/model permissions and report the
-        # request; the protocol cannot verify remote termination.
-        return StopResult(status="requested", in_flight_request_ids=[session_id])
+        # Stop/disposal still operate if evidence changed after submission.
+        if self._adapter is None:
+            return StopResult("unknown")
+        return await self._adapter.request_stop(session_id, reason)
 
     async def reconcile(self, session_id: str) -> ReconcileResult:
-        self._require_adopted()
-        return ReconcileResult(
-            local_runtime_status="unknown",
-            model_requests={},
-            tool_operations={},
-            completion_evidence={},
-        )
+        if self._adapter is None:
+            return ReconcileResult("unknown", {}, {}, {})
+        return await self._adapter.reconcile(session_id)
 
     async def restore_session(
-        self, link: SessionHandle, checkpoint: Mapping[str, Any]
+        self, link: SessionHandle, checkpoint: Mapping[str, Any],
     ) -> RestoredSession:
-        self._require_adopted()
-        raise AppError(
-            code="RUNTIME_INCOMPATIBLE",
-            message="the original session cannot be restored; start a new attempt",
-            category=ErrorCategory.INTERRUPTED,
-            status=409,
-        )
+        return await self._bound_adapter().restore_session(link, checkpoint)
 
     async def dispose(self, runtime_id: str) -> None:
-        self._sessions.pop(runtime_id, None)
+        if self._adapter is not None:
+            await self._adapter.dispose(runtime_id)
 
     async def close(self) -> None:
-        for handle in list(self._sessions.values()):
-            await self.dispose(handle.runtime_id)
-
-    def _load_sdk(self) -> None:
-        import importlib.util
-
-        if importlib.util.find_spec("deepseek_harness") is None:
-            raise AppError(
-                code="RUNTIME_INCOMPATIBLE",
-                message="the pinned Harness SDK is not installed",
-                category=ErrorCategory.DEPENDENCY,
-                status=503,
-            )
-
-    @staticmethod
-    def _unknown_error() -> AppError:
-        return AppError(
-            code="MODEL_OUTCOME_UNKNOWN",
-            message="the runtime cannot prove the request finished",
-            category=ErrorCategory.UNKNOWN_OUTCOME,
-            status=409,
-        )
+        if self._adapter is not None:
+            await self._adapter.close()
 
     @property
-    def model_transport(self) -> Any:
-        raise AppError(
-            code="RUNTIME_INCOMPATIBLE",
-            message="the live model transport is unavailable until adoption passes",
-            category=ErrorCategory.DEPENDENCY,
-            status=503,
-        )
-
-    def normalized_model_response(self, raw: Mapping[str, Any]) -> ModelResponse:
-        raise AppError(
-            code="RUNTIME_INCOMPATIBLE",
-            message="the live model transport is unavailable until adoption passes",
-            category=ErrorCategory.DEPENDENCY,
-            status=503,
-        )
+    def model_transport(self) -> ModelTransport:
+        self._require_adopted()
+        assert self._transport is not None
+        return self._transport

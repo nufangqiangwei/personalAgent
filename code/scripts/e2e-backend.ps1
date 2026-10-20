@@ -7,9 +7,16 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location $root
 try {
     $port = if ($env:PERSONAL_AGENT_E2E_PORT) { [int]$env:PERSONAL_AGENT_E2E_PORT } else { 8123 }
-    $dataDir = Join-Path $root '.cache\e2e-data'
-    if (Test-Path $dataDir) {
-        Remove-Item -Recurse -Force $dataDir
+    $dataDir = [IO.Path]::GetFullPath((Join-Path $root '.cache\e2e-data'))
+    $cacheRoot = [IO.Path]::GetFullPath((Join-Path $root '.cache'))
+    if ((Split-Path -Parent $dataDir) -ne $cacheRoot) {
+        throw 'E2E data path must be a child of the workspace cache directory'
+    }
+    if (Test-Path -LiteralPath $dataDir) {
+        if ((Get-Item -LiteralPath $dataDir).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw 'E2E data directory must not be a junction or symbolic link'
+        }
+        Remove-Item -LiteralPath $dataDir -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $dataDir 'db') | Out-Null
 
@@ -27,7 +34,7 @@ try {
     & uv run --project code/backend python -m personal_agent.bootstrap.seed
     if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
 
-    & uv run --project code/backend python -m personal_agent.bootstrap.run --mode mock --host 127.0.0.1 --port $port
+    & uv run --project code/backend --python 3.12 python code/backend/tests/e2e_server.py
     exit $LASTEXITCODE
 }
 finally {

@@ -2,6 +2,8 @@
 
 下述签名是Personal-Agent端口，不是官方SDK原样API。领域层只依赖这些DTO。官方接口映射与证据见 ../research.md；SDK固定版本实际能力经契约测试后启用，不能编造session.cancel等不存在接口。
 
+**2026-10-20 当前载体**：主入口已固定为官方 `@deepseek-ai/dsh@0.2.1-rc.2 headless --json` CLI，由 Python 适配器管理独立子进程；上述 DTO 保持为业务端口，并不表示继续以 Python SDK API 为默认入口。具体 CLI 映射以 [使用约定](../../../docs/harness-cli-usage.md) 为准：create_session 为本地逻辑关联，submit 才启动进程，session/status/final 映射后仍需验证；超时退出保留未知状态。现有 sdk_version 字符串字段保留兼容，在 CLI 适配器中应如实标为 not-used，runtime_version 记录 CLI 实际版本；不能以已安装 wheel 的版本代替 CLI 能力证明。本次探针未开放项目真实运行能力。
+
 ## Runtime端口
 
 | 操作 | 输入 | 输出与错误 |

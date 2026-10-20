@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC
+from datetime import UTC, timedelta
 from typing import Any
 
 import jsonschema  # type: ignore[import-untyped]
@@ -34,6 +34,7 @@ from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.research_evidence import EvidenceService
 from personal_agent.domain.assistance import AssistanceKind
+from personal_agent.domain.budget import effective_run_limits
 from personal_agent.domain.common import (
     AppError,
     ErrorCategory,
@@ -125,9 +126,21 @@ class WorkflowEngine:
         outputs: dict[str, dict[str, Any]] = {}
         steps = {step.id: step for step in definition.steps}
         current: str | None = definition.entry_step
-        if resume:
+        if resume or run.parent_run_id is not None:
             outputs, current = await self._resume_point(run, definition)
+            # Resumed and reused outputs carry the evidence needed by Transform
+            # and Output; restoring only their raw values loses the document.
+            for output in outputs.values():
+                self._sources.extend(output.get("sources") or [])
+                if output.get("__evidence__"):
+                    self._evidence_summary = dict(output["__evidence__"])
         guard = 0
+        active_tick = self._deps.clock.monotonic_ms()
+
+        async def tick() -> None:
+            nonlocal active_tick
+            active_tick = await self._charge_active(run, active_tick)
+
         try:
             while current is not None:
                 guard += 1
@@ -142,9 +155,14 @@ class WorkflowEngine:
                 if stopped is not None:
                     return stopped
                 step = steps[current]
-                outcome = await self._execute_with_retries(
-                    run, definition, step, inputs, outputs
-                )
+                await tick()
+                await self._require_budget(run)
+                try:
+                    outcome = await self._execute_with_retries(
+                        run, definition, step, inputs, outputs, tick
+                    )
+                finally:
+                    await tick()
                 if not outcome.waiting and not outcome.terminal:
                     # Record the finished step before a stop can take effect: the
                     # work really happened and a resumed run must not redo it.
@@ -179,6 +197,9 @@ class WorkflowEngine:
                 status=500,
             )
         except AppError as error:
+            if error.category == ErrorCategory.BUDGET:
+                await self._request_budget_assistance(run, definition, current, error)
+                return await self._status(run_id)
             await self._fail(run, error)
             return await self._status(run_id)
 
@@ -192,6 +213,7 @@ class WorkflowEngine:
         step: Step,
         inputs: dict[str, Any],
         outputs: dict[str, dict[str, Any]],
+        tick: Callable[[], Awaitable[None]],
     ) -> StepOutcome:
         offset = await self._attempt_offset(run, step)
         if step.type == "Output":
@@ -203,18 +225,32 @@ class WorkflowEngine:
         policy = definition.execution_policy
         attempts = 0
         last_error: AppError | None = None
-        while attempts < policy.max_attempts_per_step:
+        max_attempts = min(policy.max_attempts_per_step, step.policy.max_attempts,
+                           self._deps.policy.model.max_attempts_per_step)
+        while offset + attempts < max_attempts:
+            await tick()
+            await self._require_budget(run)
             attempts += 1
             attempt = await self._start_attempt(run, step, attempt_no=offset + attempts)
             try:
-                outcome = await self._dispatch(run, definition, step, inputs, outputs)
+                outcome = await self._dispatch_bounded(
+                    run, definition, step, inputs, outputs, attempt
+                )
             except AppError as error:
+                await tick()
                 last_error = error
                 await self._finish_attempt(run, attempt, StepOutcome(), Usage(), error=error)
+                # A stop may revoke model permission while submit is waiting.
+                # That refusal must converge the requested stop, not turn it
+                # into an ordinary failed run or start a retry.
+                if await self._stop_check(run.id) is not None:
+                    return StepOutcome(waiting=True)
+                if error.category == ErrorCategory.BUDGET:
+                    raise
                 retryable = error.category in RETRYABLE_CATEGORIES
                 if error.category in NON_RETRYABLE_CATEGORIES or not retryable:
                     break
-                if attempts < policy.max_attempts_per_step:
+                if offset + attempts < max_attempts:
                     backoff = self._deps.policy.model.retry_backoff_seconds
                     index = min(attempts - 1, len(backoff) - 1)
                     await self._deps.sleep(float(backoff[index]))
@@ -233,6 +269,37 @@ class WorkflowEngine:
             status=500,
         )
 
+    async def _remaining_seconds(self, run: WorkflowRun) -> float:
+        ledger = await self._ledger(run)
+        return self._deps.budget.to_domain(ledger).remaining().get("active_ms", 0) / 1000
+
+    async def _dispatch_bounded(
+        self, run: WorkflowRun, definition: WorkflowDefinition, step: Step,
+        inputs: dict[str, Any], outputs: dict[str, dict[str, Any]], attempt: StepAttempt,
+    ) -> StepOutcome:
+        active_seconds = await self._remaining_seconds(run)
+        node_seconds = step.policy.timeout_seconds
+        if step.type == "ToolTask":
+            node_seconds = min(node_seconds, definition.execution_policy.tool_timeout_seconds)
+        try:
+            async with asyncio.timeout(min(active_seconds, node_seconds)):
+                return await self._dispatch(run, definition, step, inputs, outputs, attempt)
+        except TimeoutError as error:
+            if active_seconds <= node_seconds:
+                raise AppError(
+                    code="BUDGET_ASSISTANCE_REQUIRED",
+                    message="有效研究时间已到限，已停止等待并保留未核验用量",
+                    category=ErrorCategory.BUDGET, status=409,
+                    details={"requested": {"active_ms": 1}},
+                ) from error
+            if step.type == "AgentTask":
+                await self._request_runtime_uncertain(run, step, None)
+                return StepOutcome(waiting=True)
+            raise AppError(
+                code="STEP_TIMEOUT", message="步骤超过声明的等待时限",
+                category=ErrorCategory.TIMEOUT, status=504,
+            ) from error
+
     async def _dispatch(
         self,
         run: WorkflowRun,
@@ -240,6 +307,7 @@ class WorkflowEngine:
         step: Step,
         inputs: dict[str, Any],
         outputs: dict[str, dict[str, Any]],
+        attempt: StepAttempt,
     ) -> StepOutcome:
         config = step.config
         if isinstance(config, ConditionConfig):
@@ -267,9 +335,9 @@ class WorkflowEngine:
             await self._request_human_review(run, step, config)
             return StepOutcome(waiting=True)
         if isinstance(config, ToolTaskConfig):
-            return await self._run_tool(run, definition, step, config, inputs)
+            return await self._run_tool(run, definition, step, config, inputs, attempt)
         if isinstance(config, AgentTaskConfig):
-            return await self._run_agent(run, definition, step, config, inputs)
+            return await self._run_agent(run, definition, step, config, inputs, attempt)
         if isinstance(config, OutputConfig):
             return StepOutcome(terminal=True)
         raise AppError(
@@ -284,19 +352,21 @@ class WorkflowEngine:
         step: Step,
         config: AgentTaskConfig,
         inputs: dict[str, Any],
+        attempt: StepAttempt,
     ) -> StepOutcome:
         goal = self._render_goal(config.goal_template, inputs)
+        timeout_seconds = min(step.policy.timeout_seconds, await self._remaining_seconds(run))
         reservation = self._deps.policy.model.max_output_tokens + len(goal) * 2 + 64
         ledger = await self._ledger(run)
         await self._reserve(
             ledger,
             {"model_requests": 1, "tokens": reservation},
-            operation_id=f"{run.id}:{step.id}:model",
+            operation_id=f"{attempt.id}:model",
         )
         session = await self._deps.runtime.create_session(
             SessionContext(
-                operation_id=f"{run.id}:{step.id}:agent",
-                owner=Owner(run_id=run.id),
+                operation_id=f"{attempt.id}:agent",
+                owner=Owner(run_id=run.id, attempt_id=attempt.id),
                 epoch=run.epoch,
                 model_id=self._deps.model_id,
                 profile_hash="profile",
@@ -306,23 +376,38 @@ class WorkflowEngine:
         )
         submission = await self._deps.runtime.submit(
             RuntimeTask(
-                operation_id=f"{run.id}:{step.id}:agent",
+                operation_id=f"{attempt.id}:agent",
                 session_id=session.adapter_session_id,
                 epoch=run.epoch,
                 goal=goal,
                 context_refs=tuple(config.context_bindings),
-                validated_input=_validated_input(run.id, inputs),
+                validated_input={**_validated_input(run.id, inputs), "attempt_id": attempt.id},
                 output_schema=step.output_schema,
-                deadline=self._deps.clock.now(),
+                deadline=self._deps.clock.now() + timedelta(seconds=timeout_seconds),
                 tool_scope=tuple(step.policy.allowed_tools),
-                budget_reservation_id=f"{run.id}:{step.id}:model",
+                budget_reservation_id=f"{attempt.id}:model",
                 direction_ids=tuple(config.direction_ids),
+                model_reserved_tokens=reservation,
+                model_output_limit=self._deps.policy.model.max_output_tokens,
+                model_timeout_seconds=min(
+                    self._deps.policy.model.timeout_seconds,
+                    definition.execution_policy.model_timeout_seconds,
+                    step.policy.timeout_seconds,
+                    timeout_seconds,
+                ),
             )
         )
         result = await self._deps.runtime.wait_result(submission.submission_id)
         if result.status == "unknown":
             await self._request_runtime_uncertain(run, step, result)
             return StepOutcome(waiting=True)
+        if result.completion_evidence_ref:
+            await self._settle(
+                ledger,
+                {"model_requests": 1, "tokens": reservation},
+                {"model_requests": 1, "tokens": result.usage.tokens or reservation},
+                operation_id=f"{attempt.id}:model",
+            )
         if result.status != "completed" or result.structured_output is None:
             raise result.error or AppError(
                 code="AGENT_FAILED",
@@ -331,15 +416,6 @@ class WorkflowEngine:
             )
         output = dict(result.structured_output)
         self._validate_output(step, output)
-        await self._settle(
-            ledger,
-            {"model_requests": 1, "tokens": reservation},
-            {
-                "model_requests": 1,
-                "tokens": result.usage.tokens or reservation,
-            },
-            operation_id=f"{run.id}:{step.id}:model",
-        )
         summary = await self._record_evidence(run, step, definition, output, result.usage)
         output["__evidence__"] = summary
         output["__usage__"] = result.usage
@@ -392,6 +468,7 @@ class WorkflowEngine:
         step: Step,
         config: ToolTaskConfig,
         inputs: dict[str, Any],
+        attempt: StepAttempt,
     ) -> StepOutcome:
         if config.tool_name not in step.policy.allowed_tools:
             raise AppError(
@@ -405,17 +482,21 @@ class WorkflowEngine:
             worst_case["search_calls"] = 1
         if config.tool_name in {"http.fetch", "browser.read"}:
             worst_case["page_reads"] = 1
-        await self._reserve(ledger, worst_case, operation_id=f"{run.id}:{step.id}:tool")
+        operation_id = f"{attempt.id}:tool"
+        await self._reserve(ledger, worst_case, operation_id=operation_id)
         result = await self._deps.tools.execute(
             ToolRequest(
-                operation_id=f"{run.id}:{step.id}:tool",
+                operation_id=operation_id,
                 run_id=run.id,
-                attempt_id=run.id,
+                attempt_id=attempt.id,
                 epoch=run.epoch,
                 tool_name=config.tool_name,
                 args=dict(config.arguments_bindings),
-                scope_token=self._issue_scope_token(run, step, config),
-                deadline=self._deps.clock.now(),
+                scope_token=self._issue_scope_token(run, step, config, attempt),
+                deadline=self._deps.clock.now() + timedelta(seconds=min(
+                    step.policy.timeout_seconds, definition.execution_policy.tool_timeout_seconds,
+                    await self._remaining_seconds(run),
+                )),
             )
         )
         if result.status != "ok":
@@ -423,7 +504,7 @@ class WorkflowEngine:
                 ledger,
                 worst_case,
                 {"tool_calls": 1},
-                operation_id=f"{run.id}:{step.id}:tool",
+                operation_id=operation_id,
             )
             raise result.error or AppError(
                 code="TOOL_FAILED",
@@ -431,7 +512,7 @@ class WorkflowEngine:
                 category=ErrorCategory.DEPENDENCY,
             )
         await self._settle(
-            ledger, worst_case, {"tool_calls": 1}, operation_id=f"{run.id}:{step.id}:tool"
+            ledger, worst_case, {"tool_calls": 1}, operation_id=operation_id
         )
         output = {"status": "ok", "source_refs": list(result.source_refs)}
         self._sources.extend(
@@ -446,12 +527,14 @@ class WorkflowEngine:
         )
         return StepOutcome(output=output)
 
-    def _issue_scope_token(self, run: WorkflowRun, step: Step, config: ToolTaskConfig) -> str:
+    def _issue_scope_token(
+        self, run: WorkflowRun, step: Step, config: ToolTaskConfig, attempt: StepAttempt
+    ) -> str:
         if self._deps.scopes is None:
             return stable_hash({"run": run.id, "step": step.id, "epoch": run.epoch})
         return self._deps.scopes.issue(
             run_id=run.id,
-            attempt_id=f"{run.id}:{step.id}",
+            attempt_id=attempt.id,
             epoch=run.epoch,
             tool_name=config.tool_name,
             allowed_domains=step.policy.allowed_domains,
@@ -628,7 +711,9 @@ class WorkflowEngine:
             row = await session.get(StepAttempt, attempt.id)
             if row is None:
                 return
-            row.status = "SUCCEEDED" if error is None else "FAILED"
+            row.status = (
+                "INTERRUPTED" if outcome.waiting else "SUCCEEDED" if error is None else "FAILED"
+            )
             row.ended_at = self._deps.clock.now()
             row.error_category = error.category.value if error else None
             row.output_json = {
@@ -757,7 +842,7 @@ class WorkflowEngine:
             # A branch reuses the validated results of its ancestors. They are
             # evidence carried over, not new attempts of this run.
             outputs = await self._inherited_outputs(run, outputs)
-        current: str | None = definition.entry_step
+        current: str | None = run.fork_step_id or definition.entry_step
         steps = {step.id: step for step in definition.steps}
         guard = 0
         while current is not None:
@@ -765,7 +850,12 @@ class WorkflowEngine:
             if guard > len(definition.steps) * 4 + 8:
                 return outputs, current
             row = by_step.get(current)
-            if row is None or row.status != StepStatus.SUCCEEDED.value:
+            if row is None or (
+                row.status != StepStatus.SUCCEEDED.value
+                and not (
+                    row.status == StepStatus.FAILED.value and row.selected_transition == "exhausted"
+                )
+            ):
                 return outputs, current
             on = row.selected_transition or "success"
             edge = self._pick_transition(definition, steps[current], on)
@@ -779,6 +869,12 @@ class WorkflowEngine:
     ) -> dict[str, dict[str, Any]]:
         """Fill in outputs of steps reused from the parent chain."""
         async with self._deps.database.session() as session:
+            reused = set((await session.scalars(
+                select(StepRun.step_id).where(
+                    StepRun.run_id == run.id, StepRun.status == "SUCCEEDED",
+                    StepRun.skip_reason == "reused from parent",
+                )
+            )).all())
             parent_id = run.parent_run_id
             seen: set[str] = set()
             while parent_id is not None and parent_id not in seen:
@@ -804,7 +900,10 @@ class WorkflowEngine:
                     row = by_id.get(attempt.step_run_id)
                     if row is None or row.status != StepStatus.SUCCEEDED.value:
                         continue
-                    if attempt.status != "SUCCEEDED" or row.step_id in outputs:
+                    if (
+                        attempt.status != "SUCCEEDED" or row.step_id in outputs
+                        or row.step_id not in reused
+                    ):
                         continue
                     outputs[row.step_id] = dict(attempt.output_json or {})
                 parent_id = parent.parent_run_id
@@ -939,7 +1038,7 @@ class WorkflowEngine:
                     completed_steps=[],
                     remaining_steps=[step.id],
                     observed_problem="模型结果无法确认，执行已暂停等待核验",
-                    unknowns=[getattr(result.error, "code", "UNKNOWN")],
+                    unknowns=[getattr(getattr(result, "error", None), "code", "UNKNOWN")],
                     attempted_remedies=[],
                     status="OPEN",
                     revision=1,
@@ -1014,12 +1113,99 @@ class WorkflowEngine:
                 select(BudgetLedger).where(BudgetLedger.root_run_id == run.root_run_id)
             )
             if ledger is None:
-                limits = self._deps.policy.budget.as_dict()
+                version = await session.get(WorkflowVersion, run.workflow_version_id)
+                if version is None:
+                    raise AppError(
+                        code="VERSION_NOT_FOUND", message="workflow version not found", status=404
+                    )
+                limits = effective_run_limits(
+                    self._deps.policy.budget.as_dict(),
+                    version.definition_json.get("execution_policy") or {},
+                )
                 ledger = await self._deps.budget.ensure_run_ledger(
                     session, root_run_id=run.root_run_id, limits=limits
                 )
                 await session.commit()
             return ledger
+
+    async def _charge_active(self, run: WorkflowRun, since_ms: int) -> int:
+        tick = self._deps.clock.monotonic_ms()
+        elapsed = max(0, tick - since_ms)
+        if elapsed:
+            async with self._deps.database.session() as session:
+                ledger = await session.scalar(select(BudgetLedger).where(
+                    BudgetLedger.root_run_id == run.root_run_id))
+                row = await session.get(WorkflowRun, run.id)
+                if ledger is None or row is None:
+                    raise AppError(
+                        code="BUDGET_LEDGER_MISSING", message="run ledger is missing", status=503
+                    )
+                await self._deps.budget.record_active_time(
+                    session, ledger=ledger, elapsed_ms=elapsed,
+                    operation_id=f"{run.id}:{run.epoch}:active:{since_ms}:{tick}",
+                )
+                row.active_elapsed_ms += elapsed
+                await session.commit()
+        return tick
+
+    async def _require_budget(self, run: WorkflowRun) -> None:
+        ledger = await self._ledger(run)
+        domain = self._deps.budget.to_domain(ledger)
+        if domain.exhausted:
+            raise AppError(
+                code="BUDGET_ASSISTANCE_REQUIRED", message="研究额度已到限，需要用户决定后续处置",
+                category=ErrorCategory.BUDGET, status=409,
+                details={"exhausted_dimensions": domain.exhausted_dimensions()},
+            )
+
+    async def _request_budget_assistance(
+        self, run: WorkflowRun, definition: WorkflowDefinition, step_id: str | None, error: AppError
+    ) -> None:
+        from personal_agent.adapters.persistence.assistance_models import AssistanceRequest
+
+        async with self._deps.database.session() as session:
+            row = await session.get(WorkflowRun, run.id)
+            if row is None or row.status != RunStatus.RUNNING.value or row.epoch != run.epoch:
+                return
+            ledger = await session.scalar(select(BudgetLedger).where(
+                BudgetLedger.root_run_id == run.root_run_id))
+            assert ledger is not None
+            completed = list((await session.scalars(select(StepRun.step_id).where(
+                StepRun.run_id == run.id, StepRun.status == StepStatus.SUCCEEDED.value
+            ))).all())
+            request = AssistanceRequest(
+                id=new_id(), run_id=run.id, kind=AssistanceKind.BUDGET_LIMIT.value,
+                limit_snapshot=dict(ledger.limits_json),
+                consumed_snapshot=dict(ledger.consumed_json),
+                completed_steps=completed,
+                remaining_steps=[step.id for step in definition.steps if step.id not in completed],
+                observed_problem=error.message,
+                unknowns=[
+                    f"{key} 仍有未核验用量 {value}"
+                    for key, value in ledger.reserved_json.items() if value
+                ],
+                attempted_remedies=["已停止新增行动；保留累计消耗与已完成成果，等待明确追加及继续授权"],
+                decision_schema_json={
+                    "required_budget": (error.details or {}).get("requested", {})
+                },
+                status="OPEN", revision=1, created_at=self._deps.clock.now(),
+            )
+            session.add(request)
+            row.status = RunStatus.WAITING_USER.value
+            row.reason_code = "BUDGET_LIMIT"
+            row.current_step_id = step_id
+            row.revision += 1
+            row.updated_at = self._deps.clock.now()
+            session.add(ExecutionEvent(
+                id=new_id(), run_id=run.id, draft_id=None,
+                sequence=await self._next_sequence(session, run.id), step_run_id=None,
+                attempt_id=None, workflow_version_id=run.workflow_version_id,
+                occurred_at=self._deps.clock.now(), kind=EventKind.ASSISTANCE_REQUIRED.value,
+                status=row.status, reason_code="BUDGET_LIMIT",
+                payload_json={"assistance_id": request.id, "step_id": step_id},
+                payload_ref=None, schema_version=1, provider_event_key=None,
+            ))
+            await session.commit()
 
     async def _reserve(
         self, ledger: BudgetLedger, amount: dict[str, int], *, operation_id: str

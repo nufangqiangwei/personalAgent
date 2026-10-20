@@ -1,0 +1,2344 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "mode": "mock",
+  "source": "isolated Phase 8 UI acceptance; no real provider requests",
+  "e2e_passed": 18,
+  "runs": [
+    {
+      "id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "root_run_id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:48563128454fbdc57acbdca336601f5efb43136eb1dbb8e03b3890d556b9660a",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:193f297b4e1a4f19da5529cc050ab1457a3ebdb248b8a778c4f592e24acfd2b9",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "root_run_id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:1bb3d152a48ec63224c2e50fd37a2f630b62225d594ef2f44b9ecd813b15ec1f",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:7aa0c252ba88034f23917857c49902a956f7d3640537c17ef49faefb504730b7",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "root_run_id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:00fcaa33fa08a053d2da556e4e06a5dc1b7474320a09e42b3f257f8543de6e36",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:e262d0d7684a43b89984f375056b5e4d02d42e0cb346bf9220ca4142de3a9a5d",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "root_run_id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:65fe76fb3cf6f25e5fc87f8d8d5efb73dc416fa9b1589330207b6d26ff8f7110",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:138bc158d5146a44fb7d15736dd6ea9e14d0222f673c383460f39036ab7533c5",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "root_run_id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:9e72e268b8fbedadbceab7f31ff77659531f8ebdfbb2ca560378f6fff631e1d1",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 3,
+      "event_count": 13,
+      "control_decision_hash": "sha256:7070721c8c7230144ae9cb917906b23db8e67ccb8a2dd919a81edc97da68710f",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 3,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "root_run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:55019864b93f670ff27160ec8530cb86d61fc97f7536637fccc2f56bcacb17d5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:39d04d05bb52e035b2c1e069ae67f5596c7995cf0cb4e47165cd700df0009872",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "8c88462e-762a-4805-9c1f-f6a222ed6269",
+      "root_run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "parent_run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "fork_step_id": "collect_background",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:55019864b93f670ff27160ec8530cb86d61fc97f7536637fccc2f56bcacb17d5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:604a7976d9d69da44c0092b4e6ab8b31c06518e8a02f6dd6c5d15a422cdce7c3",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "3923e8ce-3110-4804-9816-2f13b472aa77",
+      "root_run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "parent_run_id": "8c88462e-762a-4805-9c1f-f6a222ed6269",
+      "fork_step_id": "collect_background",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:55019864b93f670ff27160ec8530cb86d61fc97f7536637fccc2f56bcacb17d5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:c1957fab36604905313aadbc45e96803dd03cfced5e5948238124948844612d0",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "root_run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:7757c5bad1c3ad52b1a62c527f37b976ad6fb78745f1d385b8f3c9aa9ec12438",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:a4ff3aad54aabc558ef1325c4af6ebfc82b3c5175453a92e296cdec5e44bc0a5",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "e9295c6b-c2e1-450b-af42-5976b3a7901c",
+      "root_run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "parent_run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "fork_step_id": "merge_findings",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:7757c5bad1c3ad52b1a62c527f37b976ad6fb78745f1d385b8f3c9aa9ec12438",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:e166baa94aaa091de2fc11737136285752158f957ba25be1c03c4a19057ab5dd",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "03d5099f-bfcf-475c-8804-d18a39557f1b",
+      "root_run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "parent_run_id": "e9295c6b-c2e1-450b-af42-5976b3a7901c",
+      "fork_step_id": "merge_findings",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:7757c5bad1c3ad52b1a62c527f37b976ad6fb78745f1d385b8f3c9aa9ec12438",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:e5bc827e8018413e5c982581ff231ad4213b7663e75db511753a81365bfdadcc",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "root_run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:23873697ed5ea848036079360c681307bd4c8febaf572006eac5e44ce95aa38b",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:f2647162a1e596ca18c44fe815887c54c5eb1491b2ee619fbaa72eba46335477",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "3eeb4169-ff88-4401-bd41-2f5751b0d5b8",
+      "root_run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "parent_run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:23873697ed5ea848036079360c681307bd4c8febaf572006eac5e44ce95aa38b",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:30dff9f9d0f4ba9a7606456c8f74f14adcf21464c8159376ceede94bda0ac32d",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "79b38373-4477-4866-883b-e97f5519e4f6",
+      "root_run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "parent_run_id": "3eeb4169-ff88-4401-bd41-2f5751b0d5b8",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:23873697ed5ea848036079360c681307bd4c8febaf572006eac5e44ce95aa38b",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:409e1ea8b4a1e80e9bc1ef42284e2df71cfa855f651b8ad66ab5380c46eaf861",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "root_run_id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:721b7c8f72a9267077e09fee27e78a77281a4b7c465d7cf8d15e9be5787fce00",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:c81ea5aac498ea233d246eda6c133a857896845e25c6a5d173fc4b1cac13569c",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "root_run_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "34ef6ad2-0a1d-4e26-84b5-7eb68cfd62b5",
+      "input_hash": "sha256:8578cf10d872ac9fb73b968fbf5f32de0e2d59358d239284aa2b180352fd77b5",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 2,
+      "event_count": 9,
+      "control_decision_hash": "sha256:82b8d54d526fdfc99fe3d1ddfb1145c0b881c0585631e17a55ddc60a2c1841f2",
+      "attempts": [
+        {
+          "step_id": "collect_official",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "FAILED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": "DEPENDENCY"
+        },
+        {
+          "step_id": "collect_official",
+          "attempt_no": 2,
+          "epoch": 1,
+          "status": "FAILED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": "DEPENDENCY"
+        },
+        {
+          "step_id": "collect_official",
+          "attempt_no": 3,
+          "epoch": 1,
+          "status": "FAILED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": "DEPENDENCY"
+        },
+        {
+          "step_id": "review_gaps",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "INTERRUPTED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        },
+        {
+          "step_id": "review_gaps",
+          "attempt_no": 2,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:f1a50dad2d13c0f30ad8fd68d3f666247cb223df7708c721b8379bce14649a42",
+          "error_category": null
+        },
+        {
+          "step_id": "write_comparison",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "root_run_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:4ef590e0404607da05ae8a7e673584ed0402cabdf7e4143e217144d72fb6152a",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "FAILED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:3cc240a79a66dc4765badfcd787924038b603601f5439c0de8e59de2518c2236",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "99d76da0-c09e-4a36-bff9-7791cebc41a3",
+      "root_run_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "parent_run_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "3900050f-b4ce-4ec7-b3b3-7447e42f1153",
+      "input_hash": "sha256:4ef590e0404607da05ae8a7e673584ed0402cabdf7e4143e217144d72fb6152a",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:2f7f27059d7d0610b41455ac566afe0131596f5f067396a98175fb075a0e8108",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "root_run_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "ffcbca3a-b743-4584-9dc9-4aa819ccf792",
+      "input_hash": "sha256:0a0a396878991b1e43301292982ed0372accf35a18079ecde60a94fbe4ae0c34",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 2,
+      "event_count": 9,
+      "control_decision_hash": "sha256:3ab5b80a220a42e47a57132f1562ca251865f8999e334d55c6497003f6833206",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "root_run_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "9965b02c-bb4e-4b27-8b9b-0a06a7b2a375",
+      "input_hash": "sha256:604ed0b236c59e8296986fd27e7262fb0ece3cbbdaa4812a24fcd9e1ef342f29",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 2,
+      "event_count": 10,
+      "control_decision_hash": "sha256:951c78324a2f1ba4036860755fecb6ec33ae293b83eab58cbd6eaf50a024c037",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "FAILED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": "BUDGET"
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 2,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "root_run_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "a0d3c244-2dde-440a-9eae-105ccf78e60b",
+      "input_hash": "sha256:5507d5fa7b0b9ae63420979b40a2b280416612590863a3b9767398306088a975",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 2,
+      "event_count": 9,
+      "control_decision_hash": "sha256:9a4243a041c2cc0abd622f210bb1c8d10c5d3a50dbc061a194a8518a9ff3967b",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 2,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "root_run_id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:e6a584fc83c191dac4fa4220d92f2e30b4594440c42349e6d022d40f91758578",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:2fd6835de4cc5658112cdf800f4110082c650a9b0eeea57e3557319af9918cf7",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "6437e96a-cbd8-4194-8073-48e795d69e06",
+      "root_run_id": "6437e96a-cbd8-4194-8073-48e795d69e06",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:3c20b35f9f1c925a0664ecda592bac23f0431c85bfefcc36c52b68a08459d81e",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "CANCELLED",
+      "epoch": 1,
+      "event_count": 5,
+      "control_decision_hash": "sha256:f79692babc6dbff8ccbc9cb8f4f7a7a9b4249a90f5169198a7fe221b5a130465",
+      "attempts": [
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "CANCELLED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "87cc850d-9f0d-4665-8bda-71b02628a2b4",
+      "root_run_id": "87cc850d-9f0d-4665-8bda-71b02628a2b4",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:be0d9b1612b00281a0f2fb1241a0885c4a5943aa0b268da80de22efc83d5dc56",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "CANCELLED",
+      "epoch": 1,
+      "event_count": 4,
+      "control_decision_hash": "sha256:93dd4881ea32a9288204bf680cd1884d96fb906a29e246f90ec8ea0079c98dc6",
+      "attempts": [
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "INTERRUPTED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "root_run_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:6f9a2ea0d248d7f7204c7a64cb1658c405bb4a6f3c380b91cfacffcaafab6740",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:80b571ed299a3d3347f0fbcd8a27aa99ec3e6a21839b76e6c6b5df6b91ca56e4",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "root_run_id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "parent_run_id": null,
+      "fork_step_id": null,
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:0b1f58690188974ed7fb6fae975a880d81e093d560d97eaebbd07f6b7785f166",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 7,
+      "control_decision_hash": "sha256:5355ea3931984b4e8be683b973af45391b145147d34616fedbc3f68717117263",
+      "attempts": [
+        {
+          "step_id": "check_conflicts",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:39d160e97e2bea07b0cf1c647259ffa4f0bd07069dba4e6c19a22d38b408510f",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_background",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "collect_latest",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:89e705f88a5d7061346ef826107769d57871cf8c3beb4d32901e145c86693223",
+          "error_category": null
+        },
+        {
+          "step_id": "merge_findings",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:55c760eae4078d79edbe74c55b25c006b7c6679a04e5e0cac759efe02dacd0b6",
+          "error_category": null
+        },
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    },
+    {
+      "id": "9a8898bd-4908-4cc9-811d-293702b3db42",
+      "root_run_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "parent_run_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "fork_step_id": "write_report",
+      "workflow_version_id": "1cdc1642-6dde-41be-aa68-264f78474928",
+      "input_hash": "sha256:6f9a2ea0d248d7f7204c7a64cb1658c405bb4a6f3c380b91cfacffcaafab6740",
+      "config_fingerprint": "sha256:3926dea2b7d40da9055c91ff3adc1aead924ea8bcf128443f8a0eadeb0affb44",
+      "runtime_fingerprint": "sha256:b911762b416cb8d6d1729e1f2dc4cfca62a02cba9643d618674af72929a55842",
+      "status": "SUCCEEDED",
+      "epoch": 1,
+      "event_count": 3,
+      "control_decision_hash": "sha256:e5f9aa594e30640396d8ed78a41c8b4625a427ff97a6cf7ac82a2375d099832a",
+      "attempts": [
+        {
+          "step_id": "write_report",
+          "attempt_no": 1,
+          "epoch": 1,
+          "status": "SUCCEEDED",
+          "output_hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "error_category": null
+        }
+      ]
+    }
+  ],
+  "model_requests": [
+    {
+      "id": "e5187602-3f76-470e-8dd9-158330e6b388",
+      "owner_type": "DRAFT",
+      "owner_id": "a9983293-deaa-40ae-8276-2a1c4d2447d0",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:18.002279Z",
+      "ended_at": "2026-10-20T12:23:18.014279Z"
+    },
+    {
+      "id": "9655ec0f-01fb-4a51-88be-36c892b520d9",
+      "owner_type": "RUN",
+      "owner_id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "attempt_id": "916593b8-d096-4bc0-8b8d-cfa009ceeb58",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:18.400306Z",
+      "ended_at": "2026-10-20T12:23:18.414303Z"
+    },
+    {
+      "id": "bf192c29-339c-4c3c-8bb6-78fe89a89ba8",
+      "owner_type": "RUN",
+      "owner_id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "attempt_id": "7c2656ee-9be8-4ddf-b345-0600e576ab2a",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:18.494306Z",
+      "ended_at": "2026-10-20T12:23:18.503305Z"
+    },
+    {
+      "id": "69024450-5593-40b4-82a2-32c2b7fe7b86",
+      "owner_type": "DRAFT",
+      "owner_id": "0f67aaab-18fd-4e2c-b6cc-df91d0d64b64",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:19.544690Z",
+      "ended_at": "2026-10-20T12:23:19.551691Z"
+    },
+    {
+      "id": "bdb45f75-f957-459b-ab38-1bbdae6f81ac",
+      "owner_type": "DRAFT",
+      "owner_id": "89ec4851-c41a-4076-9f5c-f230308cbb0c",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:20.260413Z",
+      "ended_at": "2026-10-20T12:23:20.269827Z"
+    },
+    {
+      "id": "cdcfdef8-a3c1-44f6-8dce-49f766a5b026",
+      "owner_type": "RUN",
+      "owner_id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "attempt_id": "d22e6de6-6ffe-44e9-ac76-b809639d3e73",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:20.625866Z",
+      "ended_at": "2026-10-20T12:23:20.637863Z"
+    },
+    {
+      "id": "cf5fd1f6-02c4-4219-9c66-d51b80af3a54",
+      "owner_type": "RUN",
+      "owner_id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "attempt_id": "238fcfc0-e15f-42a5-89fb-43084926d278",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:20.716860Z",
+      "ended_at": "2026-10-20T12:23:20.723861Z"
+    },
+    {
+      "id": "b6f50246-ab6e-467d-a87c-4a764947dcd8",
+      "owner_type": "DRAFT",
+      "owner_id": "40063d0a-157c-499f-9c45-c413e8b0bee9",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:21.728149Z",
+      "ended_at": "2026-10-20T12:23:21.736116Z"
+    },
+    {
+      "id": "847bcbb0-f831-4618-beae-90e470cd4ae6",
+      "owner_type": "DRAFT",
+      "owner_id": "5d66e83b-7598-4853-8d69-adcf769885e2",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:22.512871Z",
+      "ended_at": "2026-10-20T12:23:22.523064Z"
+    },
+    {
+      "id": "8c7c6a6a-2212-49fa-81c7-a7a17f8b3be1",
+      "owner_type": "RUN",
+      "owner_id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "attempt_id": "1e765252-7290-43b2-8756-d2d97008ab20",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:22.892455Z",
+      "ended_at": "2026-10-20T12:23:22.905453Z"
+    },
+    {
+      "id": "53cd4a48-847d-4654-aa4f-61854fc045c5",
+      "owner_type": "RUN",
+      "owner_id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "attempt_id": "3e04015f-937a-4ee6-9760-12e964987176",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:22.991457Z",
+      "ended_at": "2026-10-20T12:23:22.998457Z"
+    },
+    {
+      "id": "dc9c8c01-016b-4122-9c56-5ace1a16f640",
+      "owner_type": "DRAFT",
+      "owner_id": "8d114c64-5ad7-4bbb-afd3-142052df39b6",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:23.926967Z",
+      "ended_at": "2026-10-20T12:23:23.939964Z"
+    },
+    {
+      "id": "5075863e-bb7b-45ea-9aa3-38d0e3b0682e",
+      "owner_type": "DRAFT",
+      "owner_id": "5b8596c5-5936-46ac-9ebc-1c17b9e1dec2",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:24.610898Z",
+      "ended_at": "2026-10-20T12:23:24.617882Z"
+    },
+    {
+      "id": "5088540f-1b8b-45d7-ab1e-5d5ffc295091",
+      "owner_type": "RUN",
+      "owner_id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "attempt_id": "8c6018c8-f464-4292-8ca4-42d94952b904",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:24.947154Z",
+      "ended_at": "2026-10-20T12:23:24.956157Z"
+    },
+    {
+      "id": "135cfd01-08aa-4910-8b52-64f3a4e72c72",
+      "owner_type": "RUN",
+      "owner_id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "attempt_id": "ff8948ff-51c0-4c6c-9d14-c0177b2ce410",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:25.022884Z",
+      "ended_at": "2026-10-20T12:23:25.029931Z"
+    },
+    {
+      "id": "364f5620-78e9-4faf-987f-561a85501000",
+      "owner_type": "DRAFT",
+      "owner_id": "51e92224-c20c-4b3e-a037-dd98e82702ae",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:26.010963Z",
+      "ended_at": "2026-10-20T12:23:26.020534Z"
+    },
+    {
+      "id": "38118e7c-7cc5-4cbc-b4fa-7f81920afc43",
+      "owner_type": "DRAFT",
+      "owner_id": "7c0d850d-a5cd-46fd-8f9c-960d2a9f493a",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:26.747626Z",
+      "ended_at": "2026-10-20T12:23:26.757112Z"
+    },
+    {
+      "id": "b3928fd0-e97f-4c67-b179-70becd05c213",
+      "owner_type": "RUN",
+      "owner_id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "attempt_id": "0a4fed72-8eec-4b45-afb9-3396ed8ae499",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:27.141510Z",
+      "ended_at": "2026-10-20T12:23:27.151510Z"
+    },
+    {
+      "id": "1882a079-fdab-4ab3-a75f-a03ee2daa66f",
+      "owner_type": "RUN",
+      "owner_id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "attempt_id": "45db1cc9-3c65-4adf-a41b-36bf074f54c0",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 2,
+      "started_at": "2026-10-20T12:23:27.529498Z",
+      "ended_at": "2026-10-20T12:23:27.536553Z"
+    },
+    {
+      "id": "e3c9930f-4099-447e-b427-bf75b16de7e9",
+      "owner_type": "DRAFT",
+      "owner_id": "0393b0ba-bb55-4a05-87b0-07dcaa37c031",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:28.611459Z",
+      "ended_at": "2026-10-20T12:23:28.620517Z"
+    },
+    {
+      "id": "2ba634f5-b9d3-4187-bd8f-6cbffaa33c7e",
+      "owner_type": "RUN",
+      "owner_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "attempt_id": "26adc5ad-87d6-4905-9e7d-ec029c5ce734",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:28.998531Z",
+      "ended_at": "2026-10-20T12:23:29.009628Z"
+    },
+    {
+      "id": "095854a5-50e8-4c3b-9139-fbd84f23166c",
+      "owner_type": "RUN",
+      "owner_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "attempt_id": "993783cf-1e27-46f9-94e8-b583ec38d860",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:29.090514Z",
+      "ended_at": "2026-10-20T12:23:29.098517Z"
+    },
+    {
+      "id": "ac329125-fc9f-44a5-8e42-a0b87d35fcac",
+      "owner_type": "RUN",
+      "owner_id": "8c88462e-762a-4805-9c1f-f6a222ed6269",
+      "attempt_id": "2e5c122e-737a-4be4-a824-d08ee540f5c3",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:30.688607Z",
+      "ended_at": "2026-10-20T12:23:30.696621Z"
+    },
+    {
+      "id": "762ffddd-04a7-4be7-800e-5040c6811548",
+      "owner_type": "RUN",
+      "owner_id": "8c88462e-762a-4805-9c1f-f6a222ed6269",
+      "attempt_id": "d51c5f13-50c4-4df6-adcc-6d3a7c12bc4a",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:30.772728Z",
+      "ended_at": "2026-10-20T12:23:30.780889Z"
+    },
+    {
+      "id": "835f8784-3678-4894-bc82-9eff8ba0ac4d",
+      "owner_type": "RUN",
+      "owner_id": "3923e8ce-3110-4804-9816-2f13b472aa77",
+      "attempt_id": "971a5038-0872-4fc0-b7e8-ca7b3e746efe",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:32.278729Z",
+      "ended_at": "2026-10-20T12:23:32.286729Z"
+    },
+    {
+      "id": "30e8f7c3-ffbf-4b97-9970-e1dedb375b31",
+      "owner_type": "RUN",
+      "owner_id": "3923e8ce-3110-4804-9816-2f13b472aa77",
+      "attempt_id": "6575a075-c40a-4a84-a7a9-decc5795231b",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:32.355731Z",
+      "ended_at": "2026-10-20T12:23:32.364731Z"
+    },
+    {
+      "id": "fd03cc60-0bfa-48ba-9f09-dc290374e041",
+      "owner_type": "DRAFT",
+      "owner_id": "e09e149d-d32e-4299-837b-501b8dc64f0b",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:33.363713Z",
+      "ended_at": "2026-10-20T12:23:33.372712Z"
+    },
+    {
+      "id": "7372f03f-25ef-44ea-9897-f7e9a750f3c6",
+      "owner_type": "RUN",
+      "owner_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "attempt_id": "570002c0-c2ed-4637-808b-fc3d1c2c2436",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:33.710695Z",
+      "ended_at": "2026-10-20T12:23:33.725697Z"
+    },
+    {
+      "id": "14f6dffd-0c3b-48f5-8f70-e63d87a6d08b",
+      "owner_type": "RUN",
+      "owner_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "attempt_id": "54ef52e6-e115-46c9-b8e5-0d8623e8d608",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:33.802317Z",
+      "ended_at": "2026-10-20T12:23:33.810359Z"
+    },
+    {
+      "id": "ef597354-8d98-4a7e-bb58-cd8870419cc3",
+      "owner_type": "DRAFT",
+      "owner_id": "60deb921-02df-4b83-b664-0a8ff5bff105",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:38.244844Z",
+      "ended_at": "2026-10-20T12:23:38.253842Z"
+    },
+    {
+      "id": "f9594e60-9e15-43f0-8f95-0699594ddff1",
+      "owner_type": "RUN",
+      "owner_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "attempt_id": "7cf4a55a-bc82-433c-bf00-aa40f7f74a77",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:38.570825Z",
+      "ended_at": "2026-10-20T12:23:38.583824Z"
+    },
+    {
+      "id": "e3f4d000-422c-420a-a5ca-06d4ffe5e506",
+      "owner_type": "RUN",
+      "owner_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "attempt_id": "7c027bc4-ceb6-4fe6-934a-6ad23bb3629d",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:38.663825Z",
+      "ended_at": "2026-10-20T12:23:38.671824Z"
+    },
+    {
+      "id": "88d5fde1-b68b-46b3-909c-ab785e6c3483",
+      "owner_type": "DRAFT",
+      "owner_id": "1525dbaf-db87-4701-b643-2e336cb58bd2",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:43.193427Z",
+      "ended_at": "2026-10-20T12:23:43.201967Z"
+    },
+    {
+      "id": "b8ca4518-ba50-41c4-acb0-2be41e450aec",
+      "owner_type": "RUN",
+      "owner_id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "attempt_id": "37dbe3ab-2a91-4ce6-87be-e04ad297751e",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:43.528134Z",
+      "ended_at": "2026-10-20T12:23:43.538134Z"
+    },
+    {
+      "id": "a8911bde-385c-4fed-be20-e106eef18b70",
+      "owner_type": "RUN",
+      "owner_id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "attempt_id": "1e98a0db-926a-4eaf-929f-fd9c858c3484",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:43.604134Z",
+      "ended_at": "2026-10-20T12:23:43.612132Z"
+    },
+    {
+      "id": "31e44fa3-c278-45f9-9824-db3d2ee272c3",
+      "owner_type": "DRAFT",
+      "owner_id": "0bc5b1eb-4d18-4686-bd27-dcac7a0fffae",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:44.743152Z",
+      "ended_at": "2026-10-20T12:23:44.750150Z"
+    },
+    {
+      "id": "f57ab82d-d856-4875-ad08-5e35d7467f7e",
+      "owner_type": "RUN",
+      "owner_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "attempt_id": "84b5ebae-7383-4e9d-b9d4-785d5b68016e",
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:45.065911Z",
+      "ended_at": "2026-10-20T12:23:45.077916Z"
+    },
+    {
+      "id": "e92e1af1-88c2-4ed6-89d6-fb132ec92078",
+      "owner_type": "RUN",
+      "owner_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "attempt_id": "2d2573a4-a454-44a7-8398-2bde1b12181e",
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:46.161633Z",
+      "ended_at": "2026-10-20T12:23:46.169347Z"
+    },
+    {
+      "id": "02edd52c-3df8-4b6c-b6d4-540be451082e",
+      "owner_type": "RUN",
+      "owner_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "attempt_id": "280c5d79-eb79-4fa9-b490-c776955b640d",
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:50.234205Z",
+      "ended_at": "2026-10-20T12:23:50.242253Z"
+    },
+    {
+      "id": "8b8b6b02-f24e-4fc0-8ef0-069e3724c934",
+      "owner_type": "DRAFT",
+      "owner_id": "625b2bb8-09d6-49dd-9e35-b09a51e48345",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:52.112446Z",
+      "ended_at": "2026-10-20T12:23:52.120446Z"
+    },
+    {
+      "id": "2705dbef-5fe9-4754-ab23-9733be643915",
+      "owner_type": "RUN",
+      "owner_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "attempt_id": "e68daa4b-eaa2-44ea-9a40-9c425014ef66",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:52.475425Z",
+      "ended_at": "2026-10-20T12:23:52.488423Z"
+    },
+    {
+      "id": "8f7bcac6-ea6a-42ca-b6d5-11a755a1a28a",
+      "owner_type": "RUN",
+      "owner_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "attempt_id": "244d556d-7c4f-4b05-80e5-b8a46815e59e",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:52.559423Z",
+      "ended_at": "2026-10-20T12:23:52.567423Z"
+    },
+    {
+      "id": "43475709-02ad-4e78-a584-9c452f07ad28",
+      "owner_type": "DRAFT",
+      "owner_id": "57d8a290-5556-4468-817d-16bc63115bf6",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:56.095279Z",
+      "ended_at": "2026-10-20T12:23:56.105281Z"
+    },
+    {
+      "id": "dade6643-eaf0-4fa6-888a-2cae32619741",
+      "owner_type": "RUN",
+      "owner_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "attempt_id": "3478ecec-e9c4-45f3-a700-573c3d8af777",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:56.460278Z",
+      "ended_at": "2026-10-20T12:23:56.469279Z"
+    },
+    {
+      "id": "d6677a82-79ae-4ed3-b8df-21a019bef476",
+      "owner_type": "RUN",
+      "owner_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "attempt_id": "fb91f204-321d-43d3-b99e-10c6bf031ccc",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 2,
+      "started_at": "2026-10-20T12:23:57.702602Z",
+      "ended_at": "2026-10-20T12:23:57.715603Z"
+    },
+    {
+      "id": "030361c9-06f8-4392-bb80-254fe669fd68",
+      "owner_type": "DRAFT",
+      "owner_id": "1a05523d-8624-4ac2-8732-f863f6fc12f4",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:23:59.929246Z",
+      "ended_at": "2026-10-20T12:23:59.937247Z"
+    },
+    {
+      "id": "58a69649-ca57-433a-80ae-5b604795c888",
+      "owner_type": "RUN",
+      "owner_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "attempt_id": "5eb6b073-a2f3-4741-9250-ef48f67e7d61",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 2,
+      "started_at": "2026-10-20T12:24:01.666234Z",
+      "ended_at": "2026-10-20T12:24:01.678233Z"
+    },
+    {
+      "id": "ff53d062-1f4f-4c2b-ab9a-d6cc49e67b98",
+      "owner_type": "RUN",
+      "owner_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "attempt_id": "dcfcdc08-bcfe-49c3-a16c-c0422742b7bd",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 2,
+      "started_at": "2026-10-20T12:24:01.772234Z",
+      "ended_at": "2026-10-20T12:24:01.781232Z"
+    },
+    {
+      "id": "a6bec4d8-c39d-4ad0-a631-01ad32c91bd6",
+      "owner_type": "DRAFT",
+      "owner_id": "593dd76a-ff16-4adb-94cb-f159bb5db2d4",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:03.761509Z",
+      "ended_at": "2026-10-20T12:24:03.771510Z"
+    },
+    {
+      "id": "badd9b77-ea85-49a8-9ac8-0efe2845e6a9",
+      "owner_type": "RUN",
+      "owner_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "attempt_id": "c93cbba8-1d7f-4143-b2b3-153279190028",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:04.134512Z",
+      "ended_at": "2026-10-20T12:24:04.143509Z"
+    },
+    {
+      "id": "d2442523-42bc-45cd-8428-668e21290feb",
+      "owner_type": "RUN",
+      "owner_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "attempt_id": "37de1a48-f138-4b81-be2b-af9f34de2db4",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 2,
+      "started_at": "2026-10-20T12:24:06.895907Z",
+      "ended_at": "2026-10-20T12:24:06.908905Z"
+    },
+    {
+      "id": "2c231a0a-65e3-4263-a95b-f818f5282da3",
+      "owner_type": "DRAFT",
+      "owner_id": "78307f09-7078-4aa3-9438-17f92ec09707",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:10.512906Z",
+      "ended_at": "2026-10-20T12:24:10.520906Z"
+    },
+    {
+      "id": "55146470-e493-4f41-8a7c-a0db613bc19e",
+      "owner_type": "RUN",
+      "owner_id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "attempt_id": "93d0480c-dce0-45a5-8a1a-91080f8022f4",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:10.892901Z",
+      "ended_at": "2026-10-20T12:24:10.918902Z"
+    },
+    {
+      "id": "aab38476-fbc1-4fad-a955-c2776ca2878b",
+      "owner_type": "RUN",
+      "owner_id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "attempt_id": "6cfa99f8-bd67-4dd8-98ca-234123cd9c39",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:10.999901Z",
+      "ended_at": "2026-10-20T12:24:11.006901Z"
+    },
+    {
+      "id": "2eca2cbb-84a5-4193-86b4-7553d61c0504",
+      "owner_type": "DRAFT",
+      "owner_id": "a419ae2b-111e-4641-b620-5b75890b465c",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:12.361072Z",
+      "ended_at": "2026-10-20T12:24:12.372068Z"
+    },
+    {
+      "id": "9913424f-dc20-4051-a760-b01dea25fe8b",
+      "owner_type": "DRAFT",
+      "owner_id": "514c592c-67ab-40cc-9ef2-dca2dbb2ff71",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:12.829070Z",
+      "ended_at": "2026-10-20T12:24:12.838068Z"
+    },
+    {
+      "id": "a1d8de3e-ee0c-4e64-bdee-dfd958f421a0",
+      "owner_type": "RUN",
+      "owner_id": "6437e96a-cbd8-4194-8073-48e795d69e06",
+      "attempt_id": "f31ecfbb-63ce-45ec-93b2-1b799cb0179f",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:13.155250Z",
+      "ended_at": "2026-10-20T12:24:13.711389Z"
+    },
+    {
+      "id": "06be75ef-3719-4c8d-9dba-5a7201b190fb",
+      "owner_type": "DRAFT",
+      "owner_id": "3ee535e6-b0ad-4138-a88a-d6983387d6e6",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:15.044406Z",
+      "ended_at": "2026-10-20T12:24:15.053404Z"
+    },
+    {
+      "id": "cea8df62-1180-46d3-a3f6-2d9b4081d8a9",
+      "owner_type": "RUN",
+      "owner_id": "87cc850d-9f0d-4665-8bda-71b02628a2b4",
+      "attempt_id": "ade34540-988b-4e23-91de-4107ace65ef0",
+      "status": "COMPLETED",
+      "actual_tokens": 150,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:15.401644Z",
+      "ended_at": "2026-10-20T12:24:19.109557Z"
+    },
+    {
+      "id": "4cdaad3d-f364-401a-8fed-4212b193e248",
+      "owner_type": "DRAFT",
+      "owner_id": "69762949-66fa-4625-a190-ad527365d126",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:19.595555Z",
+      "ended_at": "2026-10-20T12:24:19.604554Z"
+    },
+    {
+      "id": "fbfc7a43-1c13-4d4c-8cd4-59eea0756e41",
+      "owner_type": "RUN",
+      "owner_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "attempt_id": "6ba51191-a9df-4613-aaa1-7f9e2cc75069",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:19.943467Z",
+      "ended_at": "2026-10-20T12:24:19.954474Z"
+    },
+    {
+      "id": "f077f0e3-663b-4f21-80f4-7e3e08001f62",
+      "owner_type": "RUN",
+      "owner_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "attempt_id": "8be89d69-7d65-4274-a21e-1b2300d5438e",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:20.021469Z",
+      "ended_at": "2026-10-20T12:24:20.029468Z"
+    },
+    {
+      "id": "187cbad1-3348-4bd8-b24b-83b444c02e86",
+      "owner_type": "DRAFT",
+      "owner_id": "04e463e8-fc39-48ac-9dc5-f4196e4add75",
+      "attempt_id": null,
+      "status": "COMPLETED",
+      "actual_tokens": 600,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:21.976882Z",
+      "ended_at": "2026-10-20T12:24:21.985883Z"
+    },
+    {
+      "id": "40a56a5a-98c5-4e42-9ad9-0ecf1ea52636",
+      "owner_type": "RUN",
+      "owner_id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "attempt_id": "06b23dd2-f49d-4725-a286-543ff366df95",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:22.339453Z",
+      "ended_at": "2026-10-20T12:24:22.491457Z"
+    },
+    {
+      "id": "4e4744cc-7c8e-45f7-bb7b-6d05a9ca0774",
+      "owner_type": "RUN",
+      "owner_id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "attempt_id": "26167704-56d1-4389-9f91-a79b54d10125",
+      "status": "COMPLETED",
+      "actual_tokens": 1060,
+      "epoch": 1,
+      "started_at": "2026-10-20T12:24:22.617453Z",
+      "ended_at": "2026-10-20T12:24:22.625452Z"
+    }
+  ],
+  "budget_ledgers": [
+    {
+      "root_run_id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 328, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 328
+    },
+    {
+      "root_run_id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 344, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 344
+    },
+    {
+      "root_run_id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 359, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 359
+    },
+    {
+      "root_run_id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 359, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 359
+    },
+    {
+      "root_run_id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 624, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 624
+    },
+    {
+      "root_run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 1094, \"model_requests\": 6, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 49974}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 1094
+    },
+    {
+      "root_run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 688, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 688
+    },
+    {
+      "root_run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 468, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 468
+    },
+    {
+      "root_run_id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 282, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 282
+    },
+    {
+      "root_run_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 5437, \"model_requests\": 3, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 25128}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 5437
+    },
+    {
+      "root_run_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 406, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 406
+    },
+    {
+      "root_run_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 100001, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 407, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 407
+    },
+    {
+      "root_run_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100001}",
+      "consumed_json": "{\"active_ms\": 484, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 484
+    },
+    {
+      "root_run_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "limits_json": "{\"active_ms\": 101000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 4375, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 4375
+    },
+    {
+      "root_run_id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 344, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 344
+    },
+    {
+      "root_run_id": "6437e96a-cbd8-4194-8073-48e795d69e06",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 641, \"model_requests\": 1, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 8328}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 641
+    },
+    {
+      "root_run_id": "87cc850d-9f0d-4665-8bda-71b02628a2b4",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 125, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 1, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 8328}",
+      "active_ms": 125
+    },
+    {
+      "root_run_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 421, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 421
+    },
+    {
+      "root_run_id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "limits_json": "{\"active_ms\": 1200000, \"model_requests\": 30, \"tool_calls\": 60, \"search_calls\": 20, \"page_reads\": 40, \"tokens\": 100000}",
+      "consumed_json": "{\"active_ms\": 515, \"model_requests\": 2, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 16658}",
+      "reserved_json": "{\"active_ms\": 0, \"model_requests\": 0, \"tool_calls\": 0, \"search_calls\": 0, \"page_reads\": 0, \"tokens\": 0}",
+      "active_ms": 515
+    }
+  ],
+  "assistance": [
+    {
+      "run_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "kind": "HUMAN_REVIEW",
+      "status": "RESOLVED"
+    },
+    {
+      "run_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "kind": "BUDGET_LIMIT",
+      "status": "RESOLVED"
+    },
+    {
+      "run_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "kind": "BUDGET_LIMIT",
+      "status": "RESOLVED"
+    },
+    {
+      "run_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "kind": "BUDGET_LIMIT",
+      "status": "RESOLVED"
+    },
+    {
+      "run_id": "87cc850d-9f0d-4665-8bda-71b02628a2b4",
+      "kind": "RUNTIME_UNCERTAIN",
+      "status": "OPEN"
+    }
+  ],
+  "side_effects": [
+    {
+      "run_id": "c529e56b-b746-432d-93d0-b7ab21746d52",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "25a38e0e-af4d-4a7b-be53-118d73808ac8",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "124e879f-2e8d-487f-94bc-3f622236ca49",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "24da2af4-d754-4dcb-bd1a-5d7e937dd963",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "10da8c82-f844-4ddf-ab69-a4773cad8b41",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "48315d03-e1bb-41a4-8199-686c10e5b878",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "8c88462e-762a-4805-9c1f-f6a222ed6269",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "3923e8ce-3110-4804-9816-2f13b472aa77",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "a956bbc7-c213-41fe-bf9f-fcc63ecc2af1",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "e9295c6b-c2e1-450b-af42-5976b3a7901c",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "03d5099f-bfcf-475c-8804-d18a39557f1b",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "6f88d889-1ad1-4afd-8c76-80ddb1296174",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "3eeb4169-ff88-4401-bd41-2f5751b0d5b8",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "79b38373-4477-4866-883b-e97f5519e4f6",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "06487194-bd0b-42e2-bb96-43ed786c106b",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "e32e9724-bea6-4df1-8244-d2fc5ec7457b",
+      "status": "APPLIED",
+      "intended_after_hash": "ea4597e3e21804eebff6a8e4f8a5b0903f81864b661b43c6b3bf3302efda2e1c",
+      "observed_hash": "ea4597e3e21804eebff6a8e4f8a5b0903f81864b661b43c6b3bf3302efda2e1c"
+    },
+    {
+      "run_id": "e2fa5324-1c71-49ec-ae8f-ad509e55b4d2",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "99d76da0-c09e-4a36-bff9-7791cebc41a3",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    },
+    {
+      "run_id": "4b4da8d7-a359-4ba5-a55b-68213b99864f",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "f236cb23-c54e-4788-a87d-8cc6886fdc79",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "1c9844bd-c0ac-48e8-bb99-db9d2e2c39ea",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "c024b594-d956-4372-9d11-0a75b646bda3",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "5d5af10a-45ac-4cc9-9a21-de68576dceda",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "86491e21-931b-4499-8f81-a0b8f159e5f4",
+      "status": "APPLIED",
+      "intended_after_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a",
+      "observed_hash": "26f2427479db39bdd53c420b49b7d03f7735e144252013b01ef9f77f338c0f9a"
+    },
+    {
+      "run_id": "9a8898bd-4908-4cc9-811d-293702b3db42",
+      "status": "APPLIED",
+      "intended_after_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0",
+      "observed_hash": "b686a4c3c675fdb81371cac8a833ddcf7f7616b6a500069a68999be2b54989c0"
+    }
+  ]
+}

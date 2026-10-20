@@ -130,8 +130,6 @@ def compute_impact(
 
     if start_step_id not in {step.step_id for step in steps}:
         report.blocked_reasons.append(f"起点 {start_step_id} 不在该流程定义中")
-    if not changed:
-        report.blocked_reasons.append("没有可识别的要求变化，无法确定影响范围")
     for step_id in report.reusable_step_ids:
         if step_id in affected:
             report.blocked_reasons.append(f"步骤 {step_id} 影响不明，需选择更早的起点")

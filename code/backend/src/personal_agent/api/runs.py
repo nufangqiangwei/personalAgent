@@ -15,7 +15,7 @@ from sqlalchemy import select
 from personal_agent.adapters.persistence.execution_models import WorkflowRun
 from personal_agent.api.deps import context
 from personal_agent.application.run_snapshots import serialize_run, serialize_steps
-from personal_agent.domain.common import AppError, paginate
+from personal_agent.domain.common import AppError
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
 
@@ -41,16 +41,34 @@ async def list_runs(
     limit: int = 20,
 ) -> dict[str, Any]:
     app_context = context(request)
+    # Page in SQL, not in Python: serializing every run before slicing is
+    # quadratic at 10k executions (each snapshot costs several queries).
+    limit = max(1, min(limit, 100))
+    start = 0
+    if cursor:
+        try:
+            start = max(0, int(cursor))
+        except ValueError as exc:
+            raise AppError(
+                code="INVALID_CURSOR",
+                message="cursor is not valid",
+                status=400,
+            ) from exc
     async with app_context.database.session() as session:
-        statement = select(WorkflowRun).order_by(
-            WorkflowRun.created_at.desc(), WorkflowRun.id
+        statement = (
+            select(WorkflowRun)
+            .order_by(WorkflowRun.created_at.desc(), WorkflowRun.id)
+            .offset(start)
+            .limit(limit + 1)
         )
         if root_run_id is not None:
             statement = statement.where(WorkflowRun.root_run_id == root_run_id)
         runs = (await session.scalars(statement)).all()
-        snapshots = [await serialize_run(session, run) for run in runs]
-    page = paginate(snapshots, cursor=cursor, limit=limit)
-    return {"items": page.items, "next_cursor": page.next_cursor}
+        snapshots = [await serialize_run(session, run) for run in runs[:limit]]
+    return {
+        "items": snapshots,
+        "next_cursor": str(start + limit) if len(runs) > limit else None,
+    }
 
 
 @router.get("/runs/{run_id}")

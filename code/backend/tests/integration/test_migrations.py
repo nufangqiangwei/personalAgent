@@ -8,13 +8,16 @@ data model relies on.
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 
 from personal_agent.adapters.persistence.database import Database
+from personal_agent.domain.common import new_id
 
 BACKEND = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = BACKEND / "alembic.ini"
@@ -95,3 +98,30 @@ def test_tables_present_after_migration(tmp_path: Path, monkeypatch) -> None:
         "artifacts",
         "request_records",
     } <= names
+
+
+def test_single_model_migration_preserves_ambiguous_legacy_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "legacy-models.db"
+    url = f"sqlite+aiosqlite:///{db_path.as_posix()}"
+    monkeypatch.setenv("PERSONAL_AGENT_DB_URL", url)
+    command.upgrade(_config(url), "0014")
+    with sqlite3.connect(db_path) as connection:
+        for _ in range(2):
+            connection.execute(
+                "INSERT INTO model_requests "
+                "(id, owner_type, owner_id, runtime_id, model_id, status, reserved_tokens, "
+                "request_hash, started_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (new_id(), "DRAFT", new_id(), "fixture", "mock-model", "UNKNOWN", 64,
+                 "sha256:fixture", "2026-10-19T12:00:00Z", 1),
+            )
+    with pytest.raises(RuntimeError, match="verified reconciliation"):
+        command.upgrade(_config(url), "head")
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0014",)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM model_requests WHERE status = 'UNKNOWN'"
+        ).fetchone() == (2,)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(model_requests)")}
+        assert "reservation_id" not in columns, "refuse before any schema mutation"

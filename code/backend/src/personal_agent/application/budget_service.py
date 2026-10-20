@@ -293,6 +293,25 @@ class BudgetService:
         ledger.reserved_json = dict(updated.reserved)
         ledger.revision = updated.revision
 
+    async def record_active_time(
+        self, session: AsyncSession, *, ledger: BudgetLedger, elapsed_ms: int, operation_id: str
+    ) -> None:
+        """Persist a measured running segment once, excluding idle/resume gaps."""
+        if elapsed_ms <= 0 or await self._existing_entry(
+            session, ledger.id, operation_id, rules.EntryKind.SETTLE.value
+        ) is not None:
+            return
+        consumed = dict(ledger.consumed_json)
+        consumed["active_ms"] = consumed.get("active_ms", 0) + elapsed_ms
+        await cas_update(
+            session, BudgetLedger, identity={"id": ledger.id}, expected_revision=ledger.revision,
+            values={"consumed_json": consumed, "active_ms": ledger.active_ms + elapsed_ms,
+                    "revision": ledger.revision + 1},
+            stale_code="BUDGET_CONFLICT", stale_status=409,
+        )
+        await self._write_entry(session, ledger_id=ledger.id, operation_id=operation_id,
+                                kind=rules.EntryKind.SETTLE.value, amount={"active_ms": elapsed_ms})
+
     # ------------------------------------------------------------------
     # Explicit draft top-up (T015 / REST contract)
     # ------------------------------------------------------------------
@@ -304,6 +323,7 @@ class BudgetService:
         increment: Mapping[str, int],
         operation_id: str,
         note: str | None = None,
+        required_budget: Mapping[str, int] | None = None,
     ) -> tuple[BudgetEntry, dict[str, Any]]:
         """Explicit run-ledger top-up after an assistance request.
 
@@ -317,7 +337,9 @@ class BudgetService:
             return existing, await self.snapshot(session, ledger)
 
         domain = self.to_domain(ledger)
-        if not domain.exhausted:
+        insufficient = any(value > domain.remaining().get(key, 0)
+                           for key, value in (required_budget or {}).items())
+        if not domain.exhausted and not insufficient:
             raise AppError(
                 code="BUDGET_NOT_EXHAUSTED",
                 message="the run is not at its limit; a preventive top-up is not allowed",
@@ -335,6 +357,17 @@ class BudgetService:
                     details=error.details,
                 ) from error
             raise
+        if updated.exhausted or any(value > updated.remaining().get(key, 0)
+                                    for key, value in (required_budget or {}).items()):
+            raise AppError(
+                code="BUDGET_GRANT_INSUFFICIENT",
+                message="追加后仍不足以解除当前额度阻塞，请核对耗尽维度和所需预留",
+                category=rules.ErrorCategory.BUDGET, status=409,
+                details={
+                    "remaining": updated.remaining(),
+                    "required_budget": dict(required_budget or {}),
+                },
+            )
         await cas_update(
             session,
             BudgetLedger,

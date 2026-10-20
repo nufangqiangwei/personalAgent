@@ -77,7 +77,8 @@ async def _events_after(
                 select(ExecutionEvent)
                 .where(ExecutionEvent.run_id == run_id, ExecutionEvent.sequence > cursor)
                 .order_by(ExecutionEvent.sequence)
-                .limit(min(limit, MAX_BUFFER))
+                # History needs one lookahead row even at the maximum page size.
+                .limit(min(limit, MAX_PAGE_SIZE + 1))
             )
         ).all()
         return list(rows)
@@ -131,6 +132,11 @@ async def event_frames(
     while True:
         if await is_disconnected():
             return
+        await _require_run(database, run_id)
+        lowest, highest = await _sequence_bounds(database, run_id)
+        if lowest is not None and cursor < lowest - 1:
+            yield _reset_frame(snapshot_url)
+            return
         events = await _events_after(database, run_id, cursor)
         if events:
             for event in events:
@@ -158,6 +164,8 @@ async def stream_events(
     if last_event_id:
         try:
             cursor = int(last_event_id)
+            if cursor < 0:
+                raise ValueError("negative event cursor")
         except ValueError as error:
             raise AppError(
                 code="EVENT_CURSOR_INVALID",
@@ -197,6 +205,14 @@ async def event_history(
     """Paged backfill in the same shape as the stream; never re-executes actions."""
     app_context = context(request)
     await _require_run(app_context.database, run_id)
+    lowest, _highest = await _sequence_bounds(app_context.database, run_id)
+    if lowest is not None and after < lowest - 1:
+        raise AppError(
+            code="EVENT_CURSOR_EXPIRED",
+            message="event history was cleaned; reload the run snapshot",
+            status=409,
+            details={"snapshot_url": f"/api/v1/runs/{run_id}"},
+        )
     page_size = min(limit, MAX_PAGE_SIZE)
     rows = await _events_after(app_context.database, run_id, after, limit=page_size + 1)
     page = rows[:page_size]

@@ -7,9 +7,11 @@
  * point. Creating the branch needs the derived draft's BRANCH confirmation, the final
  * start point and the matching verification report hash.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { ApiClient, ApiError, messageFor } from '@/api/client'
+import SafeMarkdown from '@/components/SafeMarkdown.vue'
 
 interface Proposal {
   id: string
@@ -46,16 +48,31 @@ interface Analysis {
 const props = defineProps<{
   parentRunId: string
   steps: { step_id: string; status: string }[]
+  proposalId?: string | undefined
 }>()
 const emit = defineEmits<{ created: [runId: string] }>()
 
 const client = new ApiClient()
+const router = useRouter()
 const selectedStep = ref('')
 const proposal = ref<Proposal | null>(null)
 const analysis = ref<Analysis | null>(null)
 const busy = ref(false)
 const error = ref<string | null>(null)
 const message = ref<string | null>(null)
+const confirmedDraft = ref<{ confirmation_id: string | null; summary_markdown: string } | null>(null)
+
+watch(() => props.proposalId, async (id) => {
+  if (!id || proposal.value?.id === id) return
+  try {
+    const saved = await client.get<Proposal>(`/api/v1/branch-proposals/${id}`)
+    if (saved.parent_run_id !== props.parentRunId) return
+    proposal.value = saved
+    selectedStep.value = saved.effective_step_id
+  } catch (caught) {
+    error.value = describe(caught)
+  }
+}, { immediate: true })
 
 const canConfirm = computed(
   () =>
@@ -85,6 +102,7 @@ async function createProposal(): Promise<void> {
     )
     analysis.value = null
     message.value = '提案已创建。请到要求页修改本次差异，再回来校验。'
+    await router.replace({ path: '/runs', query: { run: props.parentRunId, proposal: proposal.value.id } })
   } catch (caught) {
     error.value = describe(caught)
   } finally {
@@ -99,10 +117,11 @@ async function validate(): Promise<void> {
   try {
     const result = await client.post<{ proposal: Proposal; analysis: Analysis }>(
       `/api/v1/branch-proposals/${proposal.value.id}/validate`,
-      { selected_step_id: proposal.value.effective_step_id },
+      { selected_step_id: selectedStep.value },
     )
     proposal.value = result.proposal
     analysis.value = result.analysis
+    confirmedDraft.value = await client.get(`/api/v1/requirements/${proposal.value.draft_id}`)
     message.value =
       result.analysis.status === 'READY'
         ? '影响范围已确认，可以建立分支。'
@@ -119,30 +138,11 @@ async function confirm(): Promise<void> {
   busy.value = true
   error.value = null
   try {
-    const draft = await client.get<{
-      revision: number
-      summary_hash: string
-      workflow_version_id: string
-      status: string
-      confirmation_id: string | null
-    }>(`/api/v1/requirements/${proposal.value.draft_id}`)
-    const policy = await client.get<{ version: string; hash: string }>('/api/v1/policies')
-    let confirmationId = draft.confirmation_id
+    const draft = await client.get<{ confirmation_id: string | null }>(`/api/v1/requirements/${proposal.value.draft_id}`)
+    const confirmationId = draft.confirmation_id
     if (!confirmationId) {
-      const confirmed = await client.post<{ confirmation_id: string }>(
-        `/api/v1/requirements/${proposal.value.draft_id}/confirm`,
-        {
-          draft_revision: draft.revision,
-          summary_hash: draft.summary_hash,
-          workflow_version_id: draft.workflow_version_id,
-          budget_policy_hash: policy.hash,
-          data_policy_version: policy.version,
-          action: 'BRANCH',
-          explicit_start_confirmation: true,
-        },
-        { etag: `"${draft.revision}"` },
-      )
-      confirmationId = confirmed.confirmation_id
+      error.value = '请先打开派生要求草稿，核对完整摘要并确认要求，再回来确认起点。'
+      return
     }
     const snapshot = await client.post<{ id: string }>(
       `/api/v1/branch-proposals/${proposal.value.id}/confirm`,
@@ -192,13 +192,16 @@ async function confirm(): Promise<void> {
         <dd>{{ proposal.changed_paths.join('、') || '尚未修改' }}</dd>
       </dl>
       <p>
-        <RouterLink :to="`/requirements/${proposal.draft_id}`">
+        <RouterLink :to="{ path: `/requirements/${proposal.draft_id}`, query: {
+          branch_proposal_id: proposal.id, parent_run_id: parentRunId,
+        } }">
           打开派生要求草稿并修改本次差异
         </RouterLink>
       </p>
       <button type="button" :disabled="busy" @click="validate">校验影响范围</button>
 
       <template v-if="analysis">
+        <SafeMarkdown v-if="confirmedDraft" :text="confirmedDraft.summary_markdown" />
         <h3>核验报告</h3>
         <dl class="detail">
           <dt>结论</dt>
