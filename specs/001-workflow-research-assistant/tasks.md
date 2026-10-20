@@ -184,11 +184,11 @@ description: "一期工作流研究助理的依赖有序实施任务"
 ### Tests → Models → Services → Interfaces → Integration
 
 - [ ] T088 [P] [US10] 在 code/frontend/tests/e2e/complete-journey.spec.ts 编写完整/缺失/纠正三类选流至文档案例，版本修改、停止和失败后再发起，以及空库/不适用/来源失败/模型未知/写入冲突/删除等异常界面用例。
-- [ ] T089 [P] [US10] 在 code/backend/tests/integration/test_data_lifecycle.py 编写主动删除/到期、共享引用、缓存/session/日志/备份清理、墓碑、旧备份恢复不复活和不安全恢复阻断用例。
-- [ ] T090 [US10] 在 code/backend/src/personal_agent/adapters/persistence/lifecycle_models.py 和 code/backend/migrations/versions/0011_lifecycle.py 建立 DeletionRecord/BackupManifest；原文约束“backup含db revision、blob hash清单、expires_at”“删除后普通查询不得读取内容；恢复先应用删除记录；共享blob在仍有合法引用时不能误删，但被删除资料不能经别的引用绕过”；记录affected_ids/requested_at/completed_at/backup_ids并与相关实体建立RESTRICT关系。
-- [ ] T091 [US10] 在 code/backend/src/personal_agent/application/data_lifecycle.py 和 code/backend/src/personal_agent/api/data_items.py 实现data-items/deletions、立即访问及复用阻断、异步物理清理与操作查询；执行缓存日志7天/会话最多7天且尽快销毁/业务90天/备份7天政策，显式墓碑不保存敏感内容，失效跨分支引用。
-- [ ] T092 [US10] 在 code/backend/src/personal_agent/bootstrap/backup.py 和 code/backend/src/personal_agent/bootstrap/restore.py 实现维护模式收敛、SQLite backup API及blob/hash/schema/删除清单、临时恢复验证、失败迁移恢复、版本不兼容拒绝与恢复后中断不自动续跑；不直接复制活跃主DB或破坏性downgrade。
-- [ ] T093 [US10] 在 code/backend/src/personal_agent/api/settings.py 和 code/backend/src/personal_agent/api/maintenance.py 实现T001补齐的本机配置与维护接口；只返回配置健康状态不回显秘密，备份与恢复需显式操作且不得绕过未知在途，恢复前后均应用生命周期政策。
+- [x] T089 [P] [US10] 在 code/backend/tests/integration/test_data_lifecycle.py 编写主动删除/到期、共享引用、缓存/session/日志/备份清理、墓碑、旧备份恢复不复活和不安全恢复阻断用例。
+- [x] T090 [US10] 在 code/backend/src/personal_agent/adapters/persistence/lifecycle_models.py 和 code/backend/migrations/versions/0011_lifecycle.py 建立 DeletionRecord/BackupManifest；原文约束“backup含db revision、blob hash清单、expires_at”“删除后普通查询不得读取内容；恢复先应用删除记录；共享blob在仍有合法引用时不能误删，但被删除资料不能经别的引用绕过”；记录affected_ids/requested_at/completed_at/backup_ids并与相关实体建立RESTRICT关系。
+- [x] T091 [US10] 在 code/backend/src/personal_agent/application/data_lifecycle.py 和 code/backend/src/personal_agent/api/data_items.py 实现data-items/deletions、立即访问及复用阻断、异步物理清理与操作查询；执行缓存日志7天/会话最多7天且尽快销毁/业务90天/备份7天政策，显式墓碑不保存敏感内容，失效跨分支引用。
+- [x] T092 [US10] 在 code/backend/src/personal_agent/bootstrap/backup.py 和 code/backend/src/personal_agent/bootstrap/restore.py 实现维护模式收敛、SQLite backup API及blob/hash/schema/删除清单、临时恢复验证、失败迁移恢复、版本不兼容拒绝与恢复后中断不自动续跑；不直接复制活跃主DB或破坏性downgrade。
+- [x] T093 [US10] 在 code/backend/src/personal_agent/api/settings.py 和 code/backend/src/personal_agent/api/maintenance.py 实现T001补齐的本机配置与维护接口；只返回配置健康状态不回显秘密，备份与恢复需显式操作且不得绕过未知在途，恢复前后均应用生命周期政策。
 - [ ] T094 [US10] 在 code/frontend/src/pages/SetupPage.vue、code/frontend/src/pages/DataManagementPage.vue 和 code/frontend/src/pages/MaintenancePage.vue 实现配置健康、受控凭据配置、存储/授权/费用上限/保留政策、删除影响确认、备份恢复状态及原因；不要求注册或切换角色。
 - [ ] T095 [US10] 在 code/frontend/src/router/index.ts、code/frontend/src/App.vue 和 code/backend/src/personal_agent/bootstrap/lifespan.py 贯通所有故事页面与生产同源静态资源，首页直接选流，真实模式仅启用已验证runtime；完整闭环不得依赖内部数据修改或二期入口。
 - [ ] T096 [US10] 在 code/frontend/tests/e2e/maintenance.spec.ts 验证配置/删除/备份/恢复界面，在 code/backend/tests/integration/test_backup_restore.py 验证成功升级、迁移失败恢复与不兼容拒绝；运行本阶段完整链路及生命周期用例，记录 docs/ui-acceptance.md。
