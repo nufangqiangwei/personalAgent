@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from personal_agent.adapters.persistence.database import Database
 from personal_agent.adapters.persistence.execution_models import (
@@ -29,6 +29,7 @@ from personal_agent.adapters.persistence.execution_models import (
     StepRun,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.application.event_log import event_session
 from personal_agent.application.run_snapshots import serialize_run
 from personal_agent.domain.common import AppError, ErrorCategory, new_id
@@ -70,9 +71,16 @@ class StopControl:
                     details={"status": run.status},
                 )
             assert_transition(RunStatus(run.status), RunStatus.PAUSING)
+            now = self._clock.now()
+            await cas_update(
+                session, WorkflowRun, identity={"id": run.id},
+                expected_revision=run.revision,
+                values={"status": RunStatus.PAUSING.value, "updated_at": now},
+                stale_code="RUN_REVISION_STALE", stale_status=412,
+            )
             run.status = RunStatus.PAUSING.value
             run.revision += 1
-            run.updated_at = self._clock.now()
+            run.updated_at = now
             await self._event(
                 session,
                 run,
@@ -120,10 +128,21 @@ class StopControl:
                     details={"status": run.status},
                 )
             assert_transition(RunStatus(run.status), RunStatus.CANCELLING)
+            now = self._clock.now()
+            await cas_update(
+                session, WorkflowRun, identity={"id": run.id},
+                expected_revision=run.revision,
+                values={
+                    "status": RunStatus.CANCELLING.value,
+                    "cancel_requested": True,
+                    "updated_at": now,
+                },
+                stale_code="RUN_REVISION_STALE", stale_status=412,
+            )
             run.status = RunStatus.CANCELLING.value
             run.cancel_requested = True
             run.revision += 1
-            run.updated_at = self._clock.now()
+            run.updated_at = now
             await self._event(
                 session,
                 run,
@@ -141,9 +160,16 @@ class StopControl:
             run = await self._require(session, run_id)
             in_flight = await self._in_flight_count(session, run.id)
             if run.status == RunStatus.PAUSING.value and in_flight == 0:
+                now = self._clock.now()
+                await cas_update(
+                    session, WorkflowRun, identity={"id": run.id},
+                    expected_revision=run.revision,
+                    values={"status": RunStatus.PAUSED.value, "updated_at": now},
+                    stale_code="RUN_REVISION_STALE", stale_status=412,
+                )
                 run.status = RunStatus.PAUSED.value
                 run.revision += 1
-                run.updated_at = self._clock.now()
+                run.updated_at = now
                 await self._release_slot(session, run)
                 await self._event(
                     session,
@@ -153,9 +179,16 @@ class StopControl:
                     payload={"converged": True, "in_flight": 0},
                 )
             elif run.status == RunStatus.CANCELLING.value and in_flight == 0:
+                now = self._clock.now()
+                await cas_update(
+                    session, WorkflowRun, identity={"id": run.id},
+                    expected_revision=run.revision,
+                    values={"status": RunStatus.CANCELLED.value, "updated_at": now},
+                    stale_code="RUN_REVISION_STALE", stale_status=412,
+                )
                 run.status = RunStatus.CANCELLED.value
                 run.revision += 1
-                run.updated_at = self._clock.now()
+                run.updated_at = now
                 await self._close_running_steps(session, run)
                 await self._release_slot(session, run)
                 await self._event(
@@ -223,15 +256,28 @@ class StopControl:
             step.status = "INTERRUPTED"
             step.revision += 1
             step.updated_at = self._clock.now()
+        now = self._clock.now()
+        await cas_update(
+            session, WorkflowRun, identity={"id": run.id},
+            expected_revision=run.revision,
+            values={
+                "status": RunStatus.INTERRUPTED.value,
+                "reason_code": "STOP_TIMEOUT",
+                "updated_at": now,
+            },
+            stale_code="RUN_REVISION_STALE", stale_status=412,
+        )
         run.status = RunStatus.INTERRUPTED.value
         run.reason_code = "STOP_TIMEOUT"
         run.revision += 1
-        run.updated_at = self._clock.now()
-        slot = await session.get(ExecutionSlot, 1)
-        if slot is not None and slot.run_id == run.id:
-            # The remote outcome is unknown: keep the slot until verified.
-            slot.draining = True
-            slot.revision += 1
+        run.updated_at = now
+        # The remote outcome is unknown: keep the slot until verified.
+        await session.execute(
+            update(ExecutionSlot)
+            .where(ExecutionSlot.run_id == run.id)
+            .values(draining=True, revision=ExecutionSlot.revision + 1)
+            .execution_options(synchronize_session=False)
+        )
         await self._event(
             session,
             run,
@@ -299,26 +345,32 @@ class StopControl:
         ]
 
     async def _close_running_steps(self, session: Any, run: WorkflowRun) -> None:
-        steps = (
-            await session.scalars(
-                select(StepRun).where(
-                    StepRun.run_id == run.id,
-                    StepRun.status.in_(["PENDING", "RUNNING", "WAITING_USER"]),
-                )
+        await session.execute(
+            update(StepRun)
+            .where(
+                StepRun.run_id == run.id,
+                StepRun.status.in_(["PENDING", "RUNNING", "WAITING_USER"]),
             )
-        ).all()
-        for step in steps:
-            step.status = "CANCELLED"
-            step.revision += 1
-            step.updated_at = self._clock.now()
+            .values(
+                status="CANCELLED",
+                revision=StepRun.revision + 1,
+                updated_at=self._clock.now(),
+            )
+            .execution_options(synchronize_session=False)
+        )
 
     async def _release_slot(self, session: Any, run: WorkflowRun) -> None:
-        slot = await session.get(ExecutionSlot, 1)
-        if slot is not None and slot.run_id == run.id:
-            slot.run_id = None
-            slot.draining = False
-            slot.epoch += 1
-            slot.revision += 1
+        await session.execute(
+            update(ExecutionSlot)
+            .where(ExecutionSlot.run_id == run.id)
+            .values(
+                run_id=None,
+                draining=False,
+                epoch=ExecutionSlot.epoch + 1,
+                revision=ExecutionSlot.revision + 1,
+            )
+            .execution_options(synchronize_session=False)
+        )
 
     async def _event(
         self,

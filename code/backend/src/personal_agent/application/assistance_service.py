@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from personal_agent.adapters.persistence.assistance_models import (
     AssistanceRequest,
@@ -195,6 +195,12 @@ class AssistanceService:
                         note=note,
                     )
                 )
+                await session.execute(
+                    update(WorkflowRun)
+                    .where(WorkflowRun.id == run.id)
+                    .values(revision=WorkflowRun.revision + 1)
+                    .execution_options(synchronize_session=False)
+                )
                 run.revision += 1
                 await session.commit()
             elif choice is UserDecisionType.RECONCILE:
@@ -283,6 +289,12 @@ class AssistanceService:
                         evidence_refs=evidence_refs,
                         note=note,
                     )
+                )
+                await session.execute(
+                    update(WorkflowRun)
+                    .where(WorkflowRun.id == run.id)
+                    .values(revision=WorkflowRun.revision + 1)
+                    .execution_options(synchronize_session=False)
                 )
                 run.revision += 1
                 await session.commit()
@@ -377,6 +389,25 @@ class AssistanceService:
             return await serialize_run(session, run)
 
     async def _resolve(self, session: Any, request: AssistanceRequest) -> None:
+        # Claim the request exactly once: a second decision sees no OPEN row.
+        result = await session.execute(
+            update(AssistanceRequest)
+            .where(
+                AssistanceRequest.id == request.id,
+                AssistanceRequest.status == AssistanceStatus.OPEN.value,
+            )
+            .values(
+                status=AssistanceStatus.RESOLVED.value,
+                revision=AssistanceRequest.revision + 1,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:  # type: ignore[attr-defined]
+            raise AppError(
+                code="ASSISTANCE_CLOSED",
+                message="this assistance request is already closed",
+                status=409,
+            )
         request.status = AssistanceStatus.RESOLVED.value
         request.revision += 1
 
