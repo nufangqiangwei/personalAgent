@@ -24,8 +24,18 @@ class BudgetLedger(Base):
     __tablename__ = "budget_ledgers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    root_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, unique=True)
-    draft_id: Mapped[str | None] = mapped_column(String(36), nullable=True, unique=True)
+    root_run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+    draft_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("requirement_drafts.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
     limits_json: Mapped[dict] = mapped_column(JsonObject, nullable=False)
     consumed_json: Mapped[dict] = mapped_column(JsonObject, nullable=False)
     reserved_json: Mapped[dict] = mapped_column(JsonObject, nullable=False)

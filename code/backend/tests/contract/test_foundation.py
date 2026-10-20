@@ -36,6 +36,40 @@ RUN_LIMITS = {
 }
 
 
+async def _ensure_draft(database: Any, clock: Any, draft_id: str) -> None:
+    """A ledger references a real draft; give the isolated budget tests an owner."""
+    from personal_agent.adapters.persistence.requirement_models import RequirementDraft
+    from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
+
+    async with database.session() as session:
+        if await session.get(Workflow, "wf-foundation") is None:
+            session.add(Workflow(
+                id="wf-foundation", latest_executable_version_id=None,
+                disabled_at=None, disabled_reason=None,
+                created_at=clock.now(), revision=1,
+            ))
+            await session.flush()
+            session.add(WorkflowVersion(
+                id="ver-foundation", workflow_id="wf-foundation", version_no=1,
+                definition_json={"schema_version": "1"},
+                definition_hash="sha256:foundation",
+                schema_version="1", saved_at=clock.now(),
+                change_summary="foundation fixture", executable=True,
+                validation_report_json={"valid": True, "issues": []},
+                revision=1,
+            ))
+            await session.flush()
+        if await session.get(RequirementDraft, draft_id) is None:
+            session.add(RequirementDraft(
+                id=draft_id, selected_version_id="ver-foundation", revision=1,
+                status="COLLECTING", missing_fields_json=[], conflicts_json=[],
+                field_values_json={}, preference_order_json=[], output_spec_json={},
+                summary_markdown="", summary_hash="", source_draft_id=None,
+                created_at=clock.now(), updated_at=clock.now(),
+            ))
+        await session.commit()
+
+
 def spec(*, scenario: str, draft_id: str = "draft-1") -> ModelRequest:
     return ModelRequest(
         request_id="",
@@ -217,6 +251,7 @@ async def test_draft_reservation_and_settlement_are_idempotent(
     database: Any, clock: Any
 ) -> None:
     service = BudgetService(clock)
+    await _ensure_draft(database, clock, "draft-1")
     async with database.session() as session:
         ledger = await service.ensure_draft_ledger(session, draft_id="draft-1", limits=DRAFT_LIMITS)
         await session.commit()
@@ -253,6 +288,7 @@ async def test_draft_reservation_and_settlement_are_idempotent(
 
 async def test_draft_grant_requires_exhaustion_and_is_idempotent(database: Any, clock: Any) -> None:
     service = BudgetService(clock)
+    await _ensure_draft(database, clock, "draft-2")
     async with database.session() as session:
         ledger = await service.ensure_draft_ledger(session, draft_id="draft-2", limits=DRAFT_LIMITS)
         await session.commit()
@@ -309,6 +345,7 @@ async def test_draft_grant_requires_exhaustion_and_is_idempotent(database: Any, 
 
 async def test_draft_grant_rejects_non_collecting_states(database: Any, clock: Any) -> None:
     service = BudgetService(clock)
+    await _ensure_draft(database, clock, "draft-3")
     async with database.session() as session:
         ledger = await service.ensure_draft_ledger(session, draft_id="draft-3", limits=DRAFT_LIMITS)
         ledger.limits_json = {"model_requests": 0, "tokens": 0}

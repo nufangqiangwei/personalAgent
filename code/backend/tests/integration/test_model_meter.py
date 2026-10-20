@@ -1,4 +1,4 @@
-"""Per-call model metering: one reservation per Loop call, real settlement."""
+﻿"""Per-call model metering: one reservation per Loop call, real settlement."""
 
 from __future__ import annotations
 
@@ -19,7 +19,72 @@ LIMITS = {
 }
 
 
-async def _ledger(database: Any, root_run_id: str = "root-run") -> None:
+async def _ensure_run(database: Any, clock: Any, run_id: str) -> None:
+    """A run ledger references a real run; build the minimal graph once."""
+    from personal_agent.adapters.persistence.execution_models import WorkflowRun
+    from personal_agent.adapters.persistence.requirement_models import (
+        Confirmation,
+        RequirementDraft,
+    )
+    from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
+
+    async with database.session() as session:
+        if await session.get(Workflow, "wf-meter") is None:
+            session.add(Workflow(
+                id="wf-meter", latest_executable_version_id=None,
+                disabled_at=None, disabled_reason=None,
+                created_at=clock.now(), revision=1,
+            ))
+            await session.flush()
+            session.add(WorkflowVersion(
+                id="ver-meter", workflow_id="wf-meter", version_no=1,
+                definition_json={"schema_version": "1"},
+                definition_hash="sha256:meter", schema_version="1",
+                saved_at=clock.now(), change_summary="meter fixture",
+                executable=True, validation_report_json={"valid": True, "issues": []},
+                revision=1,
+            ))
+            await session.flush()
+        draft_id = f"draft-{run_id}"
+        if await session.get(RequirementDraft, draft_id) is None:
+            session.add(RequirementDraft(
+                id=draft_id, selected_version_id="ver-meter", revision=1,
+                status="COLLECTING", missing_fields_json=[], conflicts_json=[],
+                field_values_json={}, preference_order_json=[], output_spec_json={},
+                summary_markdown="", summary_hash="", source_draft_id=None,
+                created_at=clock.now(), updated_at=clock.now(),
+            ))
+            await session.flush()
+        confirmation_id = f"confirmation-{run_id}"
+        if await session.get(Confirmation, confirmation_id) is None:
+            session.add(Confirmation(
+                id=confirmation_id, draft_id=draft_id, draft_revision=1,
+                workflow_version_id="ver-meter", summary_hash="", input_hash="",
+                budget_policy_hash="", data_policy_version="1",
+                confirmed_at=clock.now(), action="START",
+                field_snapshot_json={"fields": {}, "preference_order": [], "output_spec": {}},
+            ))
+            await session.flush()
+        if await session.get(WorkflowRun, run_id) is None:
+            session.add(WorkflowRun(
+                id=run_id, root_run_id=run_id, parent_run_id=None, fork_step_id=None,
+                workflow_version_id="ver-meter", confirmation_id=confirmation_id,
+                input_snapshot_json={
+                    "schema_version": 1, "fields": {},
+                    "preference_order": [], "output_spec": {},
+                },
+                input_hash="sha256:input", config_fingerprint="config",
+                runtime_fingerprint="runtime", budget_policy_hash="sha256:budget",
+                data_policy_version="1", status="RUNNING", reason_code=None,
+                current_step_id=None, epoch=1, revision=1, mode="FIXED",
+                completeness=None, active_elapsed_ms=0, cancel_requested=False,
+                created_at=clock.now(), updated_at=clock.now(),
+            ))
+        await session.commit()
+
+
+async def _ledger(database: Any, clock: Any, root_run_id: str = "root-run") -> None:
+    await _ensure_run(database, clock, root_run_id)
     async with database.session() as session:
         session.add(BudgetLedger(
             id=new_id(), root_run_id=root_run_id, draft_id=None,
@@ -43,7 +108,7 @@ async def _row(database: Any) -> BudgetLedger:
 async def test_each_call_reserves_separately_and_settles_real_usage(
     database: Any, clock: Any,
 ) -> None:
-    await _ledger(database)
+    await _ledger(database, clock)
     meter = RunModelMeter(database, BudgetService(clock))
     first = await meter.begin(
         root_run_id="root-run", attempt_id="attempt", output_limit=10, estimated_input=40,
@@ -76,7 +141,7 @@ async def test_each_call_reserves_separately_and_settles_real_usage(
 
 
 async def test_release_returns_an_unused_reservation(database: Any, clock: Any) -> None:
-    await _ledger(database)
+    await _ledger(database, clock)
     meter = RunModelMeter(database, BudgetService(clock))
     grant = await meter.begin(
         root_run_id="root-run", attempt_id="attempt", output_limit=10, estimated_input=20,
@@ -91,7 +156,7 @@ async def test_release_returns_an_unused_reservation(database: Any, clock: Any) 
 
 
 async def test_tool_calls_reserve_their_own_dimension(database: Any, clock: Any) -> None:
-    await _ledger(database)
+    await _ledger(database, clock)
     meter = RunToolMeter(database, BudgetService(clock))
     page = await meter.begin(
         root_run_id="root-run", attempt_id="attempt", tool_name="http.fetch",

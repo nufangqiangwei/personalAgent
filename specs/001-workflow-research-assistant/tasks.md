@@ -452,3 +452,9 @@ flowchart TD
 - `stop_control`：暂停/取消/收敛/超时中断改为按 revision 的 `cas_update`；关闭运行中步骤与释放执行槽改为带 `run_id` 条件的原子 UPDATE（不再读后赋值）。
 - `assistance_service`：`_resolve` 改为只更新仍为 OPEN 的请求（rowcount==1），重复决策返回 `ASSISTANCE_CLOSED`；run revision 自增改为原子 UPDATE。
 - 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：预算 ledger 外键与会话/事件引用审计待做。
+
+### 2026-10-21 Phase 11 预算 ledger 外键（T112 继续）
+
+- 迁移 0018：`budget_ledgers.root_run_id`/`draft_id` 增加 RESTRICT 外键；迁移前拒绝孤立引用，回退批处理删除约束。
+- 适配隔离预算测试：为 `test_foundation` 的草稿 ledger 与 `test_model_meter` 的 run ledger 构造最小属主图（workflow/version/draft/confirmation/run），不绕过外键。
+- 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：事件/会话引用外键与剩余服务 CAS 审计待做。
