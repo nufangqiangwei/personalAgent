@@ -1,7 +1,9 @@
 # 依赖基线与指纹（T006）
 
-记录日期：2026-10-19（Asia/Shanghai）。本文件记录**本机实际解析并安装**的版本与锁文件指纹。
+记录日期：2026-10-21（Asia/Shanghai）。本文件记录**本机实际解析并安装**的版本与锁文件指纹。
 锁文件已提交，禁止手工编辑；升级依赖必须重新生成、复核并更新本文件。
+T136 起后端/前端/策略插件的运行与开发直接依赖一律使用精确版本（`==`/无前缀版本号），
+锁文件由 `uv lock`、`npm install --package-lock-only` 重新生成；不得手改锁文件。
 "候选"表示尚未通过真实接入门禁，不得据此宣称真实模式可用。
 
 ## 工具链
@@ -19,21 +21,21 @@
 
 `uv sync --project code/backend --python 3.12 --extra dev` 解析 45 个包，关键直接依赖：
 
-| 包 | 版本 | 计划范围 |
+| 包 | 版本 | 锁定 |
 |---|---|---|
-| fastapi | 0.148.0 | `>=0.115,<1` |
-| pydantic | 2.14.1 | `>=2.12,<3`（Harness SDK 0.2.1rc2 要求 `pydantic>=2.12`） |
-| sqlalchemy | 2.0.55 | `>=2.0,<2.1` |
-| alembic | 1.20.0 | `>=1.14,<2` |
-| aiosqlite | 0.22.0 | `>=0.20,<1` |
-| httpx | 0.28.1 | `>=0.28,<1` |
-| jsonschema | 4.26.0 | `>=4.23,<5` |
-| playwright | 1.64.0 | `>=1.50,<2` |
-| pytest | 8.4.2 | `>=8,<9` |
-| pytest-asyncio | 1.4.0 | `>=0.24,<2` |
-| ruff | 0.17.1 | `>=0.7,<1` |
-| mypy | 1.20.2 | `>=1.13,<2` |
-| uvicorn | 0.54.0 | `>=0.30,<1` |
+| fastapi | 0.148.0 | `==0.148.0` |
+| pydantic | 2.14.1 | `==2.14.1`（Harness SDK 0.2.1rc2 要求 `pydantic>=2.12`） |
+| sqlalchemy | 2.0.55 | `==2.0.55` |
+| alembic | 1.20.0 | `==1.20.0` |
+| aiosqlite | 0.22.1 | `==0.22.1` |
+| httpx | 0.28.1 | `==0.28.1` |
+| jsonschema | 4.26.0 | `==4.26.0` |
+| playwright | 1.64.0 | `==1.64.0` |
+| pytest | 8.4.2 | `==8.4.2` |
+| pytest-asyncio | 1.4.0 | `==1.4.0` |
+| ruff | 0.17.1 | `==0.17.1` |
+| mypy | 1.20.2 | `==1.20.2` |
+| uvicorn | 0.54.0 | `==0.54.0` |
 
 ## 前端（`code/frontend/package-lock.json`）
 
@@ -46,8 +48,10 @@
 | typescript | 5.9.3 |
 | vue-tsc | 3.3.13 |
 | @playwright/test | 1.64.1 |
-| jsdom | 26.x |
-| @vue/test-utils | 2.4.6 |
+| jsdom | 26.1.0 |
+| @vue/test-utils | 2.5.1 |
+| @types/node | 24.19.2 |
+| @vitejs/plugin-vue | 6.0.10 |
 
 ## 策略插件（`code/runtime-policy/package-lock.json`）
 
@@ -55,7 +59,7 @@
 |---|---|
 | typescript | 5.9.3 |
 | vitest | 3.2.7 |
-| @types/node | 24.x |
+| @types/node | 24.19.2 |
 
 ## 浏览器
 
@@ -104,8 +108,8 @@ Chromium 二进制尚未安装（`uv run --project code/backend python -m playwr
 
 | 文件 | SHA-256 |
 |---|---|
-| `code/backend/uv.lock` | `e8af2afdf1064b3cc2c852ba82219a44b8850fa6913a862ef3f423cc41d68e66` |
-| `code/frontend/package-lock.json` | `8a65e181177e9f30cb761fb9fb28a101976117d5460c0c81caf921a1267e6529` |
-| `code/runtime-policy/package-lock.json` | `18a0ded1673315621a9a06959552c90d00d438456bcf177c3f82500b65fa12a1` |
+| `code/backend/uv.lock` | `89053f6b813cd7397f548d53499cb39c01aff5933d602bba65af74f6130b65f0` |
+| `code/frontend/package-lock.json` | `42a74f3a42a79c9666a5652135f73f1924b4296d92db1ae5d1daabc377fc0a73` |
+| `code/runtime-policy/package-lock.json` | `cf20c038cc7550b5a15d99c39f41d9d052fb9ecba77c8f11fe96999f8e58147d` |
 
 重新生成后必须更新上表；`code/scripts/check.ps1` 会输出当前实际 hash 以便比对。

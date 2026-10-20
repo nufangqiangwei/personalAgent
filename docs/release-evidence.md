@@ -558,3 +558,16 @@ runs/data-items/workflow versions 改为绑定筛选的 keyset 游标，非法�
 | `check.ps1`（7 组） | PASS，整体退出 0 |
 
 T137 勾选，合计 123/138。无迁移、依赖或锁文件变更；未提交、合并或发布。
+
+## 2026-10-21 Phase 11 依赖精确锁定（T136）
+
+三个 manifest 的运行/开发直接依赖改为精确版本并重新生成锁文件；依赖基线更新版本与指纹；Python Playwright 1.64.0 与 npm 1.64.1 的 Chromium revision 均为 1248。`uv sync --frozen`、两侧 `npm ci`、`check.ps1` 与后端 419 通过。
+
+| 检查 | 结果 |
+|---|---|
+| 后端 unit/contract/integration | 419 PASS，131.88 秒 |
+| 前端类型 / 单元 | PASS / 48 PASS |
+| 策略类型 / 单元 | PASS / 22 PASS |
+| `check.ps1`（7 组） | PASS，整体退出 0 |
+
+T136 勾选，合计 124/138。三个锁文件已按新 manifest 重新生成；未提交、合并或发布。
