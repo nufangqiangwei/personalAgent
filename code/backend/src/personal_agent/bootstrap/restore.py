@@ -114,7 +114,7 @@ class RestoreService:
             await session.commit()
             restore_id = record.id
             started_at = record.started_at
-            backup_values = {
+            backup_values: dict[str, Any] = {
                 "manifest_hash": backup.manifest_hash,
                 "blob_hashes": list(backup.blob_hashes),
                 "blob_count": backup.blob_count,
