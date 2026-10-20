@@ -1004,6 +1004,8 @@ class WorkflowEngine:
                 session_link_id=None,
             )
             session.add(attempt)
+            # The event references the attempt; persist it before the event row.
+            await session.flush()
             run.current_step_id = step.id
             run.revision += 1
             session.add(

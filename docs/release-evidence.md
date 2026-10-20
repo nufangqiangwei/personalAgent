@@ -350,3 +350,16 @@ T112 仍未勾选：事件引用外键与剩余服务 CAS 审计待做。新增�
 | `check.ps1`（7 组） | PASS，整体退出 0 |
 
 T112 仍未勾选：事件 step/attempt 外键与 engine/managed_writes 等剩余 CAS 审计待做。新增迁移 0020（可回退）；无依赖或锁文件变更；未提交、合并或发布。
+
+## 2026-10-21 Phase 11 持久化完整性收口（T112 完成）
+
+输入快照版本化校验；迁移 0017–0021 为 run root/parent、执行槽、预算 ledger 属主、session links 与执行事件（draft/version/step_run/attempt）补齐 RESTRICT 外键并在迁移前拒绝孤立引用；创建顺序与事件写入显式 flush 修正；停止、求助、版本提升、分支确认、产物发布与维护迁移使用 CAS/条件 UPDATE。损坏 JSON、双确认、迁移升级回退与备份恢复测试通过。
+
+| 检查 | 结果 |
+|---|---|
+| 后端 unit/contract/integration | 383 PASS，112.68 秒 |
+| 前端类型 / 单元 | PASS / 47 PASS |
+| 策略类型 / 单元 | PASS / 22 PASS |
+| `check.ps1`（7 组） | PASS，整体退出 0 |
+
+T112 勾选，合计 106/138。新增迁移 0020–0021（可回退）；无依赖或锁文件变更；未提交、合并或发布。

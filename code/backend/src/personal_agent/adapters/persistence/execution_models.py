@@ -174,8 +174,12 @@ class ExecutionEvent(Base):
         nullable=True,
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    step_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    step_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("step_runs.id", ondelete="RESTRICT"), nullable=True
+    )
+    attempt_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("step_attempts.id", ondelete="RESTRICT"), nullable=True
+    )
     workflow_version_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=True
     )
