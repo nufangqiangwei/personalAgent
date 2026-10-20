@@ -168,7 +168,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [x] T079 [US9] 在 code/backend/src/personal_agent/application/branch_analysis.py 实现起点存在/可达/前置核验、changed_paths+input_reads传递闭包、时效/完整性检查；影响不明或依赖缺失标BLOCKED并建议更早起点，不自动改变选择，展示失效成果和要求差异。
 - [x] T080 [US9] 在 code/backend/src/personal_agent/application/branch_service.py 实现派生draft、BRANCH确认与最终起点/report_hash绑定、parent/root和源成果引用；新run仅复用起点前有效成果、共享根预算且核验全root副作用，同proposal/confirmation不能生成多个run。
 - [x] T081 [US9] 在 code/backend/src/personal_agent/api/run_controls.py、code/backend/src/personal_agent/api/branches.py 和 code/backend/src/personal_agent/api/assistance.py 实现全部停止/恢复/分支/求助/副作用核验契约；统一返回 allowed_actions、disabled_reason、draining、在途事实及可信历史，恢复不能绕过额度求助。
-- [ ] T082 [US9] 在 code/backend/src/personal_agent/api/events.py 实现提交后SSE与event-history：快照游标、Last-Event-ID、15秒心跳、默认100最大1000分页、最多1000缓冲、stream.reset、删除410；重复仅重放、不重复动作或结算，慢消费者不占长事务。
+- [x] T082 [US9] 在 code/backend/src/personal_agent/api/events.py 实现提交后SSE与event-history：快照游标、Last-Event-ID、15秒心跳、默认100最大1000分页、最多1000缓冲、stream.reset、删除410；重复仅重放、不重复动作或结算，慢消费者不占长事务。
 - [ ] T083 [US9] 在 code/frontend/src/api/events.ts 和 code/frontend/src/stores/run.ts 实现快照后订阅、(run_id,sequence)去重、断线补读/reset重取、迟到与draining展示；停止按钮和恢复按钮以服务端allowed_actions为准。
 - [ ] T084 [US9] 在 code/frontend/src/components/RunControls.vue 和 code/frontend/src/components/AssistancePanel.vue 实现分别暂停/取消、继续前核验、额度/问题/未知/已尝试/可选处置展示及显式授权；仅讨论和未回应不自动继续。
 - [ ] T085 [US9] 在 code/frontend/src/pages/ExecutionHistoryPage.vue 和 code/frontend/src/components/BranchProposalPanel.vue 实现节点/父根/分叉/源成果、选点重跑、聊天修改差异、受影响起点和双确认，不要求用户操作Git。

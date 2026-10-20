@@ -50,3 +50,6 @@ logs/
 .vscode/
 Thumbs.db
 Desktop.ini
+
+# pytest 临时目录（在工作区运行并指定 basetemp 时产生）
+pytest-of-*/
