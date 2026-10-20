@@ -30,6 +30,12 @@ from personal_agent.adapters.persistence.execution_models import (
     StepRun,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.lifecycle_models import (
+    BackupManifest,
+    DeletionRecord,
+    MaintenanceState,
+    RestoreRecord,
+)
 from personal_agent.adapters.persistence.operation_models import AnalysisOperation
 from personal_agent.adapters.persistence.request_models import RequestRecord
 from personal_agent.adapters.persistence.requirement_models import (
@@ -44,12 +50,14 @@ from personal_agent.adapters.persistence.research_models import (
     Source,
 )
 from personal_agent.adapters.persistence.session_models import SessionLink
+from personal_agent.adapters.persistence.setup_models import PolicyAcknowledgement
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 
 __all__ = [
     "AnalysisOperation",
     "Artifact",
     "AssistanceRequest",
+    "BackupManifest",
     "Base",
     "Blob",
     "BranchProposal",
@@ -57,13 +65,17 @@ __all__ = [
     "BudgetLedger",
     "Confirmation",
     "ConversationMessage",
+    "DeletionRecord",
     "Evidence",
     "ExecutionEvent",
     "ExecutionSlot",
+    "MaintenanceState",
     "ModelRequest",
+    "PolicyAcknowledgement",
     "RequestRecord",
     "RequirementDraft",
     "ResearchAction",
+    "RestoreRecord",
     "ReusedResult",
     "SessionLink",
     "SideEffectOperation",
