@@ -34,7 +34,7 @@ from personal_agent.adapters.tools.scope import ToolScopeRegistry
 from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.event_log import event_session
-from personal_agent.application.research_evidence import EvidenceService
+from personal_agent.application.research_evidence import EvidenceService, merge_evidence
 from personal_agent.domain.assistance import AssistanceKind
 from personal_agent.domain.budget import effective_run_limits
 from personal_agent.domain.common import (
@@ -652,7 +652,8 @@ class WorkflowEngine:
         summary = await self._record_evidence(run, step, definition, output, result.usage)
         output["__evidence__"] = summary
         output["__usage__"] = result.usage
-        self._evidence_summary = summary
+        self._evidence_summary = merge_evidence(self._evidence_summary, summary)
+        output["__evidence__"] = self._evidence_summary
         return StepOutcome(output=output)
 
     async def _pump_runtime_events(
@@ -738,6 +739,11 @@ class WorkflowEngine:
     ) -> dict[str, Any]:
         sources = [item for item in output.get("sources") or [] if isinstance(item, dict)]
         self._sources.extend(sources)
+        fields = run.input_snapshot_json.get("fields") or {}
+        hard = fields.get("hard_constraints") if isinstance(fields, dict) else None
+        required_constraints = []
+        if isinstance(hard, dict) and isinstance(hard.get("value"), list):
+            required_constraints = [str(item) for item in hard["value"]]
         async with self._deps.database.session() as session:
             summary = await self._deps.evidence.record(
                 session,
@@ -762,6 +768,7 @@ class WorkflowEngine:
                     )
                 ],
                 confirmed_priority=list(run.input_snapshot_json.get("preference_order") or []),
+                required_constraints=required_constraints,
             )
             await session.commit()
         return summary

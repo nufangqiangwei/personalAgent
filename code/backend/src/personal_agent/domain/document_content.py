@@ -82,12 +82,26 @@ class DocumentContent:
                         message="an important fact needs a source or an explicit unverified mark",
                         status=422,
                     )
+        required = {str(item).strip() for item in self.constraints if str(item).strip()}
         for candidate in self.qualified:
-            constraints = candidate.get("constraints") or []
-            if any(str(item.get("result")) != "SATISFIED" for item in constraints):
+            constraints = [
+                item for item in candidate.get("constraints") or [] if isinstance(item, dict)
+            ]
+            names = {
+                str(
+                    item.get("constraint") or item.get("name") or item.get("id") or ""
+                ).strip()
+                for item in constraints
+            }
+            if any(str(item.get("result")) != "SATISFIED" for item in constraints) or (
+                required and not required.issubset(names)
+            ):
                 raise AppError(
                     code="QUALIFIED_CANDIDATE_INVALID",
-                    message="a qualified recommendation requires every constraint SATISFIED",
+                    message=(
+                        "a qualified recommendation requires every confirmed hard "
+                        "constraint to be present and SATISFIED"
+                    ),
                     status=422,
                 )
         if self.completeness == "COMPLETE" and (

@@ -41,7 +41,7 @@ EVIDENCE = {
         {
             "id": "a",
             "name": "候选 A",
-            "constraints": [{"constraint": "部署方式", "result": "SATISFIED"}],
+            "constraints": [{"constraint": "支持私有化部署", "result": "SATISFIED"}],
             "source_ids": ["s1"],
         }
     ],
@@ -49,7 +49,7 @@ EVIDENCE = {
         {
             "id": "b",
             "name": "候选 B",
-            "constraints": [{"constraint": "部署方式", "result": "UNKNOWN"}],
+            "constraints": [{"constraint": "支持私有化部署", "result": "UNKNOWN"}],
             "reason": "存在未知硬约束，需人工确认",
         }
     ],
@@ -109,7 +109,7 @@ def test_checklist_structure_marks_covered_and_missing_directions() -> None:
 
 def test_comparison_structure_renders_a_table_with_results() -> None:
     markdown, document = render_document(content("comparison"))
-    assert "| 候选 | 部署方式 | 结论 |" in markdown
+    assert "| 候选 | 支持私有化部署 | 结论 |" in markdown
     assert "| 候选 A | SATISFIED | QUALIFIED |" in markdown
     assert "| 候选 B | UNKNOWN | UNKNOWN |" in markdown
     assert document["structure"] == "comparison"

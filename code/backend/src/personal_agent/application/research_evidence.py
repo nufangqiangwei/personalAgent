@@ -85,28 +85,155 @@ def normalize_directions(
     return normalized
 
 
-def evaluate_candidates(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+def merge_evidence(
+    base: dict[str, Any] | None, incoming: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Merge every Agent/Tool node's evidence instead of keeping the last one."""
+    if not base:
+        return dict(incoming or {})
+    if not incoming:
+        return dict(base)
+    merged = dict(base)
+    directions: dict[str, dict[str, Any]] = {}
+    for direction in list(base.get("directions") or []) + list(incoming.get("directions") or []):
+        if not isinstance(direction, dict):
+            continue
+        direction_id = str(direction.get("id", ""))
+        existing = directions.get(direction_id)
+        if existing is None:
+            directions[direction_id] = {
+                **direction,
+                "findings": list(direction.get("findings") or []),
+                "source_ids": list(direction.get("source_ids") or []),
+                "gaps": list(direction.get("gaps") or []),
+            }
+            continue
+        seen = {str(item.get("claim", "")) for item in existing["findings"]}
+        existing["findings"].extend(
+            item for item in direction.get("findings") or []
+            if str(item.get("claim", "")) not in seen
+        )
+        for source_id in direction.get("source_ids") or []:
+            if source_id not in existing["source_ids"]:
+                existing["source_ids"].append(source_id)
+        for gap in direction.get("gaps") or []:
+            if gap not in existing["gaps"]:
+                existing["gaps"].append(gap)
+        if direction.get("status") == "covered":
+            existing["status"] = "covered"
+    merged["directions"] = list(directions.values())
+    for key in ("qualified", "unknown_candidates", "rejected_candidates"):
+        items: dict[str, dict[str, Any]] = {}
+        for item in list(base.get(key) or []) + list(incoming.get(key) or []):
+            if isinstance(item, dict):
+                items[str(item.get("id", ""))] = item
+        merged[key] = list(items.values())
+    merged["gaps"] = sorted(
+        set(base.get("gaps") or [])
+        | set(incoming.get("gaps") or [])
+        | {
+            str(gap)
+            for direction in directions.values()
+            for gap in direction.get("gaps") or []
+        }
+    )
+    merged["invalid_source_ids"] = sorted(
+        set(base.get("invalid_source_ids") or []) | set(incoming.get("invalid_source_ids") or [])
+    )
+    unverified: dict[str, dict[str, Any]] = {}
+    for item in list(base.get("unverified") or []) + list(incoming.get("unverified") or []):
+        if isinstance(item, dict):
+            unverified[str(item.get("claim", ""))] = item
+    merged["unverified"] = list(unverified.values())
+    source_rows = dict(base.get("source_rows") or {})
+    source_rows.update(incoming.get("source_rows") or {})
+    merged["source_rows"] = source_rows
+    merged["source_ids"] = sorted(
+        set(base.get("source_ids") or []) | set(incoming.get("source_ids") or [])
+    )
+    return merged
+
+
+def resolve_source_ids(
+    source_ids: list[str],
+    *,
+    persisted: set[str],
+    unavailable: set[str],
+) -> tuple[list[str], list[str]]:
+    """Split citations into usable ids and invented/unavailable ones."""
+    valid: list[str] = []
+    invalid: list[str] = []
+    for source_id in source_ids:
+        if source_id in persisted and source_id not in unavailable:
+            valid.append(source_id)
+        else:
+            invalid.append(source_id)
+    return valid, invalid
+
+
+def _constraint_name(item: Any) -> str:
+    if isinstance(item, dict):
+        return str(
+            item.get("constraint") or item.get("name") or item.get("id") or ""
+        ).strip()
+    return str(item).strip()
+
+
+def _constraint_result(item: Any) -> str:
+    return str(item.get("result", "UNKNOWN")).upper() if isinstance(item, dict) else "UNKNOWN"
+
+
+def evaluate_candidates(
+    candidates: list[dict[str, Any]],
+    required_constraints: list[str] | None = None,
+) -> dict[str, Any]:
+    """Tri-state constraints aligned to every confirmed hard constraint.
+
+    A candidate is qualified only when every required hard constraint is present
+    and SATISFIED; a model that reports a single SATISFIED item, omits a
+    constraint, or marks it UNKNOWN stays unqualified.
+    """
+    required = [str(item).strip() for item in required_constraints or [] if str(item).strip()]
     qualified: list[dict[str, Any]] = []
     unknown: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
-        constraints = [
-            item for item in candidate.get("constraints") or [] if isinstance(item, dict)
-        ]
-        results = {str(item.get("result")) for item in constraints}
+        constraints = list(candidate.get("constraints") or [])
+        by_name = {_constraint_name(item): item for item in constraints if _constraint_name(item)}
         entry = {
             "id": str(candidate.get("id", "")),
             "name": str(candidate.get("name", "")),
             "constraints": constraints,
             "source_ids": [str(source) for source in candidate.get("source_ids") or []],
         }
+        if required:
+            missing = [name for name in required if name not in by_name]
+            results = {
+                name: _constraint_result(by_name[name])
+                for name in required
+                if name in by_name
+            }
+            entry["missing_constraints"] = missing
+            if missing:
+                unknown.append({
+                    **entry,
+                    "reason": "缺少硬约束判断依据：" + "、".join(missing),
+                })
+                continue
+            if any(result == "VIOLATED" for result in results.values()):
+                rejected.append(entry)
+            elif all(result == "SATISFIED" for result in results.values()):
+                qualified.append(entry)
+            else:
+                unknown.append({**entry, "reason": "存在未知硬约束，需人工确认"})
+            continue
         if not constraints:
             unknown.append({**entry, "reason": "没有硬约束判断依据"})
-        elif results == {"SATISFIED"}:
+        elif all(_constraint_result(item) == "SATISFIED" for item in constraints):
             qualified.append(entry)
-        elif "VIOLATED" in results:
+        elif any(_constraint_result(item) == "VIOLATED" for item in constraints):
             rejected.append(entry)
         else:
             unknown.append({**entry, "reason": "存在未知硬约束，需人工确认"})
@@ -149,8 +276,18 @@ class EvidenceService:
         sources: list[dict[str, Any]],
         actions: list[dict[str, Any]],
         confirmed_priority: list[str],
+        required_constraints: list[str] | None = None,
     ) -> dict[str, Any]:
         source_rows = await self._persist_sources(session, run_id=run_id, sources=sources)
+        persisted_sources = set(source_rows.keys())
+        unavailable_sources = {
+            str(item.get("source_id") or item.get("url") or "")
+            for item in sources
+            if isinstance(item, dict)
+            and str(item.get("availability", "AVAILABLE")).upper() != "AVAILABLE"
+        }
+        invalid_source_ids: list[str] = []
+        unverified_findings: list[dict[str, Any]] = []
         directions = normalize_directions(defined_direction_ids, output)
         now = self._clock.now()
         for action in actions:
@@ -170,10 +307,18 @@ class EvidenceService:
             )
         for direction in directions:
             for finding in direction["findings"]:
-                source_ids = [
+                raw_ids = [
                     str(source)
                     for source in finding.get("source_ids") or direction["source_ids"]
                 ]
+                # A citation must resolve to a stored, available source. Invented or
+                # empty ids leave the claim unverified instead of silently passing.
+                source_ids, invalid = resolve_source_ids(
+                    raw_ids,
+                    persisted=persisted_sources,
+                    unavailable=unavailable_sources,
+                )
+                invalid_source_ids.extend(invalid)
                 classification = str(finding.get("classification", "FACT")).upper()
                 validity = str(finding.get("validity", "VERIFIED")).upper()
                 if classification not in VALID_CLASSIFICATIONS:
@@ -182,6 +327,8 @@ class EvidenceService:
                     validity = "UNVERIFIED"
                 if classification == "FACT" and not source_ids:
                     validity = "UNVERIFIED"
+                if validity == "UNVERIFIED":
+                    unverified_findings.append(finding)
                 session.add(
                     EvidenceRow(
                         id=new_id(),
@@ -199,7 +346,9 @@ class EvidenceService:
                     )
                 )
 
-        candidates = evaluate_candidates(list(output.get("candidates") or []))
+        candidates = evaluate_candidates(
+            list(output.get("candidates") or []), required_constraints
+        )
         qualified = order_by_priority(candidates["qualified"], confirmed_priority)
         return {
             "directions": directions,
@@ -209,16 +358,8 @@ class EvidenceService:
             "unknown_candidates": candidates["unknown"],
             "rejected_candidates": candidates["rejected"],
             "gaps": [gap for direction in directions for gap in direction["gaps"]],
-            "unverified": [
-                finding
-                for direction in directions
-                for finding in direction["findings"]
-                if str(finding.get("validity", "")).upper() == "UNVERIFIED"
-                or (
-                    str(finding.get("classification", "FACT")).upper() == "FACT"
-                    and not finding.get("source_ids")
-                )
-            ],
+            "invalid_source_ids": sorted(set(invalid_source_ids)),
+            "unverified": unverified_findings,
         }
 
     async def _persist_sources(

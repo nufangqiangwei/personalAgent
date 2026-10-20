@@ -13,8 +13,10 @@ import pytest
 from personal_agent.adapters.rendering.markdown import render_research_document
 from personal_agent.application.research_evidence import (
     evaluate_candidates,
+    merge_evidence,
     normalize_directions,
     order_by_priority,
+    resolve_source_ids,
 )
 from personal_agent.domain.common import AppError
 from personal_agent.domain.expressions import MISSING, evaluate, resolve_binding
@@ -110,6 +112,95 @@ def test_candidate_constraints_are_tri_state() -> None:
     assert [item["id"] for item in result["qualified"]] == ["a"]
     assert {item["id"] for item in result["unknown"]} == {"b", "d"}
     assert [item["id"] for item in result["rejected"]] == ["c"]
+
+
+def test_every_confirmed_hard_constraint_must_be_covered() -> None:
+    required = ["部署", "预算"]
+    result = evaluate_candidates(
+        [
+            {
+                "id": "only-one",
+                "name": "Only one",
+                "constraints": [{"constraint": "部署", "result": "SATISFIED"}],
+            },
+            {
+                "id": "both",
+                "name": "Both",
+                "constraints": [
+                    {"constraint": "部署", "result": "SATISFIED"},
+                    {"constraint": "预算", "result": "SATISFIED"},
+                ],
+            },
+            {
+                "id": "violated",
+                "name": "Violated",
+                "constraints": [
+                    {"constraint": "部署", "result": "SATISFIED"},
+                    {"constraint": "预算", "result": "VIOLATED"},
+                ],
+            },
+            {
+                "id": "unknown",
+                "name": "Unknown",
+                "constraints": [
+                    {"constraint": "部署", "result": "SATISFIED"},
+                    {"constraint": "预算", "result": "UNKNOWN"},
+                ],
+            },
+        ],
+        required,
+    )
+    assert [item["id"] for item in result["qualified"]] == ["both"]
+    assert {item["id"] for item in result["unknown"]} == {"only-one", "unknown"}
+    assert result["unknown"][0]["missing_constraints"] == ["预算"]
+    assert [item["id"] for item in result["rejected"]] == ["violated"]
+
+
+def test_evidence_from_every_node_is_merged_not_replaced() -> None:
+    first = {
+        "directions": [{
+            "id": "official", "status": "covered",
+            "findings": [{"claim": "a"}], "source_ids": ["s1"], "gaps": [],
+        }],
+        "qualified": [{"id": "c1"}],
+        "unknown_candidates": [],
+        "rejected_candidates": [],
+        "gaps": ["g1"],
+        "source_ids": ["s1"],
+        "source_rows": {"s1": "id1"},
+        "invalid_source_ids": [],
+        "unverified": [],
+    }
+    second = {
+        "directions": [{
+            "id": "official", "status": "covered",
+            "findings": [{"claim": "b"}], "source_ids": ["s2"], "gaps": ["g2"],
+        }],
+        "qualified": [{"id": "c2"}],
+        "unknown_candidates": [{"id": "u1"}],
+        "rejected_candidates": [],
+        "gaps": ["g3"],
+        "source_ids": ["s2"],
+        "source_rows": {"s2": "id2"},
+        "invalid_source_ids": ["invented"],
+        "unverified": [{"claim": "c"}],
+    }
+    merged = merge_evidence(first, second)
+    assert [item["claim"] for item in merged["directions"][0]["findings"]] == ["a", "b"]
+    assert {item["id"] for item in merged["qualified"]} == {"c1", "c2"}
+    assert sorted(merged["gaps"]) == ["g1", "g2", "g3"]
+    assert sorted(merged["source_ids"]) == ["s1", "s2"]
+    assert merged["invalid_source_ids"] == ["invented"]
+
+
+def test_invented_and_unavailable_source_ids_are_unverified() -> None:
+    valid, invalid = resolve_source_ids(
+        ["real", "invented", "gone"],
+        persisted={"real", "gone"},
+        unavailable={"gone"},
+    )
+    assert valid == ["real"]
+    assert invalid == ["invented", "gone"]
 
 
 def test_priority_ordering_uses_only_the_confirmed_list() -> None:
