@@ -16,6 +16,7 @@ Rules:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
@@ -35,10 +36,20 @@ from personal_agent.domain.execution import EventKind, RunStatus, assert_transit
 from personal_agent.ports.contracts import Clock
 
 
+@dataclass
+class StopSignal:
+    """Process-wide cooperative stop flag for the single active execution."""
+
+    stopping: bool = False
+
+
 class StopControl:
-    def __init__(self, database: Database, clock: Clock) -> None:
+    def __init__(
+        self, database: Database, clock: Clock, *, convergence_seconds: float = 15.0,
+    ) -> None:
         self._database = database
         self._clock = clock
+        self._convergence_seconds = convergence_seconds
 
     # ------------------------------------------------------------------
     async def request_pause(
@@ -154,14 +165,80 @@ class StopControl:
                     reason_code=None,
                     payload={"converged": True, "in_flight": 0},
                 )
+            elif in_flight > 0 and await self._stop_timed_out(session, run):
+                # The remote action did not converge in time. Its outcome is
+                # unknown, so the run is truthfully interrupted and the slot is
+                # retained; only verified evidence may unlock it.
+                await self._interrupt_after_timeout(session, run)
             await session.commit()
             snapshot = await serialize_run(session, run)
             snapshot["draining"] = run.status in {
                 RunStatus.PAUSING.value,
                 RunStatus.CANCELLING.value,
-            }
+            } or run.reason_code == "STOP_TIMEOUT"
             snapshot["in_flight_actions"] = await self._in_flight_actions(session, run.id)
             return snapshot
+
+    async def _stop_timed_out(self, session: Any, run: WorkflowRun) -> bool:
+        requested_at = await session.scalar(
+            select(ExecutionEvent.occurred_at)
+            .where(
+                ExecutionEvent.run_id == run.id,
+                ExecutionEvent.kind == EventKind.RUN_STATE_CHANGED.value,
+                ExecutionEvent.status.in_([
+                    RunStatus.PAUSING.value, RunStatus.CANCELLING.value,
+                ]),
+            )
+            .order_by(ExecutionEvent.sequence.desc())
+            .limit(1)
+        )
+        if requested_at is None:
+            requested_at = run.updated_at
+        return (
+            self._clock.now() - requested_at
+        ).total_seconds() >= self._convergence_seconds
+
+    async def _interrupt_after_timeout(
+        self, session: Any, run: WorkflowRun,
+    ) -> None:
+        attempts = (
+            await session.scalars(
+                select(StepAttempt)
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(StepRun.run_id == run.id, StepAttempt.status == "RUNNING")
+            )
+        ).all()
+        for attempt in attempts:
+            attempt.status = "INTERRUPTED"
+            attempt.ended_at = self._clock.now()
+            attempt.error_category = "TIMEOUT"
+        steps = (
+            await session.scalars(
+                select(StepRun).where(
+                    StepRun.run_id == run.id, StepRun.status == "RUNNING",
+                )
+            )
+        ).all()
+        for step in steps:
+            step.status = "INTERRUPTED"
+            step.revision += 1
+            step.updated_at = self._clock.now()
+        run.status = RunStatus.INTERRUPTED.value
+        run.reason_code = "STOP_TIMEOUT"
+        run.revision += 1
+        run.updated_at = self._clock.now()
+        slot = await session.get(ExecutionSlot, 1)
+        if slot is not None and slot.run_id == run.id:
+            # The remote outcome is unknown: keep the slot until verified.
+            slot.draining = True
+            slot.revision += 1
+        await self._event(
+            session,
+            run,
+            RunStatus.INTERRUPTED.value,
+            reason_code="STOP_TIMEOUT",
+            payload={"converged": False, "in_flight": len(attempts)},
+        )
 
     async def observe(self, run_id: str) -> str | None:
         """Return ``pause``/``cancel`` when the engine must stop, else ``None``."""

@@ -136,6 +136,7 @@ class ModelProxy:
         tools: ToolPort | None = None,
         meter: ModelCallMeterPort | None = None,
         tool_meter: ToolCallMeterPort | None = None,
+        stop_check: Any = None,
         host: str = LOOPBACK_HOST,
     ) -> None:
         if host != LOOPBACK_HOST:
@@ -147,6 +148,7 @@ class ModelProxy:
         self._tools = tools
         self._meter = meter
         self._tool_meter = tool_meter
+        self._stop_check = stop_check
         self._host = host
         self._port = 0
         self._server: uvicorn.Server | None = None
@@ -306,6 +308,21 @@ class ModelProxy:
                           "the tool is not authorized for this attempt")
         if self._tools is None:
             return _error(503, "api_error", "the managed tool service is not mounted")
+        if self._stop_check is not None and binding.owner.run_id:
+            try:
+                stopping = await self._stop_check(binding.owner.run_id)
+            except Exception:
+                # A failed stop probe must fail closed rather than let the call run.
+                stopping = True
+            if stopping:
+                return JSONResponse({
+                    "content": [{
+                        "type": "text",
+                        "text": json.dumps({"status": "refused", "code": "INTERRUPTED"}),
+                    }],
+                    "isError": True,
+                    "source_refs": [],
+                })
         request_id = new_id()
         grant = None
         tool_meter = self._tool_meter if binding.root_run_id else None

@@ -35,7 +35,7 @@ from personal_agent.adapters.persistence.requirement_models import (
 from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
 from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.bootstrap.seed import seed
-from personal_agent.domain.common import new_id, stable_hash
+from personal_agent.domain.common import AppError, new_id, stable_hash
 
 TOPIC_WORKFLOW = "公开主题资料研究"
 
@@ -621,3 +621,26 @@ async def test_a_late_result_after_cancel_is_evidence_not_success(
     assert report["resumable"] is False
     final = await _snapshot(client, run_id)
     assert (await _resume(client, run_id, final["revision"])).status_code == 409
+
+
+async def test_two_resumes_cannot_acquire_the_same_epoch(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    _, context = api_context
+    gate = GatedRuntime(context.runtime)
+    run_id = await _start(client, api_context, gate)
+    paused = await _pause(client, api_context, gate, run_id)
+
+    async def attempt() -> Any:
+        return await context.recovery.resume(
+            run_id, expected_revision=paused["revision"],
+        )
+
+    results = await asyncio.gather(attempt(), attempt(), return_exceptions=True)
+    successes = [item for item in results if not isinstance(item, BaseException)]
+    failures = [item for item in results if isinstance(item, AppError)]
+    assert len(successes) == 1, results
+    assert failures and failures[0].code in {
+        "RUN_REVISION_STALE", "REVISION_STALE", "RUN_BUSY", "RUN_STATE_INVALID",
+    }
+    assert await context.executor.wait(run_id, max_wait=60) == "SUCCEEDED"

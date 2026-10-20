@@ -488,6 +488,48 @@ async def test_tool_calls_are_metered_once_and_release_on_refusal(
         await server.stop()
 
 
+async def test_a_stopping_run_cannot_start_a_tool_call(
+    database: Any, clock: Any,
+) -> None:
+    class RecordingTools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def execute(self, request: ToolRequest) -> ToolResult:
+            self.calls += 1
+            return ToolResult(status="ok", usage=Usage(tool_calls=1))
+
+    async def stopping(run_id: str) -> bool:
+        assert run_id == "root-run"
+        return True
+
+    tools = RecordingTools()
+    registry = ProxyTokenRegistry()
+    gateway = ModelGateway(database, clock, UnusedTransport())
+    server = ModelProxy(
+        gateway, registry, FixedProvider(), clock, tools=tools, stop_check=stopping,
+    )
+    await server.start()
+    try:
+        token = binding(
+            registry=registry, root_run_id="root-run",
+            tool_scopes={"http.fetch": "scope-token"},
+        )
+        async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+            refused = await client.post(
+                server.url("/tools/call"),
+                json={"name": "http.fetch", "arguments": {"url": "https://example.org"}},
+                headers={"x-api-key": token},
+            )
+        assert refused.status_code == 200
+        payload = refused.json()
+        assert payload["isError"] is True
+        assert json.loads(payload["content"][0]["text"])["code"] == "INTERRUPTED"
+        assert tools.calls == 0
+    finally:
+        await server.stop()
+
+
 async def test_provider_maps_usage_and_never_echoes_failure_detail(clock: Any) -> None:
     spec = ModelRequest(
         new_id(), Owner(run_id=new_id(), attempt_id=new_id()), 1, "deepseek-flash",

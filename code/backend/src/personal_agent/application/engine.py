@@ -104,6 +104,7 @@ class EngineDeps:
     # The live CLI Loop meters each model call itself (T105); the engine then
     # must not hold a single attempt-level model reservation.
     per_call_model_budget: bool = False
+    stop_signal: Any | None = None
 
 
 @dataclass(slots=True)
@@ -130,6 +131,8 @@ class WorkflowEngine:
         run, definition = await self._load(run_id)
         if run.status != RunStatus.RUNNING.value:
             return run.status
+        if self._deps.stop_signal is not None:
+            self._deps.stop_signal.stopping = False
         inputs = {
             path: entry.get("value")
             for path, entry in (run.input_snapshot_json.get("fields") or {}).items()
@@ -194,7 +197,9 @@ class WorkflowEngine:
                             )
                         raise
                     if attempt is not None:
-                        await self._finish_attempt(run, attempt, outcome, Usage())
+                        await self._finish_attempt(
+                            run, attempt, outcome, Usage(), allow_terminal=True,
+                        )
                     return await self._status(run_id)
                 outputs[step.id] = outcome.output
                 edge = self._pick_transition(definition, step, outcome.on)
@@ -220,6 +225,9 @@ class WorkflowEngine:
         except AppError as error:
             if error.category == ErrorCategory.BUDGET:
                 await self._request_budget_assistance(run, definition, current, error)
+                return await self._status(run_id)
+            if error.code == "OUTPUT_CANCELLED":
+                # The stop convergence owns the run state; this is not a failure.
                 return await self._status(run_id)
             await self._fail(run, error)
             return await self._status(run_id)
@@ -281,7 +289,11 @@ class WorkflowEngine:
                     await self._deps.sleep(float(backoff[index]))
                 continue
             usage = outcome.output.pop("__usage__", Usage())
-            await self._finish_attempt(run, attempt, outcome, usage, on=outcome.on)
+            recorded = await self._finish_attempt(run, attempt, outcome, usage, on=outcome.on)
+            if not recorded:
+                # The result was quarantined (stale epoch/terminal/cancel); the
+                # stop convergence owns the run state from here.
+                return StepOutcome(waiting=True)
             outcome.recorded = True
             return outcome
 
@@ -438,11 +450,15 @@ class WorkflowEngine:
                 run, attempt, session.adapter_session_id, stop_pump,
             )
         )
+        # The stop signal must reach the runtime while a call is in flight, not
+        # only between steps.
+        watch = asyncio.create_task(self._watch_stop(run, session.adapter_session_id))
         try:
             result = await self._deps.runtime.wait_result(submission.submission_id)
         finally:
             stop_pump.set()
-            await asyncio.gather(pump, return_exceptions=True)
+            watch.cancel()
+            await asyncio.gather(pump, watch, return_exceptions=True)
         if result.status == "unknown":
             await self._set_session_status(attempt.id, "UNKNOWN")
             await self._request_runtime_uncertain(run, step, result)
@@ -495,6 +511,23 @@ class WorkflowEngine:
                 await asyncio.wait_for(stop.wait(), timeout=0.1)
             except TimeoutError:
                 continue
+
+    async def _watch_stop(self, run: WorkflowRun, session_id: str) -> None:
+        """Forward a pause/cancel intent to the live runtime once it appears."""
+        control = self._deps.control
+        if control is None:
+            return
+        while True:
+            action = await control.observe(run.id)
+            if action is not None:
+                if self._deps.stop_signal is not None:
+                    self._deps.stop_signal.stopping = True
+                try:
+                    await self._deps.runtime.request_stop(session_id, action)
+                except AppError:
+                    pass
+                return
+            await asyncio.sleep(0.5)
 
     async def _record_runtime_event(
         self, run: WorkflowRun, attempt: StepAttempt, event: RuntimeEvent,
@@ -696,6 +729,17 @@ class WorkflowEngine:
         outcome: StepOutcome,
         inputs: dict[str, Any],
     ) -> None:
+        # A stop request may have converged while the document was being built;
+        # the current epoch and terminal state decide whether it may be written.
+        async with self._deps.database.session() as session:
+            row = await session.get(WorkflowRun, run.id)
+        if row is None or row.status != RunStatus.RUNNING.value or row.epoch != run.epoch:
+            raise AppError(
+                code="OUTPUT_CANCELLED",
+                message="the run stopped before its output could be published",
+                category=ErrorCategory.INTERRUPTED,
+                status=409,
+            )
         await self._deps.artifacts.deliver(
             run=run,
             definition=definition,
@@ -827,13 +871,18 @@ class WorkflowEngine:
         *,
         error: AppError | None = None,
         on: str | None = None,
-    ) -> None:
+        allow_terminal: bool = False,
+    ) -> bool:
         async with event_session(self._deps.database) as session:
             row = await session.get(StepAttempt, attempt.id)
             if row is None:
-                return
+                return False
             row.status = (
-                "INTERRUPTED" if outcome.waiting else "SUCCEEDED" if error is None else "FAILED"
+                "INTERRUPTED"
+                if outcome.waiting or (
+                    error is not None and error.category == ErrorCategory.INTERRUPTED
+                )
+                else "SUCCEEDED" if error is None else "FAILED"
             )
             row.ended_at = self._deps.clock.now()
             row.error_category = error.category.value if error else None
@@ -850,13 +899,18 @@ class WorkflowEngine:
                 if not key.startswith("__")
             })
             run_row = await session.get(WorkflowRun, run.id)
-            if (
-                run_row is not None
-                and error is None
-                and (run_row.cancel_requested or run_row.status == RunStatus.CANCELLING.value)
-            ):
-                # A result that arrives after a cancel is evidence, not a success.
-                row.status = "CANCELLED"
+            stale_epoch = run_row is not None and run_row.epoch != row.epoch
+            terminal = not allow_terminal and (run_row is None or run_row.status in {
+                RunStatus.SUCCEEDED.value, RunStatus.CANCELLED.value,
+                RunStatus.FAILED.value, RunStatus.INTERRUPTED.value,
+            })
+            cancelled = run_row is not None and (
+                run_row.cancel_requested or run_row.status == RunStatus.CANCELLING.value
+            )
+            if error is None and (stale_epoch or terminal or cancelled):
+                # A late result can never reopen a terminal run or cross an epoch.
+                # It stays reviewable evidence and the attempt is not a success.
+                row.status = "INTERRUPTED" if (stale_epoch or terminal) else "CANCELLED"
                 await self._mark_step_cancelled(session, row.step_run_id)
                 session.add(
                     ExecutionEvent(
@@ -869,8 +923,11 @@ class WorkflowEngine:
                         workflow_version_id=run.workflow_version_id,
                         occurred_at=self._deps.clock.now(),
                         kind=EventKind.LATE_RESULT_QUARANTINED.value,
-                        status="CANCELLED",
-                        reason_code="CANCEL_REQUESTED",
+                        status=row.status,
+                        reason_code=(
+                            "STALE_EPOCH" if stale_epoch else "TERMINAL" if terminal
+                            else "CANCEL_REQUESTED"
+                        ),
                         payload_json={"attempt_id": row.id, "output_hash": row.output_hash},
                         payload_ref=None,
                         schema_version=1,
@@ -891,6 +948,7 @@ class WorkflowEngine:
                     step_row.revision += 1
                     step_row.updated_at = self._deps.clock.now()
             await session.commit()
+            return row.status == "SUCCEEDED"
 
     async def _link_session(
         self, run: WorkflowRun, attempt: StepAttempt, session: SessionHandle,
@@ -1001,6 +1059,8 @@ class WorkflowEngine:
         action = await control.observe(run_id)
         if action is None:
             return None
+        if self._deps.stop_signal is not None:
+            self._deps.stop_signal.stopping = True
         return str(await control.converge_from_engine(run_id))
 
     async def _resume_point(

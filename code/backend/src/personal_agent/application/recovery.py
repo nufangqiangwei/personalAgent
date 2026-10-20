@@ -32,6 +32,7 @@ from personal_agent.adapters.persistence.execution_models import (
     StepRun,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.adapters.persistence.workflow_models import WorkflowVersion
 from personal_agent.application.event_log import event_session
 from personal_agent.application.run_snapshots import serialize_run
@@ -146,12 +147,33 @@ class RecoveryService:
                     status=409,
                     details={"slot_run_id": slot.run_id},
                 )
+            # CAS both aggregates: a double resume or a concurrent start can never
+            # both acquire the slot.
+            await cas_update(
+                session, ExecutionSlot, identity={"singleton_id": 1},
+                expected_revision=slot.revision,
+                values={
+                    "run_id": run.id, "epoch": slot.epoch + 1, "draining": False,
+                    "process_instance_id": "local",
+                },
+                stale_code=RUN_BUSY, stale_status=409,
+            )
             slot.run_id = run.id
             slot.epoch += 1
             slot.draining = False
             slot.process_instance_id = "local"
             slot.revision += 1
 
+            await cas_update(
+                session, WorkflowRun, identity={"id": run.id},
+                expected_revision=run.revision,
+                values={
+                    "status": RunStatus.RUNNING.value, "reason_code": None,
+                    "epoch": run.epoch + 1, "cancel_requested": False,
+                    "updated_at": self._clock.now(),
+                },
+                stale_code="RUN_REVISION_STALE", stale_status=412,
+            )
             run.status = RunStatus.RUNNING.value
             run.reason_code = None
             run.epoch += 1
@@ -290,6 +312,37 @@ class RecoveryService:
                 break
         checks.append(_check("ARTIFACTS", integrity_ok, integrity_detail))
 
+        from personal_agent.adapters.persistence.assistance_models import AssistanceRequest
+        from personal_agent.adapters.persistence.budget_models import BudgetLedger
+        from personal_agent.application.budget_service import BudgetService
+
+        open_assistance = await session.scalar(
+            select(AssistanceRequest.id)
+            .where(AssistanceRequest.run_id == run.id, AssistanceRequest.status == "OPEN")
+            .limit(1)
+        )
+        checks.append(_check(
+            "ASSISTANCE",
+            open_assistance is None,
+            "no assistance request is open"
+            if open_assistance is None
+            else "an assistance request still needs a user decision",
+        ))
+        ledger = await session.scalar(
+            select(BudgetLedger).where(BudgetLedger.root_run_id == run.root_run_id)
+        )
+        budget_ok = True
+        if ledger is not None:
+            domain = BudgetService(self._clock).to_domain(ledger)
+            budget_ok = not domain.exhausted
+        checks.append(_check(
+            "BUDGET",
+            budget_ok,
+            "the budget allows another action"
+            if budget_ok
+            else "the budget is exhausted; an explicit top-up is required",
+        ))
+
         # A pending cancel may only be completed as a cancellation; it can never be
         # turned into a resume, not even after a restart.
         cancel_pending = bool(run.cancel_requested)
@@ -318,6 +371,10 @@ class RecoveryService:
             blocker = "SIDE_EFFECT_UNRESOLVED"
         elif not integrity_ok:
             blocker = "ARTIFACT_UNAVAILABLE"
+        elif open_assistance is not None:
+            blocker = "ASSISTANCE_OPEN"
+        elif not budget_ok:
+            blocker = "BUDGET_EXHAUSTED"
 
         if blocker is None:
             pending = await self._gateway.non_terminal_request()

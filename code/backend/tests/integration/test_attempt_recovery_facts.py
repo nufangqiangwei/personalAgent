@@ -7,9 +7,11 @@ the artifact was written. Reused evidence and sources are read back for resume.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
+import pytest
 from sqlalchemy import func, select
 
 from personal_agent.adapters.persistence.artifact_models import Artifact
@@ -157,6 +159,166 @@ async def test_republishing_after_a_crash_keeps_one_artifact(
     async with context.database.session() as session:
         after = int(await session.scalar(select(func.count()).select_from(Artifact)) or 0)
     assert after == before == 1
+
+
+async def test_stop_reaches_the_runtime_during_an_in_flight_call(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    _, context = api_context
+    inner = context.runtime
+    seen: list[str] = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class RecordingRuntime:
+        async def wait_result(self, submission_id: str) -> Any:
+            entered.set()
+            await release.wait()
+            return await inner.wait_result(submission_id)
+
+        async def request_stop(self, session_id: str, reason: str) -> Any:
+            seen.append(reason)
+            return await inner.request_stop(session_id, reason)
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(inner, name)
+
+    recorder = RecordingRuntime()
+    context.runtime = recorder
+    context.engine._deps.runtime = recorder  # type: ignore[attr-defined]
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    await asyncio.wait_for(entered.wait(), timeout=10)
+    current = (await client.get(f"/api/v1/runs/{run_id}")).json()
+    paused = await client.post(
+        f"/api/v1/runs/{run_id}/pause",
+        json={"revision": current["revision"], "reason": "stop drill"},
+        headers={"Idempotency-Key": new_id(), "If-Match": f'"{current["revision"]}"'},
+    )
+    assert paused.status_code == 200, paused.text
+    for _ in range(100):
+        if seen:
+            break
+        await asyncio.sleep(0.05)
+    assert seen and seen[0] == "pause", "the stop intent must reach the runtime"
+    release.set()
+    assert await context.executor.wait(run_id, max_wait=60) == "PAUSED"
+
+
+async def test_a_stale_epoch_result_is_quarantined(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    _, context = api_context
+    inner = context.runtime
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class HeldRuntime:
+        async def wait_result(self, submission_id: str) -> Any:
+            entered.set()
+            await release.wait()
+            return await inner.wait_result(submission_id)
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(inner, name)
+
+    context.runtime = HeldRuntime()
+    context.engine._deps.runtime = context.runtime  # type: ignore[attr-defined]
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    await asyncio.wait_for(entered.wait(), timeout=10)
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        run.epoch += 1
+        await session.commit()
+    release.set()
+    for _ in range(100):
+        attempts = await _attempts(context)
+        if any(item.status == "INTERRUPTED" for item in attempts):
+            break
+        await asyncio.sleep(0.05)
+    assert any(item.status == "INTERRUPTED" for item in attempts)
+    assert all(item.status != "SUCCEEDED" for item in attempts if item.ended_at)
+
+
+async def test_output_delivery_is_refused_after_a_stop(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.application.workflow_registry import WorkflowRegistry
+
+    _, context = api_context
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    assert await context.executor.wait(run_id, max_wait=60) == "SUCCEEDED"
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        run.status = "CANCELLING"
+        await session.commit()
+    _, definition = await WorkflowRegistry(
+        context.database, context.clock,
+    ).definition_of(run.workflow_version_id)
+    output_step = next(step for step in definition.steps if step.type == "Output")
+    inputs = {
+        path: entry.get("value")
+        for path, entry in (run.input_snapshot_json.get("fields") or {}).items()
+    }
+    from personal_agent.application.engine import StepOutcome
+
+    with pytest.raises(AppError) as refused:
+        await context.engine._deliver(
+            run=run, definition=definition, step=output_step,
+            outcome=StepOutcome(terminal=True), inputs=inputs,
+        )
+    assert refused.value.code == "OUTPUT_CANCELLED"
+
+
+async def test_stop_timeout_interrupts_the_attempt_and_keeps_the_slot(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.adapters.persistence.execution_models import ExecutionSlot
+
+    _, context = api_context
+    inner = context.runtime
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class HeldRuntime:
+        async def wait_result(self, submission_id: str) -> Any:
+            entered.set()
+            await release.wait()
+            return await inner.wait_result(submission_id)
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(inner, name)
+
+    context.runtime = HeldRuntime()
+    context.engine._deps.runtime = context.runtime  # type: ignore[attr-defined]
+    confirmation_id = await _confirmation(api_context, "图书馆夜间开放")
+    run_id = await _start(client, confirmation_id)
+    await asyncio.wait_for(entered.wait(), timeout=10)
+    current = (await client.get(f"/api/v1/runs/{run_id}")).json()
+    paused = await client.post(
+        f"/api/v1/runs/{run_id}/pause",
+        json={"revision": current["revision"], "reason": "timeout drill"},
+        headers={"Idempotency-Key": new_id(), "If-Match": f'"{current["revision"]}"'},
+    )
+    assert paused.status_code == 200, paused.text
+    assert paused.json()["status"] == "PAUSING"
+
+    context.clock.advance(seconds=16)
+    converged = await context.control.converge(run_id)
+    assert converged["status"] == "INTERRUPTED"
+    assert converged["draining"] is True
+    assert converged["reason_code"] == "STOP_TIMEOUT"
+    async with context.database.session() as session:
+        run = await session.get(WorkflowRun, run_id)
+        slot = await session.get(ExecutionSlot, 1)
+    assert run is not None and run.status == "INTERRUPTED"
+    assert slot is not None and slot.run_id == run_id and slot.draining is True
+    assert any(item.status == "INTERRUPTED" for item in await _attempts(context))
+    release.set()
 
 
 async def test_runtime_action_events_are_consumed_without_reasoning(

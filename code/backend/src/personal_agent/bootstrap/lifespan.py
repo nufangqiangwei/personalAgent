@@ -47,7 +47,7 @@ from personal_agent.application.engine import EngineDeps, WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
 from personal_agent.application.recovery import RecoveryService
 from personal_agent.application.research_evidence import EvidenceService
-from personal_agent.application.stop_control import StopControl
+from personal_agent.application.stop_control import StopControl, StopSignal
 from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.bootstrap import config as config_module
 from personal_agent.bootstrap.clock import SystemClock
@@ -189,6 +189,7 @@ async def build_context(
     await ensure_execution_slot(database, clock)
     observations = _observations()
     tool_scopes = ToolScopeRegistry()
+    stop_signal = StopSignal()
 
     # The supplier client is the only holder of the provider credential. Its
     # absence keeps live mode diagnosable but never falls back to Mock output.
@@ -215,7 +216,8 @@ async def build_context(
     )
     if config.is_live:
         tools: Any = (
-            _live_tools(config, clock, tool_scopes) if live_provider is not None
+            _live_tools(config, clock, tool_scopes, stop_signal)
+            if live_provider is not None
             else UnavailableToolService()
         )
     else:
@@ -254,7 +256,10 @@ async def build_context(
     capability_token = (
         "mock-capability-token" if not config.is_live else "unverified-live-token"
     )
-    control = StopControl(database, clock)
+    control = StopControl(
+        database, clock,
+        convergence_seconds=config.policy.transport.stop_convergence_seconds,
+    )
     engine = WorkflowEngine(
         EngineDeps(
             database=database,
@@ -271,6 +276,7 @@ async def build_context(
             control=control,
             profile_hash=_profile_hash(config),
             per_call_model_budget=live_proxy is not None,
+            stop_signal=stop_signal,
         )
     )
     runtime_fingerprint = stable_hash(capabilities.as_dict())
@@ -398,6 +404,7 @@ def _live_provider() -> Any:
 
 def _live_tools(
     config: config_module.AppConfig, clock: Clock, scopes: ToolScopeRegistry,
+    stop_signal: StopSignal,
 ) -> ToolPort:
     """Real restricted handlers: Brave, httpx, Playwright, pure extraction."""
     import httpx
@@ -425,6 +432,7 @@ def _live_tools(
         ),
         scopes,
         clock,
+        should_stop=lambda: stop_signal.stopping,
     )
 
 
@@ -458,8 +466,17 @@ async def _mount_cli_bridge(
     tokens = ProxyTokenRegistry()
     meter = RunModelMeter(database, BudgetService(clock))
     tool_meter = RunToolMeter(database, BudgetService(clock))
+    control = StopControl(
+        database, clock,
+        convergence_seconds=config.policy.transport.stop_convergence_seconds,
+    )
+
+    async def stop_check(run_id: str) -> bool:
+        return await control.observe(run_id) is not None
+
     proxy = ModelProxy(
-        gateway, tokens, provider, clock, tools=tools, meter=meter, tool_meter=tool_meter,
+        gateway, tokens, provider, clock, tools=tools, meter=meter,
+        tool_meter=tool_meter, stop_check=stop_check,
     )
     try:
         await proxy.start()
