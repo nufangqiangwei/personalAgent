@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
 from personal_agent.adapters.persistence.blob_store import BlobStore
@@ -22,6 +22,7 @@ from personal_agent.adapters.persistence.execution_models import (
     ExecutionSlot,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.adapters.rendering.markdown import render_document
 from personal_agent.application.managed_writes import ArtifactDraft, ManagedWriter
 from personal_agent.domain.artifacts import ArtifactState, ArtifactStructure
@@ -108,17 +109,32 @@ class ArtifactService:
             row = await session.get(WorkflowRun, run.id)
             if row is None:
                 return
-            row.completeness = completeness
-            row.status = (
+            completeness_value = completeness
+            status = (
                 RunStatus.SUCCEEDED.value
-                if completeness in {Completeness.COMPLETE.value, Completeness.PARTIAL.value}
+                if completeness_value in {Completeness.COMPLETE.value, Completeness.PARTIAL.value}
                 else RunStatus.FAILED.value
             )
-            row.reason_code = (
-                None if row.status == RunStatus.SUCCEEDED.value else "NO_QUALIFIED_RESULT"
+            reason_code = None if status == RunStatus.SUCCEEDED.value else "NO_QUALIFIED_RESULT"
+            now = self._clock.now()
+            await cas_update(
+                session, WorkflowRun, identity={"id": row.id},
+                expected_revision=row.revision,
+                values={
+                    "completeness": completeness_value,
+                    "status": status,
+                    "reason_code": reason_code,
+                    "current_step_id": step.id,
+                    "updated_at": now,
+                },
+                stale_code="RUN_REVISION_STALE", stale_status=412,
             )
+            row.completeness = completeness_value
+            row.status = status
+            row.reason_code = reason_code
             row.current_step_id = step.id
             row.revision += 1
+            row.updated_at = now
             session.add(
                 ExecutionEvent(
                     id=new_id(),
@@ -138,12 +154,17 @@ class ArtifactService:
                     provider_event_key=None,
                 )
             )
-            slot = await session.get(ExecutionSlot, 1)
-            if slot is not None and slot.run_id == row.id:
-                slot.run_id = None
-                slot.draining = False
-                slot.epoch += 1
-                slot.revision += 1
+            await session.execute(
+                update(ExecutionSlot)
+                .where(ExecutionSlot.run_id == row.id)
+                .values(
+                    run_id=None,
+                    draining=False,
+                    epoch=ExecutionSlot.epoch + 1,
+                    revision=ExecutionSlot.revision + 1,
+                )
+                .execution_options(synchronize_session=False)
+            )
 
         published = await self._writer.publish(
             operation_id=operation.id,

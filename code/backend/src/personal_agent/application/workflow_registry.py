@@ -196,6 +196,18 @@ class WorkflowRegistry:
             if duplicate is not None:
                 promoted = False
                 if confirm_executable and not duplicate.executable:
+                    await cas_update(
+                        session, WorkflowVersion, identity={"id": duplicate.id},
+                        expected_revision=duplicate.revision,
+                        values={"executable": True},
+                        stale_code="VERSION_CONFLICT", stale_status=409,
+                    )
+                    await cas_update(
+                        session, Workflow, identity={"id": workflow_id},
+                        expected_revision=workflow.revision,
+                        values={"latest_executable_version_id": duplicate.id},
+                        stale_code="VERSION_CONFLICT", stale_status=409,
+                    )
                     duplicate.executable = True
                     duplicate.revision += 1
                     workflow.latest_executable_version_id = duplicate.id

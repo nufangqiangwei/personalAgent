@@ -465,3 +465,9 @@ flowchart TD
 - 生命周期测试改用真实 attempt 或 draft 作为 session 属主（不再用随机 id）。
 - 事件表的 step/attempt/draft/version 外键尝试后撤回：事件与步骤行之间没有 ORM relationship，插入顺序无法由工作单元保证；需要逐处显式 flush 才能安全加约束，留待后续与事件写入重构一起完成。
 - 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：事件引用外键与剩余服务 CAS 审计待做。
+
+### 2026-10-21 Phase 11 事件属主外键与剩余 CAS（T112 继续）
+
+- 迁移 0020：执行事件的 `draft_id`/`workflow_version_id` 增加 RESTRICT 外键并拒绝孤立引用；`step_run_id`/`attempt_id` 暂不加约束（事件可能先于步骤行写入，模型无 relationship，已记录原因）。
+- 可变聚合 CAS：工作流版本提升、分支提案确认、产物发布后的 run/执行槽更新、维护模式迁移改为 `cas_update` 或条件 UPDATE。
+- 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：事件 step/attempt 外键（依赖事件写入顺序重构）与 engine/managed_writes 等剩余 CAS 审计待做。

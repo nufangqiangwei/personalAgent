@@ -36,6 +36,7 @@ from personal_agent.adapters.persistence.requirement_models import (
     Confirmation,
     RequirementDraft,
 )
+from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.adapters.persistence.workflow_models import Workflow, WorkflowVersion
 from personal_agent.application.branch_analysis import BranchAnalyzer
 from personal_agent.application.budget_service import BudgetService
@@ -481,6 +482,17 @@ class BranchService:
                     schema_version=1,
                     provider_event_key=None,
                 )
+            )
+            await cas_update(
+                session, BranchProposal, identity={"id": proposal.id},
+                expected_revision=proposal.revision,
+                values={
+                    "status": BranchStatus.CONFIRMED.value,
+                    "confirmation_id": confirmation.id,
+                    "created_run_id": run_id,
+                    "updated_at": now,
+                },
+                stale_code="BRANCH_ALREADY_CONFIRMED", stale_status=409,
             )
             proposal.status = BranchStatus.CONFIRMED.value
             proposal.confirmation_id = confirmation.id

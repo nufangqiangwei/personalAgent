@@ -168,11 +168,17 @@ class ExecutionEvent(Base):
     run_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("workflow_runs.id", ondelete="RESTRICT"), nullable=True
     )
-    draft_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    draft_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("requirement_drafts.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     step_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    workflow_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    workflow_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=True
+    )
     occurred_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)

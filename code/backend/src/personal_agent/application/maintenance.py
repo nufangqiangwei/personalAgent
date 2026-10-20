@@ -25,6 +25,7 @@ from personal_agent.adapters.persistence.lifecycle_models import (
     MaintenanceState,
     RestoreRecord,
 )
+from personal_agent.adapters.persistence.uow import cas_update
 from personal_agent.bootstrap.backup import BackupService
 from personal_agent.bootstrap.config import AppConfig
 from personal_agent.bootstrap.lifespan import migration_current, migration_head
@@ -147,10 +148,23 @@ class MaintenanceService:
             state = await self._state(session)
             # ENTERING only becomes MAINTENANCE once nothing is in flight.
             if state.mode == "ENTERING" and quiescent:
+                now = self._clock.now()
+                await cas_update(
+                    session, MaintenanceState, identity={"singleton_id": 1},
+                    expected_revision=state.revision,
+                    values={"mode": "MAINTENANCE", "entered_at": now},
+                    stale_code="MAINTENANCE_REVISION_STALE", stale_status=412,
+                )
                 state.mode = "MAINTENANCE"
-                state.entered_at = self._clock.now()
+                state.entered_at = now
                 state.revision += 1
             if state.mode == "EXITING" and quiescent:
+                await cas_update(
+                    session, MaintenanceState, identity={"singleton_id": 1},
+                    expected_revision=state.revision,
+                    values={"mode": "NORMAL"},
+                    stale_code="MAINTENANCE_REVISION_STALE", stale_status=412,
+                )
                 state.mode = "NORMAL"
                 state.revision += 1
             await session.commit()
@@ -228,9 +242,16 @@ class MaintenanceService:
             if state.mode == "MAINTENANCE":
                 allowed = True
             elif state.mode == "NORMAL":
+                now = self._clock.now()
+                await cas_update(
+                    session, MaintenanceState, identity={"singleton_id": 1},
+                    expected_revision=state.revision,
+                    values={"mode": "ENTERING", "reason": reason, "requested_at": now},
+                    stale_code="MAINTENANCE_REVISION_STALE", stale_status=412,
+                )
                 state.mode = "ENTERING"
                 state.reason = reason
-                state.requested_at = self._clock.now()
+                state.requested_at = now
                 state.revision += 1
                 allowed = True
             else:
@@ -292,9 +313,15 @@ class MaintenanceService:
                     status=409,
                     details={"blockers": blockers or ["当前不是维护模式"]},
                 )
+            await cas_update(
+                session, MaintenanceState, identity={"singleton_id": 1},
+                expected_revision=state.revision,
+                values={"mode": "EXITING", "reason": None},
+                stale_code="MAINTENANCE_REVISION_STALE", stale_status=412,
+            )
             state.mode = "EXITING"
-            state.revision += 1
             state.reason = None
+            state.revision += 1
             await session.commit()
         return await self.status()
 
