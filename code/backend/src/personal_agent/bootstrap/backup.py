@@ -75,6 +75,9 @@ class BackupService:
         backup_id = new_id()
         target_dir = self._dir(backup_id)
         target_dir.mkdir(parents=True, exist_ok=False)
+        from personal_agent.bootstrap.acl import secure_directory
+
+        secure_directory(target_dir)
         database_path = target_dir / "personal-agent.db"
         now = self._clock.now()
         schema_version = migration_head() or "unknown"

@@ -112,6 +112,17 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(level="INFO", log_dir=config.logs_dir)
     _proactor_policy()
 
+    from personal_agent.bootstrap.acl import secure_data_directories
+    from personal_agent.domain.common import AppError
+
+    try:
+        config.ensure_directories()
+        secure_data_directories(config)
+    except AppError as error:
+        print(f"ACL self-check failed: {error.message}", file=sys.stderr)
+        print(json.dumps(error.details, ensure_ascii=False), file=sys.stderr)
+        return 4
+
     if args.check:
         report = asyncio.run(_diagnose(config))
         print(json.dumps(report, ensure_ascii=False, indent=2))

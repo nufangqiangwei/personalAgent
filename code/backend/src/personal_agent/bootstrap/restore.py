@@ -212,6 +212,12 @@ class RestoreService:
             completed.completed_at = self._clock.now()
             completed.revision += 1
             await session.commit()
+            # A restored tree must keep the same single-user boundary; re-verify
+            # instead of assuming the copied ACLs are the intended ones.
+            from personal_agent.bootstrap.acl import secure_directory
+
+            secure_directory(self._data_dir)
+            secure_directory(self._data_dir / "artifacts")
             return {
                 "restore_id": restore_id,
                 "backup_id": backup_id,
