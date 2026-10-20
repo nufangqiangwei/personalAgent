@@ -329,7 +329,7 @@ flowchart TD
 - [x] T121 CRITICAL（F18）完成 code/backend/src/personal_agent/adapters/harness/runtime.py 的固定 headless CLI 载体到 capabilities/session/submit/events/result/stop/reconcile/restore/dispose 端口映射，按 docs/harness-cli-usage.md 校验安装版本、stdin、JSON 事件、退出码、用量与未知状态；不再以 Python SDK/wheel API 或 Web RPC 为默认入口。在 code/backend/src/personal_agent/bootstrap/lifespan.py 装配真实模型 transport、Brave/httpx/Playwright/提取 handlers 与受管 MCP，工具结果必须可取回正文/结构而非仅不可解析 hash；实际挂载 code/runtime-policy/src/index.ts 的 guard/provider hook；同步采用记录版本/历史 wheel_interfaces 字段与 CLI 真实语义，execution_available 依据已验证能力/凭据/迁移而非环境开关；保留无证据 live 禁用，仅在已授权的 25 元测试总范围内执行，不伪造采用记录 per FR-028；US10/AC6；plan: 官方 Harness Loop 与受管工具；T019/T020/T055/T056/T095 (missing)
 - [ ] T122 HIGH（F19）在 code/backend/src/personal_agent/application/requirement_analysis.py 与 code/frontend/src/pages/RequirementsPage.vue 将所选流程适用边界/必要输入、现有已确认字段及必要历史对话带入模型请求，实际使用分析系统指令和严格输出契约；持久并显示助手追问、建议依据及具体假设取舍问题，已有答案不重复问，支持“不知道/帮决定/无特别偏好”；未确认推断不得由模型自报 source=user 静默入参，记录取舍回答与待确认优先顺序，增加多轮而非单条固定输出验收 per FR-001/002/010；US1/AC1–3、7–10；T044/T048 (partial)
 - [ ] T123 HIGH（F20）修正 code/backend/src/personal_agent/domain/requirements.py、code/backend/src/personal_agent/application/requirement_confirmation.py、code/backend/src/personal_agent/application/requirement_analysis.py、code/backend/src/personal_agent/api/requirements.py 与 code/frontend/src/pages/RequirementsPage.vue：尚未消费的确认后仍可聊天修改并使旧确认失效、重新展示与确认；对已被用户纠正/拒绝/替代的建议提供可用处置和来源 revision 校验，不强迫接受全部待定建议；选择新流程后筛除专用旧字段并重新校验；并发消息/迟到分析不得覆盖更新后的草稿或已消费快照，保存失败保留用户文本 per FR-004/022/031；US1/AC4/6；T043/T045–T050 (partial)
-- [ ] T124 HIGH（F21）修正 code/backend/src/personal_agent/application/workflow_registry.py 的历史 hash 去重：仅与当前编辑基线内容相同才复用当前版本，A→B→A 必须保存独立新版本和变更摘要，不能返回/提升旧历史版本代替此次保存；校验定义 workflow_id 与目标一致，保持最新已确认可执行指针及旧运行/文档不变，并补双流程各三次修改、回退到历史内容、草稿发布及并发冲突回归 per FR-020/021；US7/AC1–4；SC-007；T030/T032/T035 (partial)
+- [x] T124 HIGH（F21）修正 code/backend/src/personal_agent/application/workflow_registry.py 的历史 hash 去重：仅与当前编辑基线内容相同才复用当前版本，A→B→A 必须保存独立新版本和变更摘要，不能返回/提升旧历史版本代替此次保存；校验定义 workflow_id 与目标一致，保持最新已确认可执行指针及旧运行/文档不变，并补双流程各三次修改、回退到历史内容、草稿发布及并发冲突回归 per FR-020/021；US7/AC1–4；SC-007；T030/T032/T035 (partial)
 - [ ] T125 HIGH（F22）修正 code/backend/src/personal_agent/application/research_evidence.py 的 evaluate_candidates/order_by_priority 与文档理由输出，保留排序所需经过校验的候选属性，按用户确认的优先顺序和可接受条件稳定比较，不只按属性是否存在或丢失属性后保持原序，不发明数值权重；用完全相同材料、相反两组已确认优先序验证实际排序或取舍理由发生对应变化，覆盖明确无特别偏好 per FR-010；SC-006；T057/T064 (partial)
 - [ ] T126 HIGH（F23）在 code/backend/src/personal_agent/application/requirement_confirmation.py、code/backend/src/personal_agent/application/artifact_service.py、code/backend/src/personal_agent/domain/document_content.py 与 code/backend/src/personal_agent/adapters/rendering/markdown.py 执行前验证/协商输出 format/structure/language/detail，交付读取本次确认值；报告/清单/对比表及简版都保留目标、硬约束、结果、取舍理由、逐事实来源/未证实标记与缺口，不能因 brief 隐藏风险或把无合格结果表示 COMPLETE；落实全部 required_output_step_ids 和完成策略，不在首个 Output 无条件终结；覆盖三结构×两偏好及重复获取访问记录 per FR-011/012；US4/AC1–4；SC-005/006；T045/T065–T070 (partial)
 - [ ] T127 HIGH（F24）修正 code/frontend/src/stores/run.ts、code/frontend/src/api/events.ts、code/frontend/src/pages/RunProgressPage.vue 与 code/backend/src/personal_agent/api/events.py：已提交事件及时刷新状态/步骤/allowed_actions/文档，不能依赖 3 秒轮询；维护独立递增事件游标并循环补读全部页面，reset 后重取快照并重建订阅，断线错误有反馈；修复 limit=1000 多取一行被 MAX_BUFFER 截断导致漏 next_cursor，读取期间清理/删除按契约 reset/410；验证超过两页、1001 条、快照竞态、迟到及慢消费者，并实测 UI 延迟 per FR-024/028；T061/T082/T083/T086/T099；plan: SSE 与 UI p95<1s (partial)
@@ -545,3 +545,11 @@ flowchart TD
 - 文档校验：qualified 候选必须覆盖全部已确认硬约束。
 - 测试：单项 SATISFIED 绕过、无效引用、跨节点合并、文档覆盖反例。
 - 验证：后端 407、前端 47、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T120 勾选，合计 114/138。
+
+### 2026-10-21 Phase 11 版本历史去重（T124）
+
+- `save_version` 仅当内容与**当前编辑基线**一致时复用；A→B→A 保存为独立新版本（自己的 version_no 与变更摘要），不再返回或提升旧历史行。
+- 移除 `(workflow_id, definition_hash)` 唯一约束（迁移 0022），保留 version_no 唯一；保存时校验定义的 `workflow_id` 与目标一致。
+- 最新可执行指针与旧运行/文档保持不变。
+- 测试：A→B→A 生成 v3，历史为 v3/v2/v1。
+- 验证：后端 408、前端 47、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T124 勾选，合计 115/138。

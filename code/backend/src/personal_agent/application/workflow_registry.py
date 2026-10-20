@@ -174,6 +174,14 @@ class WorkflowRegistry:
     ) -> SaveOutcome:
         report: ValidationReport = validate_definition(definition)
         require_valid(definition)
+        declared = definition.get("workflow_id")
+        if declared not in (None, "") and str(declared) != workflow_id:
+            raise AppError(
+                code="WORKFLOW_ID_MISMATCH",
+                message="the definition belongs to a different workflow",
+                status=422,
+                details={"declared": declared, "target": workflow_id},
+            )
         async with self._database.session() as session:
             workflow = await self._require_workflow(session, workflow_id)
             assert_editable(workflow.disabled_at)
@@ -187,11 +195,14 @@ class WorkflowRegistry:
                     status=409,
                 )
 
-            duplicate = await session.scalar(
-                select(WorkflowVersion).where(
-                    WorkflowVersion.workflow_id == workflow_id,
-                    WorkflowVersion.definition_hash == report.definition_hash,
-                )
+            # Only the current editing baseline may be reused. Returning to an
+            # older definition (A -> B -> A) is a new version with its own
+            # summary; an old historical row is never promoted in its place.
+            duplicate = (
+                current_latest
+                if current_latest is not None
+                and current_latest.definition_hash == report.definition_hash
+                else None
             )
             if duplicate is not None:
                 promoted = False

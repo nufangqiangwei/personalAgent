@@ -45,6 +45,5 @@ class WorkflowVersion(Base):
 
     __table_args__ = (
         UniqueConstraint("workflow_id", "version_no", name="uq_workflow_versions_number"),
-        UniqueConstraint("workflow_id", "definition_hash", name="uq_workflow_versions_content"),
         CheckConstraint("version_no > 0", name="workflow_version_positive"),
     )

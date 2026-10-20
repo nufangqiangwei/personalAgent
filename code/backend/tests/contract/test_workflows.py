@@ -98,6 +98,50 @@ async def test_changed_content_creates_a_new_version_and_reuses_unchanged(
     assert len(history) == 2
 
 
+async def test_returning_to_historical_content_creates_a_new_version(
+    client: httpx.AsyncClient, api_context: Any, workflow_definition: dict[str, Any]
+) -> None:
+    workflow_id = await create_workflow(api_context, workflow_definition)
+    versions = (await client.get(f"/api/v1/workflows/{workflow_id}/versions")).json()["items"]
+    base_id = versions[0]["id"]
+
+    changed = copy.deepcopy(workflow_definition)
+    changed["description"] = "B 内容"
+    saved_b = await client.post(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        json={
+            "base_version_id": base_id,
+            "definition": changed,
+            "change_summary": "改为 B",
+            "confirm_executable": True,
+        },
+        headers=headers("save-history-b"),
+    )
+    assert saved_b.status_code == 201, saved_b.text
+    version_b = saved_b.json()
+    assert version_b["version_no"] == 2
+
+    # A -> B -> A: content equal to the *historical* first version, but the
+    # current baseline is B. This must be a new version, not the old row.
+    returned = await client.post(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        json={
+            "base_version_id": version_b["id"],
+            "definition": copy.deepcopy(workflow_definition),
+            "change_summary": "回退到 A 的内容",
+            "confirm_executable": True,
+        },
+        headers=headers("save-history-a"),
+    )
+    assert returned.status_code == 201, returned.text
+    version_a = returned.json()
+    assert version_a["version_no"] == 3
+    assert version_a["id"] not in {base_id, version_b["id"]}
+
+    history = (await client.get(f"/api/v1/workflows/{workflow_id}/versions")).json()["items"]
+    assert [item["version_no"] for item in history] == [3, 2, 1]
+
+
 async def test_stale_editor_baseline_is_rejected(
     client: httpx.AsyncClient, api_context: Any, workflow_definition: dict[str, Any]
 ) -> None:
