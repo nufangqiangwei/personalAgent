@@ -9,7 +9,8 @@ import { RouterLink, RouterView } from 'vue-router'
     <nav aria-label="主导航">
       <RouterLink to="/">工作流</RouterLink>
       <RouterLink to="/runs">执行历史</RouterLink>
-      <RouterLink to="/data">数据与维护</RouterLink>
+      <RouterLink to="/data">数据与删除</RouterLink>
+      <RouterLink to="/maintenance">维护与备份</RouterLink>
       <RouterLink to="/setup">首次配置</RouterLink>
     </nav>
   </header>

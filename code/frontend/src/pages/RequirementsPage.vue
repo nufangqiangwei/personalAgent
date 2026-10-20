@@ -171,9 +171,27 @@ async function confirm(): Promise<void> {
       },
       { etag: `"${current.revision}"` },
     )
-    notice.value = `已确认（${result.confirmation_id}）。执行启动由研究页负责。`
+    notice.value = `已确认（${result.confirmation_id}）。点击“开始研究”才会创建执行。`
     draft.value = await client.get<Draft>(`/api/v1/requirements/${current.id}`)
     explicitConfirm.value = false
+  } catch (caught) {
+    error.value = describe(caught)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function startResearch(): Promise<void> {
+  const confirmationId = draft.value?.confirmation_id
+  if (!confirmationId) return
+  busy.value = true
+  error.value = null
+  try {
+    const snapshot = await client.post<{ id: string }>('/api/v1/runs', {
+      confirmation_id: confirmationId,
+    })
+    notice.value = '研究已启动。'
+    await router.push(`/runs/${snapshot.id}`)
   } catch (caught) {
     error.value = describe(caught)
   } finally {
@@ -261,6 +279,17 @@ async function confirm(): Promise<void> {
           {{ busy ? '确认中…' : '确认要求' }}
         </button>
         <p v-if="draft.status === 'CONFIRMED'" class="muted">该草稿已确认，修改要求需回到聊天。</p>
+        <button
+          v-if="draft.status === 'CONFIRMED' && draft.confirmation_id"
+          type="button"
+          :disabled="busy"
+          @click="startResearch"
+        >
+          {{ busy ? '启动中…' : '开始研究' }}
+        </button>
+        <p v-if="draft.status === 'CONFIRMED' && draft.confirmation_id" class="muted">
+          确认本身不会启动研究；点击“开始研究”才会创建执行。
+        </p>
       </section>
     </template>
   </section>
