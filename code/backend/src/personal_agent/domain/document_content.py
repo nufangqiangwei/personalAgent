@@ -41,6 +41,7 @@ class DocumentContent:
     sources: list[dict[str, Any]]
     gaps: list[str]
     unverified: list[dict[str, Any]]
+    preference_order: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -142,6 +143,7 @@ class DocumentContent:
             "sources": list(self.sources),
             "gaps": list(self.gaps),
             "unverified": list(self.unverified),
+            "preference_order": list(self.preference_order),
             "notes": list(self.notes),
         }
 
@@ -191,6 +193,9 @@ def build_content(
         sources=[item for item in sources if isinstance(item, dict)],
         gaps=[str(gap) for gap in evidence.get("gaps") or []],
         unverified=[item for item in evidence.get("unverified") or [] if isinstance(item, dict)],
+        preference_order=[
+            str(item) for item in inputs.get("preference_order") or []
+        ],
     )
     content.validate()
     return content

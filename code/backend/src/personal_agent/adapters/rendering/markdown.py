@@ -34,6 +34,9 @@ LABELS = {
         "footer": "本报告不包含模型内部推理；来源与缺口可逐条复核。",
         "unverified_note": "存在未证实的重要事实，已在上文标注。",
         "checklist": "检查清单",
+        "priority": "优先顺序",
+        "lower_better": "越低越好",
+        "higher_better": "越高越好",
     },
     "en": {
         "completeness": "Completeness",
@@ -53,6 +56,9 @@ LABELS = {
         "footer": "This report contains no model reasoning; sources and gaps are reviewable.",
         "unverified_note": "Some important facts are unverified and marked above.",
         "checklist": "Checklist",
+        "priority": "Preference order",
+        "lower_better": "lower is better",
+        "higher_better": "higher is better",
     },
 }
 
@@ -110,11 +116,40 @@ def _render_report(content: DocumentContent, language: str, brief: bool) -> list
     lines.append(f"## {labels['recommendations']}")
     if not (content.qualified or content.unknown_candidates or content.rejected_candidates):
         lines.append(f"- {labels['no_candidates']}")
+    if content.preference_order:
+        lines.append(
+            f"- {labels['priority']}："
+            + " > ".join(_escape(item) for item in content.preference_order)
+        )
     if content.qualified:
         lines.append(f"### {labels['qualified']}")
         for candidate in content.qualified:
             lines.append(f"- **{_escape(str(candidate.get('name')))}**")
             if not brief:
+                attributes = candidate.get("attributes")
+                if content.preference_order and isinstance(attributes, dict):
+                    parts: list[str] = []
+                    for path in content.preference_order:
+                        if path not in attributes:
+                            continue
+                        raw = attributes[path]
+                        if isinstance(raw, dict):
+                            value = raw.get("value")
+                            better = str(raw.get("better") or "").lower()
+                        else:
+                            value, better = raw, ""
+                        if value is None:
+                            continue
+                        suffix = (
+                            f"（{labels['lower_better']}）"
+                            if better == "lower"
+                            else f"（{labels['higher_better']}）"
+                            if better == "higher"
+                            else ""
+                        )
+                        parts.append(f"{path}={value}{suffix}")
+                    if parts:
+                        lines.append("  - " + "；".join(_escape(part) for part in parts))
                 for constraint in candidate.get("constraints") or []:
                     lines.append(
                         f"  - {_escape(str(constraint.get('constraint')))}："

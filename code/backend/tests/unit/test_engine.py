@@ -203,6 +203,58 @@ def test_invented_and_unavailable_source_ids_are_unverified() -> None:
     assert invalid == ["invented", "gone"]
 
 
+def test_opposite_confirmed_priority_orders_flip_the_result() -> None:
+    candidates = [
+        {
+            "id": "x",
+            "attributes": {
+                "cost": {"value": 10, "better": "lower"},
+                "accuracy": {"value": 90, "better": "higher"},
+            },
+        },
+        {
+            "id": "y",
+            "attributes": {
+                "cost": {"value": 20, "better": "lower"},
+                "accuracy": {"value": 95, "better": "higher"},
+            },
+        },
+    ]
+    assert [
+        item["id"] for item in order_by_priority(candidates, ["cost", "accuracy"])
+    ] == ["x", "y"]
+    assert [
+        item["id"] for item in order_by_priority(candidates, ["accuracy", "cost"])
+    ] == ["y", "x"]
+
+    # No confirmed preference: never invent a weight or reorder.
+    assert order_by_priority(candidates, []) == candidates
+
+
+def test_a_missing_validated_attribute_does_not_keep_source_order() -> None:
+    candidates = [
+        {"id": "missing"},
+        {
+            "id": "has-value",
+            "attributes": {"cost": {"value": 5, "better": "lower"}},
+        },
+    ]
+    assert [
+        item["id"] for item in order_by_priority(candidates, ["cost"])
+    ] == ["has-value", "missing"]
+
+
+def test_qualified_entries_keep_the_validated_attributes() -> None:
+    result = evaluate_candidates([
+        {
+            "id": "a",
+            "constraints": [{"constraint": "c", "result": "SATISFIED"}],
+            "attributes": {"cost": 10, "accuracy": 90},
+        }
+    ])
+    assert result["qualified"][0]["attributes"] == {"cost": 10, "accuracy": 90}
+
+
 def test_priority_ordering_uses_only_the_confirmed_list() -> None:
     candidates = [
         {"id": "a", "attributes": {"cost": 1}},

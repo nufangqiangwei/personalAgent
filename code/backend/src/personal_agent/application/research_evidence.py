@@ -206,6 +206,12 @@ def evaluate_candidates(
             "id": str(candidate.get("id", "")),
             "name": str(candidate.get("name", "")),
             "constraints": constraints,
+            "attributes": (
+                dict(candidate.get("attributes") or {})
+                if isinstance(candidate.get("attributes"), dict)
+                else {}
+            ),
+            "acceptable": candidate.get("acceptable", True) is not False,
             "source_ids": [str(source) for source in candidate.get("source_ids") or []],
         }
         if required:
@@ -243,20 +249,45 @@ def evaluate_candidates(
 def order_by_priority(
     candidates: list[dict[str, Any]], confirmed_priority: list[str]
 ) -> list[dict[str, Any]]:
-    """Order only by the confirmed preference list; never invent weights."""
+    """Stable ordering by the confirmed preference order; no invented weights.
+
+    A validated attribute may declare its direction (``{"value": ..., "better":
+    "higher"|"lower"}``); without one, values are compared deterministically as
+    text and presence is still preferred. Missing attributes never keep the
+    source order: the candidate id is the final stable tie-break.
+    """
     if not confirmed_priority:
         return list(candidates)
 
-    def key(candidate: dict[str, Any]) -> tuple[int, int]:
+    def attribute(path: str, candidate: dict[str, Any]) -> tuple[bool, Any, str]:
         attributes = candidate.get("attributes")
-        if not isinstance(attributes, dict):
-            return (len(confirmed_priority), 0)
-        for index, path in enumerate(confirmed_priority):
-            value = attributes.get(path)
-            if value is not None:
-                # A higher stated priority sorts first; ties keep source order.
-                return (index, 0)
-        return (len(confirmed_priority), 0)
+        if not isinstance(attributes, dict) or path not in attributes:
+            return False, None, ""
+        raw = attributes[path]
+        if isinstance(raw, dict):
+            return True, raw.get("value"), str(raw.get("better") or "").lower()
+        return True, raw, ""
+
+    def key(candidate: dict[str, Any]) -> tuple[Any, ...]:
+        parts: list[tuple[int, float, str]] = []
+        for path in confirmed_priority:
+            present, value, better = attribute(path, candidate)
+            if not present or value is None:
+                parts.append((1, 0.0, ""))
+                continue
+            numeric = (
+                float(value)
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+                else 0.0
+            )
+            if better == "lower":
+                parts.append((0, numeric, ""))
+            elif better == "higher":
+                parts.append((0, -numeric, ""))
+            else:
+                parts.append((0, 0.0, str(value)))
+        acceptable = 0 if candidate.get("acceptable", True) is not False else 1
+        return (tuple(parts), acceptable, str(candidate.get("id", "")))
 
     return sorted(candidates, key=key)
 

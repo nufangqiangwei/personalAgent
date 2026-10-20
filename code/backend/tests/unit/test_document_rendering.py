@@ -42,6 +42,7 @@ EVIDENCE = {
             "id": "a",
             "name": "候选 A",
             "constraints": [{"constraint": "支持私有化部署", "result": "SATISFIED"}],
+            "attributes": {"部署方式": {"value": 1, "better": "higher"}},
             "source_ids": ["s1"],
         }
     ],
@@ -96,6 +97,8 @@ def test_report_structure_has_required_sections() -> None:
     assert "## 缺口与未证实" in markdown
     assert "QUALIFIED" not in markdown
     assert "满足全部硬约束" in markdown
+    assert "优先顺序：部署方式" in markdown
+    assert "部署方式=1（越高越好）" in markdown
     assert document["completeness"] == "PARTIAL"
 
 
