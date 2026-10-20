@@ -458,3 +458,10 @@ flowchart TD
 - 迁移 0018：`budget_ledgers.root_run_id`/`draft_id` 增加 RESTRICT 外键；迁移前拒绝孤立引用，回退批处理删除约束。
 - 适配隔离预算测试：为 `test_foundation` 的草稿 ledger 与 `test_model_meter` 的 run ledger 构造最小属主图（workflow/version/draft/confirmation/run），不绕过外键。
 - 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：事件/会话引用外键与剩余服务 CAS 审计待做。
+
+### 2026-10-21 Phase 11 会话引用外键（T112 继续）
+
+- 迁移 0019：`session_links.run_id`/`attempt_id`/`draft_id` 增加 RESTRICT 外键；迁移前拒绝孤立引用。
+- 生命周期测试改用真实 attempt 或 draft 作为 session 属主（不再用随机 id）。
+- 事件表的 step/attempt/draft/version 外键尝试后撤回：事件与步骤行之间没有 ORM relationship，插入顺序无法由工作单元保证；需要逐处显式 flush 才能安全加约束，留待后续与事件写入重构一起完成。
+- 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：事件引用外键与剩余服务 CAS 审计待做。

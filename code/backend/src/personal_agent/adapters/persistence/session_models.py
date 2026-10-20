@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Integer, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from personal_agent.adapters.persistence.base import Base, UtcDateTime
@@ -21,9 +21,17 @@ class SessionLink(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     operation_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    draft_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("workflow_runs.id", ondelete="RESTRICT"), nullable=True
+    )
+    attempt_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("step_attempts.id", ondelete="RESTRICT"), nullable=True
+    )
+    draft_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("requirement_drafts.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     adapter_session_id: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     runtime_id: Mapped[str] = mapped_column(String(64), nullable=False)

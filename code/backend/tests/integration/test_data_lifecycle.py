@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
 from personal_agent.adapters.persistence.branch_models import BranchProposal, ReusedResult
+from personal_agent.adapters.persistence.execution_models import StepAttempt, StepRun
 from personal_agent.adapters.persistence.lifecycle_models import (
     BackupManifest,
     DeletionRecord,
@@ -324,6 +325,9 @@ async def test_deleting_a_reused_result_invalidates_the_branch_reference(
 async def test_retention_expires_business_content_and_destroys_old_sessions(
     client: httpx.AsyncClient, api_context: Any
 ) -> None:
+    from personal_agent.adapters.persistence.execution_models import WorkflowRun
+    from personal_agent.adapters.persistence.requirement_models import Confirmation
+
     _, context = api_context
     run_id, artifact_id, _blob_id = await _artifact_fixture(api_context)
     old = context.clock.now() - timedelta(days=200)
@@ -331,13 +335,23 @@ async def test_retention_expires_business_content_and_destroys_old_sessions(
         artifact = await session.get(Artifact, artifact_id)
         assert artifact is not None
         artifact.created_at = old
+        attempt = await session.scalar(
+            select(StepAttempt)
+            .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+            .where(StepRun.run_id == run_id)
+            .limit(1)
+        )
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        confirmation = await session.get(Confirmation, run.confirmation_id)
+        assert confirmation is not None
         session.add(
             SessionLink(
                 id=new_id(),
                 operation_id=new_id(),
                 run_id=run_id,
-                attempt_id=new_id(),
-                draft_id=None,
+                attempt_id=attempt.id if attempt is not None else None,
+                draft_id=None if attempt is not None else confirmation.draft_id,
                 adapter_session_id="session-old",
                 provider_session_id=None,
                 runtime_id="mock",
