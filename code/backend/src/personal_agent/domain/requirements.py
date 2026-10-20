@@ -92,19 +92,95 @@ def assert_grantable(status: DraftStatus) -> None:
 
 
 def missing_fields(required: list[str], fields: dict[str, FieldValue]) -> list[str]:
-    """A field is missing when absent, or an explicit ``null`` without ``explicit_none``."""
+    """A field is missing when absent, empty, or null without ``explicit_none``.
+
+    A user-supplied null is not completeness: only an explicit "none" decision
+    (``explicit_none``) can satisfy an optional requirement.
+    """
     missing: list[str] = []
     for path in required:
         value = fields.get(path)
         if value is None:
             missing.append(path)
-        elif (
-            value.value is None
-            and not value.explicit_none
-            and value.source is not FieldSource.USER
-        ):
+        elif value.value is None and not value.explicit_none:
+            missing.append(path)
+        elif isinstance(value.value, str) and not value.value.strip():
             missing.append(path)
     return missing
+
+
+def _field_document(fields: dict[str, FieldValue]) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for path, value in fields.items():
+        tokens = [token for token in str(path).split("/") if token]
+        if not tokens:
+            continue
+        current = document
+        for token in tokens[:-1]:
+            child = current.get(token)
+            if not isinstance(child, dict):
+                child = {}
+                current[token] = child
+            current = child
+        current[tokens[-1]] = value.value
+    return document
+
+
+def validate_field_values(
+    input_schema: dict[str, Any], fields: dict[str, FieldValue],
+) -> list[str]:
+    """Return paths whose value is null, empty, the wrong type, or unknown.
+
+    Nested ``required`` and ``additionalProperties: false`` are honoured through
+    the actual workflow input schema; nothing is promoted from a suggestion here.
+    """
+    if not isinstance(input_schema, dict) or not input_schema:
+        return []
+    from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+    from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+
+    properties = input_schema.get("properties") or {}
+    invalid: list[str] = []
+    for path, value in fields.items():
+        tokens = [token for token in str(path).split("/") if token]
+        if properties and (not tokens or tokens[0] not in properties):
+            invalid.append(str(path))
+            continue
+        if isinstance(value.value, str) and not value.value.strip():
+            invalid.append(str(path))
+    document = _field_document(fields)
+    try:
+        validator = Draft202012Validator(input_schema)
+    except SchemaError:
+        return sorted(set(invalid))
+    for error in validator.iter_errors(document):
+        parent = "/".join(str(part) for part in error.absolute_path)
+        if error.validator == "required":
+            instance = error.instance if isinstance(error.instance, dict) else {}
+            for name in error.validator_value or []:
+                if name not in instance:
+                    invalid.append(f"{parent}/{name}" if parent else str(name))
+            continue
+        if not parent:
+            invalid.append(str(error.message))
+        else:
+            invalid.append(parent)
+    return sorted(set(invalid))
+
+
+def nested_required_paths(input_schema: dict[str, Any]) -> list[str]:
+    paths: list[str] = []
+
+    def walk(schema: dict[str, Any], prefix: str) -> None:
+        for name in schema.get("required") or []:
+            paths.append(f"{prefix}{name}")
+        for name, child in (schema.get("properties") or {}).items():
+            if isinstance(child, dict):
+                walk(child, f"{prefix}{name}/")
+
+    if isinstance(input_schema, dict):
+        walk(input_schema, "")
+    return paths
 
 
 def derive_status(
@@ -160,8 +236,8 @@ def apply_analysis(
 
 
 def required_paths(input_schema: dict[str, Any]) -> list[str]:
-    required = input_schema.get("required") or []
-    return [str(item) for item in required]
+    """All required paths, including nested ``required`` arrays."""
+    return nested_required_paths(input_schema)
 
 
 def invalidate_confirmation(status: DraftStatus) -> DraftStatus:

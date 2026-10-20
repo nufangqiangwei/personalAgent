@@ -11,6 +11,15 @@
       "topic": { "type": "string", "minLength": 1 },
       "scope": { "type": "string" },
       "recency": { "type": "string" },
+      "audience": { "type": "string", "minLength": 1 },
+      "hard_constraints": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "preference_order": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
       "output_structure": { "type": "string", "enum": ["report", "checklist", "comparison"] }
     },
     "required": ["topic"],

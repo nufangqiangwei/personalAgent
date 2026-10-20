@@ -18,6 +18,10 @@
           "type": "string"
         }
       },
+      "audience": {
+        "type": "string",
+        "minLength": 1
+      },
       "preference_order": {
         "type": "array",
         "items": {
@@ -223,7 +227,7 @@
       "config": {
         "tool_name": "http.fetch",
         "arguments_bindings": {
-          "url": "/pricing_url"
+          "url": "https://vendor.example/pricing"
         }
       }
     },

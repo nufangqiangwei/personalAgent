@@ -47,6 +47,7 @@ from personal_agent.domain.requirements import (
     invalidate_confirmation,
     missing_fields,
     required_paths,
+    validate_field_values,
 )
 from personal_agent.domain.workflow_schema import WorkflowDefinition
 from personal_agent.ports.contracts import Clock
@@ -647,7 +648,10 @@ class RequirementService:
             )
             for path, entry in draft.field_values_json.items()
         }
-        missing = missing_fields(required, fields)
+        missing = sorted(
+            set(missing_fields(required, fields))
+            | set(validate_field_values(definition.input_schema, fields))
+        )
         conflicts = list(draft.conflicts_json)
         draft.missing_fields_json = missing
         draft.summary_markdown = render_summary(

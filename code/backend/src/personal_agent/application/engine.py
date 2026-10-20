@@ -11,7 +11,8 @@ result is validated.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+import json
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, timedelta
 from typing import Any
@@ -47,7 +48,7 @@ from personal_agent.domain.execution import (
     RunStatus,
     StepStatus,
 )
-from personal_agent.domain.expressions import evaluate, resolve_binding
+from personal_agent.domain.expressions import MISSING, evaluate, resolve_binding
 from personal_agent.domain.workflow_schema import (
     AgentTaskConfig,
     ConditionConfig,
@@ -147,6 +148,10 @@ class WorkflowEngine:
             await self._restore_reuse(run)
         guard = 0
         active_tick = self._deps.clock.monotonic_ms()
+        incoming = "success"
+        if resume or run.parent_run_id is not None:
+            if await self._has_exhausted_edge(run):
+                incoming = "exhausted"
 
         async def tick() -> None:
             nonlocal active_tick
@@ -170,7 +175,8 @@ class WorkflowEngine:
                 await self._require_budget(run)
                 try:
                     outcome = await self._execute_with_retries(
-                        run, definition, step, inputs, outputs, tick
+                        run, definition, step, inputs, outputs, tick,
+                        degraded=incoming == "exhausted",
                     )
                 finally:
                     await tick()
@@ -212,6 +218,7 @@ class WorkflowEngine:
                     )
                 if step.type == "Condition":
                     await self._skip_unselected_branch(run, definition, step, edge.to)
+                incoming = outcome.on
                 current = edge.to
             if resume:
                 # A resumed traversal may find every declared step already done.
@@ -243,6 +250,8 @@ class WorkflowEngine:
         inputs: dict[str, Any],
         outputs: dict[str, dict[str, Any]],
         tick: Callable[[], Awaitable[None]],
+        *,
+        degraded: bool = False,
     ) -> StepOutcome:
         offset = await self._attempt_offset(run, step)
         payload = self._attempt_payload(step, inputs, outputs)
@@ -267,7 +276,7 @@ class WorkflowEngine:
             )
             try:
                 outcome = await self._dispatch_bounded(
-                    run, definition, step, inputs, outputs, attempt
+                    run, definition, step, inputs, outputs, attempt, degraded=degraded,
                 )
             except AppError as error:
                 await tick()
@@ -316,6 +325,7 @@ class WorkflowEngine:
     async def _dispatch_bounded(
         self, run: WorkflowRun, definition: WorkflowDefinition, step: Step,
         inputs: dict[str, Any], outputs: dict[str, dict[str, Any]], attempt: StepAttempt,
+        *, degraded: bool = False,
     ) -> StepOutcome:
         active_seconds = await self._remaining_seconds(run)
         node_seconds = step.policy.timeout_seconds
@@ -323,7 +333,9 @@ class WorkflowEngine:
             node_seconds = min(node_seconds, definition.execution_policy.tool_timeout_seconds)
         try:
             async with asyncio.timeout(min(active_seconds, node_seconds)):
-                return await self._dispatch(run, definition, step, inputs, outputs, attempt)
+                return await self._dispatch(
+                    run, definition, step, inputs, outputs, attempt, degraded=degraded,
+                )
         except TimeoutError as error:
             if active_seconds <= node_seconds:
                 raise AppError(
@@ -348,8 +360,24 @@ class WorkflowEngine:
         inputs: dict[str, Any],
         outputs: dict[str, dict[str, Any]],
         attempt: StepAttempt,
+        *,
+        degraded: bool = False,
     ) -> StepOutcome:
         config = step.config
+        # Execution-time dependency and binding checks: a step may not run on a
+        # missing predecessor and a named/pointer binding must resolve to a value.
+        # An explicit exhausted edge is the one path allowed to continue without
+        # the normal data: it exists to collect the user's decision.
+        if not degraded:
+            for dependency in step.depends_on:
+                if dependency not in outputs:
+                    raise AppError(
+                        code="DEPENDENCY_NOT_READY",
+                        message=f"step {dependency!r} has no completed output for {step.id!r}",
+                        category=ErrorCategory.INTEGRITY,
+                        status=409,
+                    )
+        resolved = self._resolved_bindings(step, inputs, outputs)
         if isinstance(config, ConditionConfig):
             value = evaluate(
                 config.expression,
@@ -375,14 +403,148 @@ class WorkflowEngine:
             await self._request_human_review(run, step, config)
             return StepOutcome(waiting=True)
         if isinstance(config, ToolTaskConfig):
-            return await self._run_tool(run, definition, step, config, inputs, attempt)
+            args = {
+                key: self._binding_value(step, name, inputs, outputs, resolved)
+                for key, name in config.arguments_bindings.items()
+            }
+            self._validate_step_input(step, args)
+            return await self._run_tool(
+                run, definition, step, config, inputs, attempt, args=args,
+            )
         if isinstance(config, AgentTaskConfig):
-            return await self._run_agent(run, definition, step, config, inputs, attempt)
+            # Context references are optional by nature: a declared context slot
+            # that the user left empty is simply not sent to the model.
+            refs: list[str] = []
+            for name in config.context_bindings:
+                try:
+                    refs.append(self._as_reference(
+                        self._binding_value(step, name, inputs, outputs, resolved)
+                    ))
+                except AppError as error:
+                    if error.code != "BINDING_UNRESOLVED":
+                        raise
+            context_refs = tuple(refs)
+            if resolved:
+                self._validate_step_input(step, resolved)
+            return await self._run_agent(
+                run, definition, step, config, inputs, attempt,
+                context_refs=context_refs,
+            )
         if isinstance(config, OutputConfig):
             return StepOutcome(terminal=True)
         raise AppError(
             code="STEP_CONFIG_INVALID", message="unknown step configuration", status=422
         )
+
+    # -- binding resolution ---------------------------------------------
+    def _resolved_bindings(
+        self, step: Step, inputs: Mapping[str, Any], outputs: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        resolved: dict[str, Any] = {}
+        for name, binding in step.bindings.items():
+            value = resolve_binding(
+                binding, input_values=inputs, step_outputs=outputs,
+            )
+            if value is MISSING:
+                raise AppError(
+                    code="BINDING_UNRESOLVED",
+                    message=f"binding {name!r} of step {step.id!r} has no value",
+                    category=ErrorCategory.VALIDATION,
+                    status=409,
+                )
+            resolved[name] = value
+        return resolved
+
+    def _binding_value(
+        self, step: Step, name: str, inputs: Mapping[str, Any],
+        outputs: Mapping[str, Any], resolved: Mapping[str, Any],
+    ) -> Any:
+        if name in resolved:
+            return resolved[name]
+        if isinstance(name, str) and name.startswith("/"):
+            return self._resolve_pointer(name, inputs, outputs)
+        # A plain string is a literal argument value; only a pointer or a named
+        # binding refers to stored data.
+        return name
+
+    @staticmethod
+    def _resolve_pointer(
+        pointer: str, inputs: Mapping[str, Any], outputs: Mapping[str, Any],
+    ) -> Any:
+        tokens = [
+            token.replace("~1", "/").replace("~0", "~")
+            for token in pointer.lstrip("/").split("/")
+        ]
+        if tokens and tokens[0] in outputs:
+            current: Any = outputs[tokens[0]]
+            tokens = tokens[1:]
+        else:
+            current = inputs
+        for token in tokens:
+            if isinstance(current, Mapping) and token in current:
+                current = current[token]
+            elif isinstance(current, list):
+                try:
+                    current = current[int(token)]
+                except (TypeError, ValueError, IndexError):
+                    raise AppError(
+                        code="BINDING_UNRESOLVED",
+                        message=f"pointer {pointer!r} does not resolve",
+                        category=ErrorCategory.VALIDATION, status=409,
+                    ) from None
+            else:
+                raise AppError(
+                    code="BINDING_UNRESOLVED",
+                    message=f"pointer {pointer!r} does not resolve",
+                    category=ErrorCategory.VALIDATION, status=409,
+                )
+        if current is None:
+            raise AppError(
+                code="BINDING_UNRESOLVED",
+                message=f"pointer {pointer!r} resolved to null",
+                category=ErrorCategory.VALIDATION, status=409,
+            )
+        return current
+
+    @staticmethod
+    def _as_reference(value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+    @staticmethod
+    def _validate_step_input(step: Step, value: Any) -> None:
+        schema = step.input_schema
+        if not isinstance(schema, dict) or not schema:
+            return
+        try:
+            validator = jsonschema.Draft202012Validator(schema)
+        except jsonschema.exceptions.SchemaError:
+            raise AppError(
+                code="STEP_SCHEMA_INVALID",
+                message=f"step {step.id!r} has an invalid input schema",
+                category=ErrorCategory.INTEGRITY, status=500,
+            ) from None
+        errors = sorted(
+            validator.iter_errors(value), key=lambda error: list(error.absolute_path)
+        )
+        if errors:
+            raise AppError(
+                code="STEP_INPUT_INVALID",
+                message=f"the input of step {step.id!r} does not match its schema",
+                category=ErrorCategory.VALIDATION,
+                status=422,
+                details={
+                    "step": step.id,
+                    "errors": [
+                        {
+                            "path": "/".join(str(part) for part in error.absolute_path),
+                            "message": error.message,
+                        }
+                        for error in errors[:10]
+                    ],
+                },
+            )
 
     # -- AgentTask ------------------------------------------------------
     async def _run_agent(
@@ -393,6 +555,8 @@ class WorkflowEngine:
         config: AgentTaskConfig,
         inputs: dict[str, Any],
         attempt: StepAttempt,
+        *,
+        context_refs: Sequence[str] = (),
     ) -> StepOutcome:
         goal = self._render_goal(config.goal_template, inputs)
         timeout_seconds = min(step.policy.timeout_seconds, await self._remaining_seconds(run))
@@ -424,7 +588,7 @@ class WorkflowEngine:
                 session_id=session.adapter_session_id,
                 epoch=run.epoch,
                 goal=goal,
-                context_refs=tuple(config.context_bindings),
+                context_refs=context_refs,
                 validated_input={**_validated_input(run.id, inputs), "attempt_id": attempt.id},
                 output_schema=step.output_schema,
                 deadline=self._deps.clock.now() + timedelta(seconds=timeout_seconds),
@@ -604,6 +768,8 @@ class WorkflowEngine:
         config: ToolTaskConfig,
         inputs: dict[str, Any],
         attempt: StepAttempt,
+        *,
+        args: Mapping[str, Any] | None = None,
     ) -> StepOutcome:
         if config.tool_name not in step.policy.allowed_tools:
             raise AppError(
@@ -626,7 +792,7 @@ class WorkflowEngine:
                 attempt_id=attempt.id,
                 epoch=run.epoch,
                 tool_name=config.tool_name,
-                args=dict(config.arguments_bindings),
+                args=dict(args or {}),
                 scope_token=self._issue_scope_token(run, step, config, attempt),
                 deadline=self._deps.clock.now() + timedelta(seconds=min(
                     step.policy.timeout_seconds, definition.execution_policy.tool_timeout_seconds,
@@ -1062,6 +1228,15 @@ class WorkflowEngine:
         if self._deps.stop_signal is not None:
             self._deps.stop_signal.stopping = True
         return str(await control.converge_from_engine(run_id))
+
+    async def _has_exhausted_edge(self, run: WorkflowRun) -> bool:
+        async with self._deps.database.session() as session:
+            return bool(await session.scalar(
+                select(StepRun.id).where(
+                    StepRun.run_id == run.id,
+                    StepRun.selected_transition == "exhausted",
+                ).limit(1)
+            ))
 
     async def _resume_point(
         self, run: WorkflowRun, definition: WorkflowDefinition
