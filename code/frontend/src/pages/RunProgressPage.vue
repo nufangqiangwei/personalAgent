@@ -35,13 +35,13 @@ onMounted(async () => {
   if (typeof EventSource !== 'undefined') {
     store.connect()
   }
-  // Page refresh fallback: a slow or blocked stream still converges through the
-  // committed history rather than a second polling timer.
+  // Committed events drive the page; this is only a slow safety net for a
+  // stream that stayed disconnected, not the update mechanism.
   timer = setInterval(() => {
     if (store.terminal.value) return
     void store.backfill().catch(() => undefined)
     void store.load()
-  }, 3000)
+  }, 30_000)
 })
 
 onBeforeUnmount(() => {

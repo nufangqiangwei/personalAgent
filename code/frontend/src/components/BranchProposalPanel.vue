@@ -61,6 +61,7 @@ const busy = ref(false)
 const error = ref<string | null>(null)
 const message = ref<string | null>(null)
 const confirmedDraft = ref<{ confirmation_id: string | null; summary_markdown: string } | null>(null)
+const beforeDraft = ref<{ summary_markdown: string } | null>(null)
 
 watch(() => props.proposalId, async (id) => {
   if (!id || proposal.value?.id === id) return
@@ -69,6 +70,9 @@ watch(() => props.proposalId, async (id) => {
     if (saved.parent_run_id !== props.parentRunId) return
     proposal.value = saved
     selectedStep.value = saved.effective_step_id
+    if (saved.source_draft_id) {
+      beforeDraft.value = await client.get(`/api/v1/requirements/${saved.source_draft_id}`)
+    }
   } catch (caught) {
     error.value = describe(caught)
   }
@@ -101,8 +105,13 @@ async function createProposal(): Promise<void> {
       { selected_step_id: selectedStep.value, reason: '从该节点重跑' },
     )
     analysis.value = null
-    message.value = '提案已创建。请到要求页修改本次差异，再回来校验。'
-    await router.replace({ path: '/runs', query: { run: props.parentRunId, proposal: proposal.value.id } })
+    message.value = '提案已创建。请修改派生要求并确认，再回来校验起点。'
+    // The branch confirmation belongs to the derived draft: take the user there
+    // with the proposal id in the route so the panel can be resumed afterwards.
+    await router.replace({
+      path: `/requirements/${proposal.value.draft_id}`,
+      query: { branch_proposal_id: proposal.value.id, parent_run_id: props.parentRunId },
+    })
   } catch (caught) {
     error.value = describe(caught)
   } finally {
@@ -135,6 +144,10 @@ async function validate(): Promise<void> {
 
 async function confirm(): Promise<void> {
   if (!proposal.value || !analysis.value) return
+  if (!confirmedDraft.value) {
+    error.value = '请先校验影响范围并查看完整的修改后要求，再确认建立分支。'
+    return
+  }
   busy.value = true
   error.value = null
   try {
@@ -201,7 +214,12 @@ async function confirm(): Promise<void> {
       <button type="button" :disabled="busy" @click="validate">校验影响范围</button>
 
       <template v-if="analysis">
+        <h3>修改前要求</h3>
+        <SafeMarkdown v-if="beforeDraft" :text="beforeDraft.summary_markdown" />
+        <p v-else class="muted">未找到原要求摘要。</p>
+        <h3>修改后要求</h3>
         <SafeMarkdown v-if="confirmedDraft" :text="confirmedDraft.summary_markdown" />
+        <p v-else class="muted">请先打开派生要求草稿并确认要求。</p>
         <h3>核验报告</h3>
         <dl class="detail">
           <dt>结论</dt>
