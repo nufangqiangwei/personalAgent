@@ -8,7 +8,7 @@ writes. An empty domain list denies network access rather than allowing it.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +22,12 @@ from personal_agent.ports.contracts import Clock, ToolRequest, ToolResult
 
 TOOL_NAMES = {"search.web", "http.fetch", "browser.read", "content.extract"}
 FORBIDDEN_PREFIXES = ("api.", "admin.", "shell", "fs.", "file.", "plugin.", "agent.")
+TOOL_ARGUMENTS: dict[str, set[str]] = {
+    "search.web": {"query"},
+    "http.fetch": {"url"},
+    "browser.read": {"url"},
+    "content.extract": {"html", "schema"},
+}
 
 
 @dataclass
@@ -41,12 +47,14 @@ class ToolService:
         *,
         should_stop: Callable[[], bool] | None = None,
         budget_guard: Callable[[], None] | None = None,
+        context_check: Callable[[Any], Awaitable[bool]] | None = None,
     ) -> None:
         self._handlers = handlers
         self._scopes = scopes
         self._clock = clock
         self._should_stop = should_stop or (lambda: False)
         self._budget_guard = budget_guard
+        self._context_check = context_check
 
     async def execute(self, request: ToolRequest) -> ToolResult:
         if request.deadline <= self._clock.now():
@@ -84,10 +92,36 @@ class ToolService:
             epoch=request.epoch,
             now=self._clock.now(),
         )
+        # The token must belong to the requesting run and attempt, and that
+        # attempt must still be the persisted active one (stop/attempt change/
+        # resume revokes the old authorization).
+        if request.run_id != grant.run_id or request.attempt_id != grant.attempt_id:
+            raise AppError(
+                code="SCOPE_TOKEN_REVOKED",
+                message="the scope token does not belong to this run and attempt",
+                category=ErrorCategory.PERMISSION,
+                status=403,
+            )
+        if self._context_check is not None and not await self._context_check(grant):
+            raise AppError(
+                code="SCOPE_TOKEN_REVOKED",
+                message="the run or attempt is no longer active",
+                category=ErrorCategory.PERMISSION,
+                status=403,
+            )
         if self._budget_guard is not None:
             self._budget_guard()
         allowed_domains = grant.allowed_domains
         args = dict(request.args)
+        allowed_args = TOOL_ARGUMENTS.get(normalized, set())
+        unknown = sorted(set(args) - allowed_args)
+        if unknown:
+            raise AppError(
+                code="TOOL_ARGUMENTS_INVALID",
+                message="unknown tool arguments are rejected",
+                status=422,
+                details={"unknown": unknown},
+            )
 
         if normalized == "search.web":
             if self._handlers.search is None:

@@ -363,3 +363,16 @@ T112 仍未勾选：事件 step/attempt 外键与 engine/managed_writes 等剩�
 | `check.ps1`（7 组） | PASS，整体退出 0 |
 
 T112 勾选，合计 106/138。新增迁移 0020–0021（可回退）；无依赖或锁文件变更；未提交、合并或发布。
+
+## 2026-10-21 Phase 11 工具授权收口（T113）
+
+工具 token 绑定的 run/attempt 与请求身份全量比对；`context_check` 按持久状态与 epoch 撤销旧授权；未知工具参数拒绝；deadline、停止与工具/域名约束保留；guard 继续拒绝缺失 token/epoch 与越权工具。
+
+| 检查 | 结果 |
+|---|---|
+| 后端 unit/contract/integration | 386 PASS，117.17 秒 |
+| 前端类型 / 单元 | PASS / 47 PASS |
+| 策略类型 / 单元 | PASS / 22 PASS |
+| `check.ps1`（7 组） | PASS，整体退出 0 |
+
+T113 勾选，合计 107/138。无迁移、依赖或锁文件变更；未提交、合并或发布。

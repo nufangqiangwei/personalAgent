@@ -350,6 +350,59 @@ async def test_tool_service_honours_stop_and_budget_guards() -> None:
     assert budget.value.code == "BUDGET_ASSISTANCE_REQUIRED"
 
 
+async def test_tool_token_is_bound_to_its_run_and_attempt() -> None:
+    from datetime import timedelta
+
+    service, _scopes, token = await _tool_service()
+    now = clock().now()
+    with pytest.raises(AppError) as mismatch:
+        await service.execute(ToolRequest(
+            operation_id="op", run_id="run-1", attempt_id="other-attempt", epoch=1,
+            tool_name="search.web", args={"query": "x"}, scope_token=token,
+            deadline=now + timedelta(seconds=60),
+        ))
+    assert mismatch.value.code == "SCOPE_TOKEN_REVOKED"
+
+
+async def test_tool_context_check_revokes_a_stopped_or_replaced_attempt() -> None:
+    from datetime import timedelta
+
+    async def inactive(_grant: Any) -> bool:
+        return False
+
+    scopes = ToolScopeRegistry()
+    now = clock().now()
+    service = ToolService(
+        ToolHandlers(extract=ContentExtractor()), scopes, clock(),
+        context_check=inactive,
+    )
+    token = scopes.issue(
+        run_id="run-1", attempt_id="attempt-1", epoch=1,
+        tool_name="content.extract", allowed_domains=(), now=now,
+    )
+    with pytest.raises(AppError) as revoked:
+        await service.execute(ToolRequest(
+            operation_id="op", run_id="run-1", attempt_id="attempt-1", epoch=1,
+            tool_name="content.extract", args={"html": "<p>x</p>"},
+            scope_token=token, deadline=now + timedelta(seconds=60),
+        ))
+    assert revoked.value.code == "SCOPE_TOKEN_REVOKED"
+
+
+async def test_unknown_tool_arguments_are_rejected() -> None:
+    from datetime import timedelta
+
+    service, _scopes, token = await _tool_service()
+    now = clock().now()
+    with pytest.raises(AppError) as unknown:
+        await service.execute(ToolRequest(
+            operation_id="op", run_id="run-1", attempt_id="attempt-1", epoch=1,
+            tool_name="search.web", args={"query": "x", "limit": 5},
+            scope_token=token, deadline=now + timedelta(seconds=60),
+        ))
+    assert unknown.value.code == "TOOL_ARGUMENTS_INVALID"
+
+
 def _request(*, token: str, tool: str, seconds_left: int = 60) -> ToolRequest:
     from datetime import UTC, datetime, timedelta
 

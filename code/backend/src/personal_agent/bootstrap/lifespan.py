@@ -216,7 +216,7 @@ async def build_context(
     )
     if config.is_live:
         tools: Any = (
-            _live_tools(config, clock, tool_scopes, stop_signal)
+            _live_tools(config, clock, tool_scopes, stop_signal, database)
             if live_provider is not None
             else UnavailableToolService()
         )
@@ -404,7 +404,7 @@ def _live_provider() -> Any:
 
 def _live_tools(
     config: config_module.AppConfig, clock: Clock, scopes: ToolScopeRegistry,
-    stop_signal: StopSignal,
+    stop_signal: StopSignal, database: Database,
 ) -> ToolPort:
     """Real restricted handlers: Brave, httpx, Playwright, pure extraction."""
     import httpx
@@ -418,6 +418,27 @@ def _live_tools(
 
     credentials = CredentialService(clock)
     client = httpx.AsyncClient(timeout=config.policy.transport.http_read_seconds)
+
+    async def context_check(grant: Any) -> bool:
+        """Revocation: the token is only valid for the persisted active attempt."""
+        from personal_agent.adapters.persistence.execution_models import (
+            StepAttempt,
+            StepRun,
+            WorkflowRun,
+        )
+
+        async with database.session() as session:
+            run = await session.get(WorkflowRun, grant.run_id)
+            attempt = await session.get(StepAttempt, grant.attempt_id)
+            if run is None or attempt is None:
+                return False
+            if run.status != "RUNNING" or run.epoch != grant.epoch:
+                return False
+            if attempt.status != "RUNNING" or attempt.epoch != grant.epoch:
+                return False
+            step = await session.get(StepRun, attempt.step_run_id)
+            return step is not None and step.run_id == run.id
+
     return ToolService(
         ToolHandlers(
             search=BraveSearchTool(client, lambda: credentials.secret("search")),
@@ -433,6 +454,7 @@ def _live_tools(
         scopes,
         clock,
         should_stop=lambda: stop_signal.stopping,
+        context_check=context_check,
     )
 
 
