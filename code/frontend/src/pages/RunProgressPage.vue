@@ -1,85 +1,21 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+/**
+ * Run progress: server snapshot plus committed events, with stop/resume controls and
+ * the assistance panel. Buttons come from `allowed_actions`; a draining run shows the
+ * actions still in flight. The page never advances state itself.
+ */
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 
-import { ApiClient, ApiError, messageFor } from '@/api/client'
-
-interface RunSnapshot {
-  id: string
-  status: string
-  reason_code: string | null
-  workflow_version_id: string
-  completeness: string | null
-  current_step_id: string | null
-  budget: {
-    limits: Record<string, number>
-    consumed: Record<string, number>
-    reserved: Record<string, number>
-  }
-  artifact_ids: string[]
-  assistance_ids: string[]
-  allowed_actions: { action: string; enabled: boolean; disabled_reason: string | null }[]
-  last_event_sequence: number
-}
-
-interface StepAttempt {
-  attempt_no: number
-  status: string
-  error_category: string | null
-  started_at: string
-  ended_at: string | null
-  output: Record<string, unknown> | null
-}
-
-interface StepView {
-  step_id: string
-  status: string
-  current_attempt_no: number
-  skip_reason: string | null
-  attempts: StepAttempt[]
-}
+import AssistancePanel from '@/components/AssistancePanel.vue'
+import RunControls from '@/components/RunControls.vue'
+import { createRunStore } from '@/stores/run'
+import type { StepAttempt, StepView } from '@/stores/run'
 
 const props = defineProps<{ id: string }>()
-const client = new ApiClient()
 
-const run = ref<RunSnapshot | null>(null)
-const steps = ref<StepView[]>([])
-const error = ref<string | null>(null)
-const loading = ref(true)
+const store = createRunStore(props.id)
+const lateCount = computed(() => store.state.lateEvents.length)
 let timer: ReturnType<typeof setInterval> | null = null
-
-const terminal = computed(() =>
-  ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(run.value?.status ?? ''),
-)
-
-function describe(caught: unknown): string {
-  return caught instanceof ApiError ? messageFor(caught.code, caught.message) : '读取失败。'
-}
-
-async function load(): Promise<void> {
-  try {
-    run.value = await client.get<RunSnapshot>(`/api/v1/runs/${props.id}`)
-    steps.value = (
-      await client.get<{ items: StepView[] }>(`/api/v1/runs/${props.id}/steps`)
-    ).items
-    error.value = null
-  } catch (caught) {
-    error.value = describe(caught)
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(async () => {
-  await load()
-  timer = setInterval(() => {
-    if (terminal.value) return
-    void load()
-  }, 1500)
-})
-
-onBeforeUnmount(() => {
-  if (timer !== null) clearInterval(timer)
-})
 
 function directionsOf(attempt: StepAttempt): { id: string; status: string }[] {
   const output = attempt.output
@@ -89,43 +25,83 @@ function directionsOf(attempt: StepAttempt): { id: string; status: string }[] {
     .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
     .map((item) => ({ id: String(item.id), status: String(item.status) }))
 }
+
+function stepsOf(): StepView[] {
+  return store.state.steps
+}
+
+onMounted(async () => {
+  await store.load()
+  if (typeof EventSource !== 'undefined') {
+    store.connect()
+  }
+  // Page refresh fallback: a slow or blocked stream still converges through the
+  // committed history rather than a second polling timer.
+  timer = setInterval(() => {
+    if (store.terminal.value) return
+    void store.backfill().catch(() => undefined)
+    void store.load()
+  }, 3000)
+})
+
+onBeforeUnmount(() => {
+  if (timer !== null) clearInterval(timer)
+  store.disconnect()
+})
 </script>
 
 <template>
   <section>
     <h1>执行进度</h1>
-    <p v-if="loading" class="muted">加载中…</p>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="store.state.loading" class="muted">加载中…</p>
+    <p v-if="store.state.error" class="error" role="alert">{{ store.state.error }}</p>
+    <p v-if="store.state.resetRequired" class="warn" role="status">
+      事件游标已被清理，已重新读取执行快照；缺失区间以快照为准。
+    </p>
 
-    <template v-if="run">
+    <template v-if="store.state.run">
       <dl class="summary">
         <dt>状态</dt>
-        <dd>{{ run.status }}<span v-if="run.reason_code" class="muted">（{{ run.reason_code }}）</span></dd>
+        <dd>
+          {{ store.state.run.status }}
+          <span v-if="store.state.run.reason_code" class="muted">
+            （{{ store.state.run.reason_code }}）
+          </span>
+          <span v-if="store.draining.value" class="warn">（正在收敛）</span>
+        </dd>
         <dt>完成程度</dt>
-        <dd>{{ run.completeness ?? '尚未产出' }}</dd>
+        <dd>{{ store.state.run.completeness ?? '尚未产出' }}</dd>
         <dt>当前步骤</dt>
-        <dd>{{ run.current_step_id ?? '无' }}</dd>
+        <dd>{{ store.state.run.current_step_id ?? '无' }}</dd>
         <dt>实际版本</dt>
-        <dd>{{ run.workflow_version_id }}</dd>
+        <dd>{{ store.state.run.workflow_version_id }}</dd>
         <dt>额度</dt>
         <dd>
-          模型 {{ run.budget.consumed.model_requests ?? 0 }} /
-          {{ run.budget.limits.model_requests ?? 0 }} · tokens
-          {{ run.budget.consumed.tokens ?? 0 }} / {{ run.budget.limits.tokens ?? 0 }}
+          模型 {{ store.state.run.budget.consumed.model_requests ?? 0 }} /
+          {{ store.state.run.budget.limits.model_requests ?? 0 }} · tokens
+          {{ store.state.run.budget.consumed.tokens ?? 0 }} /
+          {{ store.state.run.budget.limits.tokens ?? 0 }}
         </dd>
       </dl>
 
-      <p v-if="run.status === 'WAITING_USER'" class="warn">
+      <p v-if="store.state.run.status === 'WAITING_USER'" class="warn">
         执行在等待你的明确处置；沉默、查看页面或“知道了”都不会自动继续。
       </p>
-      <p v-if="run.assistance_ids.length > 0" class="muted">
-        求助记录：{{ run.assistance_ids.join('、') }}
-      </p>
+      <ul v-if="store.inFlight.value.length > 0" class="muted">
+        <li v-for="action in store.inFlight.value" :key="action.id">
+          在途：{{ action.type }}（{{ action.status }}）
+        </li>
+      </ul>
+
+      <RunControls :run-id="store.state.run.id" :store="store" />
+      <AssistancePanel :run-id="store.state.run.id" :store="store" />
 
       <h2>文档</h2>
-      <ul v-if="run.artifact_ids.length > 0">
-        <li v-for="artifactId in run.artifact_ids" :key="artifactId">
-          <RouterLink :to="`/runs/${run.id}/artifacts/${artifactId}`">查看文档</RouterLink>
+      <ul v-if="store.state.run.artifact_ids.length > 0">
+        <li v-for="artifactId in store.state.run.artifact_ids" :key="artifactId">
+          <RouterLink :to="`/runs/${store.state.run.id}/artifacts/${artifactId}`">
+            查看文档
+          </RouterLink>
         </li>
       </ul>
       <p v-else class="muted">尚未生成可访问的文档。</p>
@@ -141,7 +117,7 @@ function directionsOf(attempt: StepAttempt): { id: string; status: string }[] {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="step in steps" :key="step.step_id">
+          <tr v-for="step in stepsOf()" :key="step.step_id">
             <td>{{ step.step_id }}</td>
             <td>
               {{ step.status }}
@@ -171,16 +147,21 @@ function directionsOf(attempt: StepAttempt): { id: string; status: string }[] {
         </tbody>
       </table>
 
-      <h2>可用操作</h2>
-      <ul v-if="run.allowed_actions.length > 0">
-        <li v-for="action in run.allowed_actions" :key="action.action">
-          {{ action.action }}
-          <span v-if="!action.enabled" class="muted">
-            （{{ action.disabled_reason ?? '不可用' }}）
-          </span>
+      <h2>事件</h2>
+      <p v-if="store.state.events.length === 0" class="muted">尚未收到已提交事件。</p>
+      <ul v-else>
+        <li v-for="event in store.state.events.slice(-20)" :key="event.data.sequence">
+          #{{ event.data.sequence }} {{ event.event }}
+          <span v-if="event.late" class="warn">（迟到事件，仅作为证据）</span>
         </li>
       </ul>
-      <p v-else class="muted">当前没有可执行的操作；恢复与停止控制在后续阶段提供。</p>
+      <p v-if="lateCount > 0" class="muted">
+        共 {{ lateCount }} 条迟到事件；它们不会把已结束的执行改成成功。
+      </p>
+
+      <p>
+        <RouterLink :to="`/runs`">查看执行历史与分支</RouterLink>
+      </p>
     </template>
   </section>
 </template>
