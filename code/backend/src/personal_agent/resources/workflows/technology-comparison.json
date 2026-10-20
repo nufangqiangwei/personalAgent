@@ -1,0 +1,358 @@
+{
+  "schema_version": "1",
+  "workflow_id": "aaaaaaaa-1111-4111-8111-111111111111",
+  "version": 1,
+  "name": "技术选型对比",
+  "description": "对两个以上具体软件产品或服务做官方能力、运维限制与成本的对比，输出可复核的对比报告。只使用已确认的要求与当前公开来源，不用模型记忆替代事实。",
+  "applicability": "当用户需要比较具体软件产品、框架或云服务，并给出可复核的选型理由时使用；不适用于没有具体候选、需要先做探索性研究的主题。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "topic": {
+        "type": "string",
+        "minLength": 1
+      },
+      "hard_constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "audience": {
+        "type": "string",
+        "minLength": 1
+      },
+      "preference_order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "output_structure": {
+        "type": "string",
+        "enum": [
+          "comparison",
+          "report",
+          "checklist"
+        ]
+      }
+    },
+    "required": [
+      "topic"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "directions": {
+        "type": "array"
+      },
+      "candidates": {
+        "type": "array"
+      },
+      "sources": {
+        "type": "array"
+      },
+      "gaps": {
+        "type": "array"
+      }
+    },
+    "required": [
+      "title",
+      "directions"
+    ],
+    "additionalProperties": false
+  },
+  "entry_step": "collect_official",
+  "directions": [
+    {
+      "id": "official",
+      "title": "官方能力",
+      "scope": "官方文档、发布说明与许可条款中的能力边界"
+    },
+    {
+      "id": "ops",
+      "title": "运维与成本限制",
+      "scope": "部署方式、运维成本、地区可用性与配额限制"
+    }
+  ],
+  "steps": [
+    {
+      "id": "collect_official",
+      "type": "AgentTask",
+      "name": "收集官方能力证据",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [
+        "/topic",
+        "/hard_constraints"
+      ],
+      "depends_on": [],
+      "policy": {
+        "allowed_tools": [
+          "search.web",
+          "http.fetch"
+        ],
+        "allowed_domains": [
+          "vendor.example",
+          "example.org"
+        ],
+        "max_attempts": 3,
+        "timeout_seconds": 120,
+        "side_effect_mode": "none"
+      },
+      "config": {
+        "goal_template": "研究 {topic} 的官方能力与许可边界；硬约束：{hard_constraints}",
+        "context_bindings": [
+          "/topic",
+          "/hard_constraints"
+        ],
+        "direction_ids": [
+          "official"
+        ]
+      }
+    },
+    {
+      "id": "collect_ops",
+      "type": "AgentTask",
+      "name": "收集运维与成本证据",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [
+        "/topic"
+      ],
+      "depends_on": [
+        "collect_official"
+      ],
+      "policy": {
+        "allowed_tools": [
+          "search.web",
+          "http.fetch",
+          "browser.read"
+        ],
+        "allowed_domains": [
+          "vendor.example",
+          "example.org"
+        ],
+        "max_attempts": 3,
+        "timeout_seconds": 120,
+        "side_effect_mode": "none"
+      },
+      "config": {
+        "goal_template": "研究 {topic} 的部署方式、运维成本与配额限制",
+        "context_bindings": [
+          "/topic"
+        ],
+        "direction_ids": [
+          "ops"
+        ]
+      }
+    },
+    {
+      "id": "merge_evidence",
+      "type": "Transform",
+      "name": "去重并合并证据",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": [
+        "collect_official",
+        "collect_ops"
+      ],
+      "policy": {},
+      "config": {
+        "transform_id": "dedupe",
+        "parameters": {}
+      }
+    },
+    {
+      "id": "check_gaps",
+      "type": "Condition",
+      "name": "检查是否存在关键缺口",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": [
+        "merge_evidence"
+      ],
+      "policy": {},
+      "config": {
+        "expression": {
+          "op": "eq",
+          "left": {
+            "ref": {
+              "source": "step",
+              "step_id": "merge_evidence",
+              "pointer": "/has_gaps"
+            }
+          },
+          "right": {
+            "literal": false
+          }
+        }
+      }
+    },
+    {
+      "id": "fetch_pricing",
+      "type": "ToolTask",
+      "name": "读取定价页面",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [
+        "/topic"
+      ],
+      "depends_on": [
+        "merge_evidence"
+      ],
+      "policy": {
+        "allowed_tools": [
+          "http.fetch"
+        ],
+        "allowed_domains": [
+          "vendor.example"
+        ],
+        "max_attempts": 2,
+        "timeout_seconds": 60,
+        "side_effect_mode": "none"
+      },
+      "config": {
+        "tool_name": "http.fetch",
+        "arguments_bindings": {
+          "url": "https://vendor.example/pricing"
+        }
+      }
+    },
+    {
+      "id": "review_gaps",
+      "type": "HumanReview",
+      "name": "关键条件未知时求助",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": [
+        "merge_evidence"
+      ],
+      "policy": {},
+      "config": {
+        "prompt": "关键条件仍未知或证据冲突，是否继续生成带缺口的对比？",
+        "decision_schema": {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "string",
+              "enum": [
+                "CONTINUE",
+                "STOP"
+              ]
+            }
+          },
+          "required": [
+            "decision"
+          ]
+        },
+        "reason_code": "MISSING_KEY_CONDITION"
+      }
+    },
+    {
+      "id": "write_comparison",
+      "type": "Output",
+      "name": "生成对比报告",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": [
+        "merge_evidence"
+      ],
+      "policy": {},
+      "config": {
+        "renderer": "markdown",
+        "structure": "comparison",
+        "content_bindings": [
+          "/directions",
+          "/candidates",
+          "/sources",
+          "/gaps"
+        ]
+      }
+    }
+  ],
+  "transition_rules": [
+    {
+      "from": "collect_official",
+      "to": "collect_ops",
+      "on": "success"
+    },
+    {
+      "from": "collect_ops",
+      "to": "merge_evidence",
+      "on": "success"
+    },
+    {
+      "from": "merge_evidence",
+      "to": "review_gaps",
+      "on": "exhausted"
+    },
+    {
+      "from": "merge_evidence",
+      "to": "check_gaps",
+      "on": "success"
+    },
+    {
+      "from": "check_gaps",
+      "to": "fetch_pricing",
+      "on": "true"
+    },
+    {
+      "from": "check_gaps",
+      "to": "review_gaps",
+      "on": "false"
+    },
+    {
+      "from": "fetch_pricing",
+      "to": "write_comparison",
+      "on": "success"
+    },
+    {
+      "from": "review_gaps",
+      "to": "write_comparison",
+      "on": "success"
+    },
+    {
+      "from": "collect_official",
+      "to": "review_gaps",
+      "on": "exhausted"
+    }
+  ],
+  "execution_policy": {
+    "max_active_seconds": 1200,
+    "max_model_requests": 30,
+    "max_tool_calls": 60,
+    "max_search_calls": 20,
+    "max_page_reads": 40,
+    "max_tokens": 100000,
+    "max_attempts_per_step": 3,
+    "model_timeout_seconds": 120,
+    "tool_timeout_seconds": 120
+  },
+  "completion_policy": {
+    "required_output_step_ids": [
+      "write_comparison"
+    ],
+    "required_direction_ids": [
+      "official",
+      "ops"
+    ],
+    "allow_partial_document": true
+  }
+}

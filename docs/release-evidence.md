@@ -571,3 +571,17 @@ T137 勾选，合计 123/138。无迁移、依赖或锁文件变更；未提交�
 | `check.ps1`（7 组） | PASS，整体退出 0 |
 
 T136 勾选，合计 124/138。三个锁文件已按新 manifest 重新生成；未提交、合并或发布。
+
+## 2026-10-21 Phase 11 分发资源与安装验证（T134）
+
+包内携带两份子流程、Mock 观测、Alembic 与迁移，Mock 不再依赖源码 tests/fixtures；package.ps1 收集前端、策略 dist 与 profile，并在隔离 venv 安装 wheel，验证迁移、两流程导入、seed、同源 UI 与一次完整离线研究；两次 wheel 哈希一致。
+
+| 检查 | 结果 |
+|---|---|
+| `package.ps1 -SkipTests` | 退出 0；隔离安装 smoke 通过 |
+| 后端 unit/contract/integration | 420 PASS，125.59 秒 |
+| 前端类型 / 单元 | PASS / 48 PASS |
+| 策略类型 / 单元 | PASS / 22 PASS |
+| `check.ps1`（7 组） | PASS，整体退出 0 |
+
+T134 勾选，合计 125/138。未提交、合并或发布。

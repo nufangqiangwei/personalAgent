@@ -212,8 +212,18 @@ def load_config(
     dev_origin = os.environ.get("PERSONAL_AGENT_DEV_ORIGIN")
 
     repo_root = Path(__file__).resolve().parents[4]
-    profile = repo_root / "runtime-policy" / "profile.json"
-    frontend_dist = repo_root / "frontend" / "dist"
+    profile_override = os.environ.get("PERSONAL_AGENT_PROFILE_PATH")
+    frontend_override = os.environ.get("PERSONAL_AGENT_FRONTEND_DIST")
+    profile = (
+        Path(profile_override)
+        if profile_override
+        else repo_root / "runtime-policy" / "profile.json"
+    )
+    frontend_dist = (
+        Path(frontend_override)
+        if frontend_override
+        else repo_root / "frontend" / "dist"
+    )
 
     return AppConfig(
         mode=resolved_mode,

@@ -22,9 +22,10 @@ from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.bootstrap.clock import SystemClock
 from personal_agent.bootstrap.config import load_config
 from personal_agent.bootstrap.lifespan import migration_current, migration_head
+from personal_agent.bootstrap.resources import packaged_resource
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
-WORKFLOW_DIR = BACKEND_ROOT / "workflows"
+WORKFLOW_DIR = packaged_resource("workflows") or (BACKEND_ROOT / "workflows")
 
 
 def load_definitions(directory: Path | None = None) -> list[dict[str, Any]]:

@@ -390,7 +390,177 @@ try {
     $policyStage = Join-Path (Join-Path $script:stageFull 'runtime-policy') 'dist'
     New-Item -ItemType Directory -Force -Path $policyStage | Out-Null
     Copy-Item -Path (Join-Path $policyDist '*') -Destination $policyStage -Recurse -Force
-    Write-Pass 'runtime-policy dist collected'
+    Copy-Item -Path 'code/runtime-policy/profile.json' -Destination (Join-Path $script:stageFull 'runtime-policy/profile.json') -Force
+    Write-Pass 'runtime-policy dist and profile.json collected'
+
+    # -------------------------------------------- installed-wheel smoke test
+    # A wheel that builds inside the repository is not yet evidence that it can
+    # be installed elsewhere. Install it into a clean venv outside the repository
+    # and verify migrations, both workflow definitions and mock seeding.
+    Write-Section 'installed wheel smoke test'
+    $smokeRoot = Join-Path $script:repoRoot ('dist/.smoke-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
+        $smokeData = [System.IO.Path]::GetFullPath((Join-Path $smokeRoot 'data'))
+        $smokeDbDir = Join-Path $smokeData 'db'
+        New-Item -ItemType Directory -Force -Path $smokeDbDir | Out-Null
+        $wheel = $backendDistributions | Where-Object { $_.Extension -eq '.whl' } | Select-Object -First 1
+        if ($null -eq $wheel) {
+            Stop-WithError 'No wheel was built; cannot verify an installed layout.'
+        }
+        Invoke-Checked -Label 'smoke venv' -FilePath $uvExe -Arguments @(
+            'venv', '--python', '3.12', '--system-site-packages', (Join-Path $smokeRoot 'venv')
+        )
+        $smokePython = Join-Path (Join-Path $smokeRoot 'venv') 'Scripts/python.exe'
+        Invoke-Checked -Label 'smoke install wheel' -FilePath $uvExe -Arguments @(
+            'pip', 'install', '--python', $smokePython, $wheel.FullName
+        )
+        $smokeScript = Join-Path $smokeRoot 'smoke.py'
+        $smokeCode = @'
+import asyncio
+import json
+import os
+import subprocess
+import sys
+
+import httpx
+
+from personal_agent.adapters.persistence.requirement_models import Confirmation, RequirementDraft
+from personal_agent.api.app import create_app
+from personal_agent.application.workflow_registry import WorkflowRegistry
+from personal_agent.bootstrap.config import load_config
+from personal_agent.bootstrap.lifespan import migration_head
+from personal_agent.bootstrap.resources import packaged_resource
+from personal_agent.bootstrap.seed import load_definitions
+from personal_agent.domain.common import new_id, stable_hash
+
+definitions = load_definitions()
+assert len(definitions) == 2, definitions
+assert packaged_resource("observations.json") is not None
+assert packaged_resource("alembic.ini") is not None
+head = migration_head()
+assert head, "migration head is missing from the installed wheel"
+
+config = load_config(mode="mock", data_dir=os.environ["PERSONAL_AGENT_DATA_DIR"])
+db_url = "sqlite+aiosqlite:///" + config.db_path.as_posix()
+run_env = dict(os.environ)
+run_env["PERSONAL_AGENT_DB_URL"] = db_url
+alembic_ini = packaged_resource("alembic.ini")
+assert alembic_ini is not None
+subprocess.run(
+    [sys.executable, "-m", "alembic", "-c", str(alembic_ini), "upgrade", "head"],
+    check=True,
+    env=run_env,
+)
+subprocess.run(
+    [sys.executable, "-m", "personal_agent.bootstrap.seed", "--data-dir", str(config.data_dir)],
+    check=True,
+    env=run_env,
+)
+
+
+async def main() -> None:
+    assert config.frontend_dist is not None and config.frontend_dist.exists()
+    app = create_app(config)
+    async with app.router.lifespan_context(app):
+        context = app.state.context
+
+        async def fast(seconds: float) -> None:
+            return None
+
+        context.engine._deps.sleep = fast
+        registry = WorkflowRegistry(context.database, context.clock)
+        summaries = await registry.list_summaries()
+        item = next(entry for entry in summaries if entry["name"] == "\u516c\u5f00\u4e3b\u9898\u8d44\u6599\u7814\u7a76")
+        version_id = item["latest_version"]["id"]
+        fields = {
+            "topic": {
+                "path": "topic",
+                "value": "\u56fe\u4e66\u9986\u591c\u95f4\u5f00\u653e",
+                "source": "user",
+                "message_id": None,
+                "suggestion_id": None,
+                "accepted_at": None,
+                "explicit_none": False,
+            }
+        }
+        snapshot = {"fields": fields, "preference_order": [], "output_spec": {}}
+        async with context.database.session() as session:
+            draft = RequirementDraft(
+                id=new_id(),
+                selected_version_id=version_id,
+                revision=2,
+                status="CONFIRMED",
+                missing_fields_json=[],
+                conflicts_json=[],
+                field_values_json=fields,
+                preference_order_json=[],
+                output_spec_json={},
+                summary_markdown="",
+                summary_hash="sha256:summary",
+                source_draft_id=None,
+                created_at=context.clock.now(),
+                updated_at=context.clock.now(),
+            )
+            session.add(draft)
+            await session.flush()
+            confirmation = Confirmation(
+                id=new_id(),
+                draft_id=draft.id,
+                draft_revision=1,
+                workflow_version_id=version_id,
+                summary_hash="sha256:summary",
+                input_hash=stable_hash(snapshot),
+                budget_policy_hash=config.policy.policy_hash,
+                data_policy_version=config.policy.version,
+                confirmed_at=context.clock.now(),
+                action="START",
+                field_snapshot_json=snapshot,
+            )
+            session.add(confirmation)
+            await session.commit()
+            confirmation_id = confirmation.id
+        run = await context.coordinator.start(confirmation_id)
+        context.executor.submit(run["id"])
+        status = await context.executor.wait(run["id"], max_wait=60)
+        assert status == "SUCCEEDED", status
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+            index = await client.get("/")
+            assert index.status_code == 200 and '<div id="app">' in index.text
+            body = (await client.get(f"/api/v1/runs/{run['id']}")).json()
+            assert body["status"] == "SUCCEEDED", body
+            artifact_id = body["artifact_ids"][0]
+            content = await client.get(f"/api/v1/artifacts/{artifact_id}/content")
+            assert content.status_code == 200, content.text
+            assert "\u7814\u7a76" in content.text
+        print(json.dumps({
+            "workflows": len(definitions),
+            "head": head,
+            "run": status,
+            "artifact": artifact_id,
+        }))
+
+asyncio.run(main())
+'@
+        [System.IO.File]::WriteAllText($smokeScript, $smokeCode, (New-Object System.Text.UTF8Encoding($false)))
+        $oldLocation = Get-Location
+        Set-Location $smokeRoot
+        try {
+            $env:PERSONAL_AGENT_DATA_DIR = $smokeData
+            $env:PERSONAL_AGENT_FRONTEND_DIST = [System.IO.Path]::GetFullPath((Join-Path $script:stageFull 'frontend'))
+            Invoke-Checked -Label 'installed offline research' -FilePath $smokePython -Arguments @($smokeScript)
+        }
+        finally {
+            Remove-Item Env:\PERSONAL_AGENT_DB_URL -ErrorAction SilentlyContinue
+            Remove-Item Env:\PERSONAL_AGENT_FRONTEND_DIST -ErrorAction SilentlyContinue
+            Set-Location $oldLocation
+        }
+        Write-Pass 'installed wheel: migrations, two workflows, production UI and one offline research run verified outside the repository'
+    }
+    finally {
+        Remove-Item -Recurse -Force $smokeRoot -ErrorAction SilentlyContinue
+    }
 
     # -------------------------------------------------------------- manifest
     Write-Section 'manifest'

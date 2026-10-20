@@ -66,7 +66,9 @@ BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 
 def migration_head() -> str | None:
-    ini = BACKEND_ROOT / "alembic.ini"
+    from personal_agent.bootstrap.resources import packaged_resource
+
+    ini = packaged_resource("alembic.ini") or (BACKEND_ROOT / "alembic.ini")
     if not ini.exists():
         return None
     config = AlembicConfig(str(ini))
@@ -89,7 +91,11 @@ async def migration_current(database: Database) -> str | None:
 def _observations() -> dict:
     import json
 
-    fixture = BACKEND_ROOT / "tests" / "fixtures" / "observations.json"
+    from personal_agent.bootstrap.resources import packaged_resource
+
+    fixture = packaged_resource("observations.json") or (
+        BACKEND_ROOT / "tests" / "fixtures" / "observations.json"
+    )
     if not fixture.exists():  # pragma: no cover - packaged install
         return {"model": {"scenarios": {}}, "clock": {}}
     with fixture.open("r", encoding="utf-8") as handle:

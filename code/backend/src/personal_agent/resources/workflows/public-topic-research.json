@@ -1,0 +1,189 @@
+{
+  "schema_version": "1",
+  "workflow_id": "bbbbbbbb-2222-4222-8222-222222222222",
+  "version": 1,
+  "name": "公开主题资料研究",
+  "description": "围绕一个公开主题做背景与最新进展的资料研究，归类冲突与缺口，输出可复核的研究报告或清单。",
+  "applicability": "当用户需要了解一个公开主题的背景、现状与最新进展，且不涉及具体产品选型时使用；不适用于需要访问内网、登录站点或付费数据库的主题。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "topic": { "type": "string", "minLength": 1 },
+      "scope": { "type": "string" },
+      "recency": { "type": "string" },
+      "audience": { "type": "string", "minLength": 1 },
+      "hard_constraints": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "preference_order": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "output_structure": { "type": "string", "enum": ["report", "checklist", "comparison"] }
+    },
+    "required": ["topic"],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "directions": { "type": "array" },
+      "sources": { "type": "array" },
+      "gaps": { "type": "array" }
+    },
+    "required": ["title", "directions"],
+    "additionalProperties": false
+  },
+  "entry_step": "collect_background",
+  "directions": [
+    {
+      "id": "background",
+      "title": "背景与基本事实",
+      "scope": "官方或权威来源中的定义、历史与基本事实"
+    },
+    {
+      "id": "latest",
+      "title": "最新进展",
+      "scope": "最近一年内的公开进展、政策与数据更新"
+    }
+  ],
+  "steps": [
+    {
+      "id": "collect_background",
+      "type": "AgentTask",
+      "name": "收集背景资料",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": ["/topic", "/scope"],
+      "depends_on": [],
+      "policy": {
+        "allowed_tools": ["search.web", "http.fetch"],
+        "allowed_domains": ["example.org", "example.net"],
+        "max_attempts": 3,
+        "timeout_seconds": 120,
+        "side_effect_mode": "none"
+      },
+      "config": {
+        "goal_template": "研究 {topic} 的背景与基本事实；范围：{scope}",
+        "context_bindings": ["/topic", "/scope"],
+        "direction_ids": ["background"]
+      }
+    },
+    {
+      "id": "collect_latest",
+      "type": "AgentTask",
+      "name": "收集最新进展",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": ["/topic", "/recency"],
+      "depends_on": ["collect_background"],
+      "policy": {
+        "allowed_tools": ["search.web", "http.fetch", "browser.read"],
+        "allowed_domains": ["example.org", "example.net"],
+        "max_attempts": 3,
+        "timeout_seconds": 120,
+        "side_effect_mode": "none"
+      },
+      "config": {
+        "goal_template": "研究 {topic} 的最新进展；时效要求：{recency}",
+        "context_bindings": ["/topic", "/recency"],
+        "direction_ids": ["latest"]
+      }
+    },
+    {
+      "id": "merge_findings",
+      "type": "Transform",
+      "name": "合并与去重发现",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": ["collect_background", "collect_latest"],
+      "policy": {},
+      "config": { "transform_id": "dedupe", "parameters": {} }
+    },
+    {
+      "id": "check_conflicts",
+      "type": "Condition",
+      "name": "检查冲突与缺口",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": ["merge_findings"],
+      "policy": {},
+      "config": {
+        "expression": {
+          "op": "eq",
+          "left": { "ref": { "source": "step", "step_id": "merge_findings", "pointer": "/has_conflicts" } },
+          "right": { "literal": false }
+        }
+      }
+    },
+    {
+      "id": "review_conflicts",
+      "type": "HumanReview",
+      "name": "冲突无法归类时求助",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": ["merge_findings"],
+      "policy": {},
+      "config": {
+        "prompt": "公开来源之间存在无法归类的冲突，是否在报告中明确列出并继续？",
+        "decision_schema": {
+          "type": "object",
+          "properties": { "decision": { "type": "string", "enum": ["CONTINUE", "STOP"] } },
+          "required": ["decision"]
+        },
+        "reason_code": "UNRESOLVED_CONFLICT"
+      }
+    },
+    {
+      "id": "write_report",
+      "type": "Output",
+      "name": "生成研究报告",
+      "input_schema": {},
+      "output_schema": {},
+      "bindings": {},
+      "input_reads": [],
+      "depends_on": ["merge_findings"],
+      "policy": {},
+      "config": {
+        "renderer": "markdown",
+        "structure": "report",
+        "content_bindings": ["/directions", "/sources", "/gaps"]
+      }
+    }
+  ],
+  "transition_rules": [
+    { "from": "collect_background", "to": "collect_latest", "on": "success" },
+    { "from": "collect_latest", "to": "merge_findings", "on": "success" },
+    { "from": "merge_findings", "to": "check_conflicts", "on": "success" },
+    { "from": "merge_findings", "to": "review_conflicts", "on": "exhausted" },
+    { "from": "check_conflicts", "to": "write_report", "on": "true" },
+    { "from": "check_conflicts", "to": "review_conflicts", "on": "false" },
+    { "from": "review_conflicts", "to": "write_report", "on": "success" }
+  ],
+  "execution_policy": {
+    "max_active_seconds": 1200,
+    "max_model_requests": 30,
+    "max_tool_calls": 60,
+    "max_search_calls": 20,
+    "max_page_reads": 40,
+    "max_tokens": 100000,
+    "max_attempts_per_step": 3,
+    "model_timeout_seconds": 120,
+    "tool_timeout_seconds": 120
+  },
+  "completion_policy": {
+    "required_output_step_ids": ["write_report"],
+    "required_direction_ids": ["background", "latest"],
+    "allow_partial_document": true
+  }
+}
