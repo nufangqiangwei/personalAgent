@@ -518,6 +518,78 @@ async def test_replay_preserves_etag_and_resource(
     assert conditional.status_code == 304
 
 
+async def test_a_rejected_suggestion_is_recorded_and_clears_the_blocker(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    version = await pick_version(client, "技术选型对比")
+    draft = await create_draft(client, version["id"])
+    await client.post(
+        f"/api/v1/requirements/{draft['id']}/messages",
+        json={"text": "我们团队想比较几个 AI 编程工具"}, headers=keys("reject-msg"),
+    )
+    latest = (await client.get(f"/api/v1/requirements/{draft['id']}")).json()
+    suggestion = next(item for item in latest["suggestions"] if item["status"] == "PENDING")
+    rejected = await client.post(
+        f"/api/v1/requirements/{draft['id']}/suggestions/{suggestion['id']}/reject",
+        json={"draft_revision": latest["revision"]},
+        headers=keys("reject-1", **{"If-Match": f'"{latest["revision"]}"'}),
+    )
+    assert rejected.status_code == 200, rejected.text
+    body = rejected.json()
+    assert all(item["status"] != "PENDING" for item in body["suggestions"])
+    again = await client.post(
+        f"/api/v1/requirements/{draft['id']}/suggestions/{suggestion['id']}/reject",
+        json={"draft_revision": body["revision"]},
+        headers=keys("reject-2", **{"If-Match": f'"{body["revision"]}"'}),
+    )
+    assert again.status_code == 409
+
+
+async def test_change_selection_drops_fields_specific_to_the_old_workflow(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.adapters.persistence.requirement_models import RequirementDraft
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    public = await pick_version(client, "公开主题资料研究")
+    tech = await pick_version(client, "技术选型对比")
+    draft = await create_draft(client, public["id"])
+    async with context.database.session() as session:
+        row = await session.get(RequirementDraft, draft["id"])
+        assert row is not None
+        fields = dict(row.field_values_json)
+        fields["scope"] = {
+            "path": "scope", "value": "仅公开来源", "source": "user",
+            "message_id": None, "suggestion_id": None, "accepted_at": None,
+            "explicit_none": False,
+        }
+        fields["topic"] = {
+            "path": "topic", "value": "AI 编程助手", "source": "user",
+            "message_id": None, "suggestion_id": None, "accepted_at": None,
+            "explicit_none": False,
+        }
+        row.field_values_json = fields
+        row.revision += 1
+        await session.commit()
+        revision = row.revision
+    changed = await client.post(
+        f"/api/v1/requirements/{draft['id']}/selection",
+        json={"workflow_version_id": tech["id"], "draft_revision": revision},
+        headers=keys("prune-1", **{"If-Match": f'"{revision}"'}),
+    )
+    assert changed.status_code == 200, changed.text
+    body = changed.json()
+    paths = {item["path"] for item in body["fields"]}
+    assert "topic" in paths
+    assert "scope" not in paths
+
+
 async def test_double_confirmation_is_consumed_once(
     client: httpx.AsyncClient, api_context: Any,
 ) -> None:

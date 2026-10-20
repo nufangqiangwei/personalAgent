@@ -162,6 +162,20 @@ async def accept_suggestion(
     )
 
 
+@router.post("/requirements/{draft_id}/suggestions/{suggestion_id}/reject")
+async def reject_suggestion(
+    draft_id: str,
+    suggestion_id: str,
+    payload: SuggestionAcceptRequest,
+    request: Request,
+) -> dict[str, Any]:
+    app_context = context(request)
+    require_if_match(request, payload.draft_revision, code="DRAFT_REVISION_STALE")
+    return await requirement_service(app_context).reject_suggestion(
+        draft_id, suggestion_id, draft_revision=payload.draft_revision
+    )
+
+
 @router.post("/requirements/{draft_id}/selection")
 async def change_selection(
     draft_id: str, payload: SelectionRequest, request: Request

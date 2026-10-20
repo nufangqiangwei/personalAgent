@@ -153,6 +153,24 @@ async function accept(suggestion: SuggestionEntry): Promise<void> {
   }
 }
 
+async function reject(suggestion: SuggestionEntry): Promise<void> {
+  if (draft.value === null) return
+  busy.value = true
+  error.value = null
+  try {
+    draft.value = await client.post<Draft>(
+      `/api/v1/requirements/${draft.value.id}/suggestions/${suggestion.id}/reject`,
+      { draft_revision: draft.value.revision },
+      { etag: `"${draft.value.revision}"` },
+    )
+    notice.value = '建议已拒绝；不会进入本次要求。'
+  } catch (caught) {
+    error.value = describe(caught)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function confirm(): Promise<void> {
   const current = draft.value
   const policies = policy.value
@@ -248,6 +266,7 @@ async function startResearch(): Promise<void> {
             <span class="muted">依据：{{ suggestion.rationale }}</span>
             <span v-if="suggestion.status === 'PENDING'">
               <button type="button" :disabled="busy" @click="accept(suggestion)">接受建议</button>
+              <button type="button" :disabled="busy" @click="reject(suggestion)">拒绝建议</button>
             </span>
             <span v-else class="muted">（{{ suggestion.status }}）</span>
           </li>

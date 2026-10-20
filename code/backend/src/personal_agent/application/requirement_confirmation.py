@@ -303,6 +303,36 @@ class RequirementService:
             await session.commit()
             return await self.snapshot(session, draft)
 
+    async def reject_suggestion(
+        self, draft_id: str, suggestion_id: str, *, draft_revision: int
+    ) -> dict[str, Any]:
+        async with self._database.session() as session:
+            draft = await self._require(session, draft_id)
+            assert_editable(DraftStatus(draft.status))
+            self._assert_revision(draft, draft_revision)
+            suggestion = await session.get(Suggestion, suggestion_id)
+            if suggestion is None or suggestion.draft_id != draft_id:
+                raise AppError(
+                    code="SUGGESTION_NOT_FOUND", message="suggestion not found", status=404
+                )
+            if suggestion.status != "PENDING":
+                raise AppError(
+                    code="SUGGESTION_ALREADY_DECIDED",
+                    message="the suggestion was already accepted or rejected",
+                    status=409,
+                )
+            suggestion.status = "REJECTED"
+            suggestion.revision += 1
+            draft.revision += 1
+            draft.updated_at = self._clock.now()
+            version = await session.get(WorkflowVersion, draft.selected_version_id)
+            if version is not None:
+                await self._recompute(
+                    session, draft, WorkflowDefinition.model_validate(version.definition_json)
+                )
+            await session.commit()
+            return await self.snapshot(session, draft)
+
     async def change_selection(
         self, draft_id: str, workflow_version_id: str, *, draft_revision: int
     ) -> dict[str, Any]:
@@ -317,13 +347,25 @@ class RequirementService:
                     message="the selected version is not executable",
                     status=409,
                 )
+            definition = WorkflowDefinition.model_validate(version.definition_json)
+            allowed_paths = set((definition.input_schema.get("properties") or {}).keys())
+            # A new workflow has its own input schema: fields specific to the old
+            # one are dropped instead of lingering as unknown inputs.
+            draft.field_values_json = {
+                path: entry
+                for path, entry in draft.field_values_json.items()
+                if str(path).split("/")[0] in allowed_paths
+            }
+            draft.preference_order_json = [
+                str(path)
+                for path in draft.preference_order_json
+                if str(path).split("/")[0] in allowed_paths
+            ]
             draft.selected_version_id = version.id
             draft.status = DraftStatus.STALE.value
             draft.revision += 1
             draft.updated_at = self._clock.now()
-            await self._recompute(
-                session, draft, WorkflowDefinition.model_validate(version.definition_json)
-            )
+            await self._recompute(session, draft, definition)
             if not draft.missing_fields_json and not draft.conflicts_json:
                 draft.status = DraftStatus.STALE.value
             await session.commit()
