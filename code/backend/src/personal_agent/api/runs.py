@@ -10,12 +10,13 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 
 from personal_agent.adapters.persistence.execution_models import WorkflowRun
 from personal_agent.api.deps import context
 from personal_agent.application.run_snapshots import serialize_run, serialize_steps
-from personal_agent.domain.common import AppError
+from personal_agent.domain.common import AppError, iso_z, parse_utc
+from personal_agent.domain.pagination import decode_cursor, encode_cursor
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
 
@@ -44,31 +45,39 @@ async def list_runs(
     # Page in SQL, not in Python: serializing every run before slicing is
     # quadratic at 10k executions (each snapshot costs several queries).
     limit = max(1, min(limit, 100))
-    start = 0
+    filter_key = f"runs:{root_run_id or ''}"
+    statement = (
+        select(WorkflowRun)
+        .order_by(WorkflowRun.created_at.desc(), WorkflowRun.id.desc())
+        .limit(limit + 1)
+    )
+    if root_run_id is not None:
+        statement = statement.where(WorkflowRun.root_run_id == root_run_id)
     if cursor:
+        sort_key, item_id = decode_cursor(cursor, filter_key=filter_key)
         try:
-            start = max(0, int(cursor))
-        except ValueError as exc:
+            sort_at = parse_utc(sort_key)
+        except ValueError as error:
             raise AppError(
-                code="INVALID_CURSOR",
-                message="cursor is not valid",
-                status=400,
-            ) from exc
-    async with app_context.database.session() as session:
-        statement = (
-            select(WorkflowRun)
-            .order_by(WorkflowRun.created_at.desc(), WorkflowRun.id)
-            .offset(start)
-            .limit(limit + 1)
+                code="INVALID_CURSOR", message="cursor timestamp is invalid", status=400
+            ) from error
+        statement = statement.where(
+            tuple_(WorkflowRun.created_at, WorkflowRun.id) < (sort_at, item_id)
         )
-        if root_run_id is not None:
-            statement = statement.where(WorkflowRun.root_run_id == root_run_id)
+    async with app_context.database.session() as session:
         runs = (await session.scalars(statement)).all()
-        snapshots = [await serialize_run(session, run) for run in runs[:limit]]
-    return {
-        "items": snapshots,
-        "next_cursor": str(start + limit) if len(runs) > limit else None,
-    }
+        page = runs[:limit]
+        snapshots = [await serialize_run(session, run) for run in page]
+    next_cursor = (
+        encode_cursor(
+            sort_key=iso_z(page[-1].created_at),
+            item_id=page[-1].id,
+            filter_key=filter_key,
+        )
+        if len(runs) > limit and page
+        else None
+    )
+    return {"items": snapshots, "next_cursor": next_cursor}
 
 
 @router.get("/runs/{run_id}")

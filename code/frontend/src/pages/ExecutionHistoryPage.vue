@@ -45,6 +45,7 @@ const history = ref<{ root_run_id: string; items: HistoryEntry[] } | null>(null)
 const steps = ref<StepView[]>([])
 const error = ref<string | null>(null)
 const loading = ref(true)
+const nextCursor = ref<string | null>(null)
 
 const selected = computed(() => runs.value.find((run) => run.id === selectedId.value) ?? null)
 
@@ -54,12 +55,30 @@ function describe(caught: unknown): string {
 
 async function loadRuns(): Promise<void> {
   try {
-    runs.value = (await client.get<{ items: RunSummary[] }>('/api/v1/runs')).items
+    const page = await client.get<{ items: RunSummary[]; next_cursor: string | null }>(
+      '/api/v1/runs',
+    )
+    runs.value = page.items
+    nextCursor.value = page.next_cursor
     error.value = null
   } catch (caught) {
     error.value = describe(caught)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore(): Promise<void> {
+  if (nextCursor.value === null) return
+  try {
+    const page = await client.get<{ items: RunSummary[]; next_cursor: string | null }>(
+      `/api/v1/runs?cursor=${encodeURIComponent(nextCursor.value)}`,
+    )
+    runs.value = [...runs.value, ...page.items]
+    nextCursor.value = page.next_cursor
+    error.value = null
+  } catch (caught) {
+    error.value = describe(caught)
   }
 }
 
@@ -130,6 +149,9 @@ onMounted(async () => {
         </tr>
       </tbody>
     </table>
+    <button v-if="nextCursor" type="button" :disabled="loading" @click="loadMore">
+      加载更多
+    </button>
     <p v-else-if="!loading" class="muted">还没有执行记录。请先从流程列表选择一个固定流程。</p>
 
     <template v-if="selected && history">

@@ -242,11 +242,16 @@ async def test_run_read_paths_stay_within_500ms_p95_at_10k_records(
     warmup = await client.get("/api/v1/runs?limit=20")
     assert warmup.status_code == 200, warmup.text
     assert len(warmup.json()["items"]) == 20
-    assert warmup.json()["next_cursor"] == "20"
-    second_page = (await client.get("/api/v1/runs?limit=20&cursor=20")).json()
+    first_cursor = warmup.json()["next_cursor"]
+    assert first_cursor
+    second_page = (
+        await client.get(f"/api/v1/runs?limit=20&cursor={first_cursor}")
+    ).json()
     assert len(second_page["items"]) == 20
-    assert second_page["next_cursor"] == "40"
-    assert second_page["items"][0]["id"] != warmup.json()["items"][0]["id"]
+    assert second_page["next_cursor"]
+    assert {item["id"] for item in second_page["items"]}.isdisjoint(
+        item["id"] for item in warmup.json()["items"]
+    )
     invalid_cursor = await client.get("/api/v1/runs?limit=20&cursor=not-a-number")
     assert invalid_cursor.status_code == 400
     assert invalid_cursor.json()["error"]["code"] == "INVALID_CURSOR"

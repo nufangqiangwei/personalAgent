@@ -14,7 +14,7 @@ from personal_agent.application.workflow_registry import (
     serialize_version,
     serialize_workflow,
 )
-from personal_agent.domain.common import paginate
+from personal_agent.domain.pagination import decode_cursor, encode_cursor
 
 router = APIRouter(prefix="/api/v1", tags=["workflows"])
 
@@ -43,9 +43,29 @@ async def list_workflows(
     request: Request, cursor: str | None = None, limit: int = 20
 ) -> dict[str, Any]:
     app_context = context(request)
-    summaries = await registry(app_context).list_summaries()
-    page = paginate(summaries, cursor=cursor, limit=limit)
-    return {"items": page.items, "next_cursor": page.next_cursor}
+    page_limit = max(1, min(limit, 100))
+    summaries = sorted(
+        await registry(app_context).list_summaries(),
+        key=lambda item: (str(item.get("name", "")), str(item.get("id", ""))),
+    )
+    filter_key = "workflows"
+    if cursor:
+        name, workflow_id = decode_cursor(cursor, filter_key=filter_key)
+        summaries = [
+            item for item in summaries
+            if (str(item.get("name", "")), str(item.get("id", ""))) > (name, workflow_id)
+        ]
+    page = summaries[:page_limit]
+    next_cursor = (
+        encode_cursor(
+            sort_key=str(page[-1].get("name", "")),
+            item_id=str(page[-1].get("id", "")),
+            filter_key=filter_key,
+        )
+        if len(summaries) > page_limit and page
+        else None
+    )
+    return {"items": page, "next_cursor": next_cursor}
 
 
 @router.get("/workflows/{workflow_id}")
@@ -62,12 +82,31 @@ async def list_versions(
 ) -> dict[str, Any]:
     app_context = context(request)
     versions = await registry(app_context).list_versions(workflow_id)
-    page = paginate(
+    page_limit = max(1, min(limit, 100))
+    items = sorted(
         [serialize_version(version) for version in versions],
-        cursor=cursor,
-        limit=limit,
+        key=lambda item: (int(item.get("version_no", 0)), str(item.get("id", ""))),
+        reverse=True,
     )
-    return {"items": page.items, "next_cursor": page.next_cursor}
+    filter_key = f"workflow-versions:{workflow_id}"
+    if cursor:
+        sort_key, item_id = decode_cursor(cursor, filter_key=filter_key)
+        items = [
+            item for item in items
+            if (f"{int(item.get('version_no', 0)):010d}", str(item.get("id", "")))
+            < (sort_key, item_id)
+        ]
+    page = items[:page_limit]
+    next_cursor = (
+        encode_cursor(
+            sort_key=f"{int(page[-1].get('version_no', 0)):010d}",
+            item_id=str(page[-1].get("id", "")),
+            filter_key=filter_key,
+        )
+        if len(items) > page_limit and page
+        else None
+    )
+    return {"items": page, "next_cursor": next_cursor}
 
 
 @router.get("/workflows/{workflow_id}/versions/{version_id}")

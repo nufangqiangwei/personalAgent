@@ -342,7 +342,7 @@ flowchart TD
 - [ ] T134 HIGH（F31）补齐 code/backend/pyproject.toml、code/backend/src/personal_agent/bootstrap/config.py、code/backend/src/personal_agent/bootstrap/seed.py、code/backend/src/personal_agent/bootstrap/lifespan.py 与 code/scripts/package.ps1 的分发资源和资源定位，包含运行所需 Alembic/迁移、两种子流程、code/runtime-policy/profile.json、前端及固定依赖资料，Mock 运行不依赖源码 tests/fixtures；在无仓库目录的干净临时安装位置验证迁移、导入两流程、生产同源 UI 和完整离线研究及校验和重复构建，不把仓库内构建成功视为安装包可用 per T101；plan: 可复现单应用交付 (partial)
 - [x] T135 MEDIUM（F32）修正 code/backend/src/personal_agent/api/settings.py 与 code/frontend/src/pages/SetupPage.vue：完成状态必须同时核验实际迁移/数据目录保护、已验证执行能力、适用凭据及当前 data_policy_acknowledged/budget_policy_acknowledged 均为真，不以任一确认行存在或非空 capabilities 当就绪；落实配置更新并发前提及失败反馈，mock 与 live 能力如实区分，补拒绝 false 政策同意的契约与 UI 用例 per T001/T025/T093/T094；plan: 首次配置与授权 (partial)
 - [ ] T136 MEDIUM（F33）将 code/backend/pyproject.toml、code/frontend/package.json 与 code/runtime-policy/package.json 的运行/开发直接依赖精确固定到已核验版本，遵守 CPython 3.12.9、Node24/npm11/uv 范围并经 uv/npm 重新生成锁文件、更新 docs/dependency-baseline.md 指纹；验证后端与 E2E 的 Playwright 浏览器 revision 一致，禁止手改锁文件或用未核验的本机浏览器替代发布证据 per plan: Dependency Management；T006；AGENTS.md §2–3 (partial)
-- [ ] T137 MEDIUM（F34）在 code/backend/src/personal_agent/api/runs.py、code/backend/src/personal_agent/api/workflows.py、code/backend/src/personal_agent/application/data_lifecycle.py 与相关前端列表中落实契约规定的稳定排序和绑定筛选条件的游标，避免仅用可漂移 offset；验证翻页间插入/删除同时间记录、非法/不同筛选游标、重复页及下一页 UI，保持数据不重复不遗漏，保留已有 10000 记录性能阈值 per T024/T033/T039；plan: 稳定分页 (partial)
+- [x] T137 MEDIUM（F34）在 code/backend/src/personal_agent/api/runs.py、code/backend/src/personal_agent/api/workflows.py、code/backend/src/personal_agent/application/data_lifecycle.py 与相关前端列表中落实契约规定的稳定排序和绑定筛选条件的游标，避免仅用可漂移 offset；验证翻页间插入/删除同时间记录、非法/不同筛选游标、重复页及下一页 UI，保持数据不重复不遗漏，保留已有 10000 记录性能阈值 per T024/T033/T039；plan: 稳定分页 (partial)
 - [x] T138 LOW（F35）核对 code/backend/src/personal_agent/domain/zz1.txt 的用途与引用；若无一期规格、计划或任务依据则移除该单字符残留，若确有用途则在相应实施证据中说明必要性，避免将无用途文件随后端 wheel 交付 per plan: Source Code 领域模块范围；T010 (unrequested)
 
 ### 2026-10-20 实施记录
@@ -589,3 +589,10 @@ flowchart TD
 - 确认端点拒绝任一 false 同意并返回 `POLICY_ACKNOWLEDGEMENT_REQUIRED`；frontend 仅在两个勾选与显式确认后启用提交。
 - 测试：false 同意被拒且不写入行；双 true 后 `acknowledged` 为真。
 - 验证：后端 417、前端 48、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T135 勾选，合计 122/138。
+
+### 2026-10-21 Phase 11 稳定分页（T137）
+
+- 新增不透明 **keyset 游标**（`sort_key + id`，绑定筛选哈希）：runs 按 `(created_at, id)` 倒序、data-items、workflow versions 按版本号；不同筛选复用游标返回 `CURSOR_FILTER_MISMATCH`，非法游标 400，避免 offset 漂移。
+- 执行历史页支持“加载更多”并原样回传游标。
+- 测试：游标往返/筛选绑定/非法；工作流两页无重复、跨筛选游标 409；10k 记录读路径性能阈值仍通过。
+- 验证：后端 419、前端 48、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T137 勾选，合计 123/138。

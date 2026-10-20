@@ -15,7 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, tuple_
 
 from personal_agent.adapters.persistence.artifact_models import Artifact, Blob
 from personal_agent.adapters.persistence.blob_store import BlobStore
@@ -36,7 +36,8 @@ from personal_agent.adapters.persistence.requirement_models import ConversationM
 from personal_agent.adapters.persistence.research_models import Source
 from personal_agent.adapters.persistence.session_models import SessionLink
 from personal_agent.bootstrap.config import RetentionPolicy
-from personal_agent.domain.common import AppError, iso_z, new_id, paginate, stable_hash
+from personal_agent.domain.common import AppError, iso_z, new_id, parse_utc, stable_hash
+from personal_agent.domain.pagination import decode_cursor, encode_cursor
 from personal_agent.ports.contracts import Clock
 
 DELETABLE_ITEM_TYPES = {"document", "artifact"}
@@ -70,13 +71,26 @@ class DataLifecycleService:
                 status=422,
             )
         async with self._database.session() as session:
-            artifacts = list(
-                (
-                    await session.scalars(
-                        select(Artifact).order_by(Artifact.created_at.desc())
-                    )
-                ).all()
+            filter_key = f"data-items:{kind or 'all'}"
+            statement = (
+                select(Artifact)
+                .order_by(Artifact.created_at.desc(), Artifact.id.desc())
+                .limit(max(1, min(limit, 100)) + 1)
             )
+            if cursor:
+                sort_key, item_id = decode_cursor(cursor, filter_key=filter_key)
+                try:
+                    sort_at = parse_utc(sort_key)
+                except ValueError as error:
+                    raise AppError(
+                        code="INVALID_CURSOR",
+                        message="cursor timestamp is invalid",
+                        status=400,
+                    ) from error
+                statement = statement.where(
+                    tuple_(Artifact.created_at, Artifact.id) < (sort_at, item_id)
+                )
+            artifacts = list((await session.scalars(statement)).all())
             items: list[dict[str, Any]] = []
             for artifact in artifacts:
                 blob = await session.get(Blob, artifact.blob_id)
@@ -110,8 +124,18 @@ class DataLifecycleService:
                         "keeps_shared_blob": shared > 0,
                     }
                 )
-        page = paginate(items, cursor=cursor, limit=limit)
-        return {"items": page.items, "next_cursor": page.next_cursor}
+        page_size = max(1, min(limit, 100))
+        page = items[:page_size]
+        next_cursor = (
+            encode_cursor(
+                sort_key=str(page[-1]["created_at"]),
+                item_id=str(page[-1]["id"]),
+                filter_key=filter_key,
+            )
+            if len(items) > page_size and page
+            else None
+        )
+        return {"items": page, "next_cursor": next_cursor}
 
     async def request_deletion(
         self,

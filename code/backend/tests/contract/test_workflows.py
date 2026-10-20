@@ -23,6 +23,29 @@ def headers(key: str, **extra: str) -> dict[str, str]:
     return {"Idempotency-Key": key, **extra}
 
 
+async def test_workflow_pagination_cursor_is_filter_bound(
+    client: httpx.AsyncClient, api_context: Any,
+) -> None:
+    from personal_agent.bootstrap.seed import seed
+
+    _, context = api_context
+    await seed(context.database)
+    first = (await client.get("/api/v1/workflows?limit=1")).json()
+    assert len(first["items"]) == 1
+    assert first["next_cursor"]
+    second = (
+        await client.get(f"/api/v1/workflows?limit=1&cursor={first['next_cursor']}")
+    ).json()
+    names = [item["name"] for item in first["items"] + second["items"]]
+    assert len(names) == len(set(names)) == 2
+    assert second["next_cursor"] is None
+
+    invalid = await client.get("/api/v1/workflows?cursor=not-a-cursor")
+    assert invalid.status_code == 400
+    mismatch = await client.get(f"/api/v1/runs?cursor={first['next_cursor']}")
+    assert mismatch.status_code == 409
+
+
 async def test_empty_library_returns_no_invented_workflows(client: httpx.AsyncClient) -> None:
     response = await client.get("/api/v1/workflows")
     assert response.status_code == 200
