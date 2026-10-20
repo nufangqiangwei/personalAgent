@@ -24,6 +24,7 @@ from personal_agent.adapters.persistence.execution_models import (
     ExecutionSlot,
     WorkflowRun,
 )
+from personal_agent.adapters.persistence.lifecycle_models import MaintenanceState
 from personal_agent.adapters.tools.mock_service import (
     MockToolService,
     UnavailableToolService,
@@ -37,6 +38,7 @@ from personal_agent.application.branch_analysis import BranchAnalyzer
 from personal_agent.application.branch_service import BranchService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
+from personal_agent.application.data_lifecycle import DataLifecycleService
 from personal_agent.application.engine import EngineDeps, WorkflowEngine
 from personal_agent.application.managed_writes import ManagedWriter
 from personal_agent.application.recovery import RecoveryService
@@ -257,6 +259,28 @@ async def build_context(
         budget_limits=config.policy.budget.as_dict(),
         submit=executor.submit,
     )
+    async with database.session() as session:
+        if await session.get(MaintenanceState, 1) is None:
+            session.add(
+                MaintenanceState(
+                    singleton_id=1,
+                    mode="NORMAL",
+                    reason=None,
+                    requested_at=None,
+                    entered_at=None,
+                    revision=1,
+                )
+            )
+            await session.commit()
+    # Retention is a startup policy: expired business content stops being readable
+    # and old sessions/cache/logs are destroyed without waiting for a user action.
+    await DataLifecycleService(
+        database,
+        clock,
+        store,
+        retention=config.policy.retention,
+        data_dir=config.data_dir,
+    ).apply_retention()
     unknown = await gateway.non_terminal_request()
     return AppContext(
         config=config,

@@ -11,9 +11,11 @@ from personal_agent.api.artifacts import router as artifacts_router
 from personal_agent.api.assistance import router as assistance_router
 from personal_agent.api.branches import router as branches_router
 from personal_agent.api.context import AppContext
+from personal_agent.api.data_items import router as data_items_router
 from personal_agent.api.errors import install_error_handlers
 from personal_agent.api.events import router as events_router
 from personal_agent.api.health import router as health_router
+from personal_agent.api.maintenance import router as maintenance_router
 from personal_agent.api.middleware import (
     IdempotencyMiddleware,
     LocalSessionMiddleware,
@@ -23,6 +25,7 @@ from personal_agent.api.requirements import router as requirements_router
 from personal_agent.api.run_controls import router as run_controls_router
 from personal_agent.api.runs import router as runs_router
 from personal_agent.api.security import OriginPolicy, SessionManager
+from personal_agent.api.settings import router as settings_router
 from personal_agent.api.workflows import router as workflows_router
 from personal_agent.bootstrap.config import AppConfig
 from personal_agent.bootstrap.lifespan import build_context, mark_interrupted_runs
@@ -83,6 +86,9 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
     app.include_router(branches_router)
     app.include_router(events_router)
     app.include_router(artifacts_router)
+    app.include_router(data_items_router)
+    app.include_router(settings_router)
+    app.include_router(maintenance_router)
 
     dist = config.frontend_dist
     if dist is not None and (dist / "index.html").exists():
