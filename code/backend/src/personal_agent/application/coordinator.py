@@ -127,6 +127,11 @@ class ExecutionCoordinator:
 
             run_id = new_id()
             slot_before = await session.get(ExecutionSlot, 1)
+            # Read the slot facts *before* any rollback: a rollback expires the ORM
+            # instance, and touching it afterwards would need IO outside the async
+            # greenlet (a real failure under two concurrent starts).
+            slot_present = slot_before is not None
+            slot_run_id = slot_before.run_id if slot_before else None
             acquired = cast(CursorResult[Any], await session.execute(
                 update(ExecutionSlot)
                 .where(ExecutionSlot.singleton_id == 1, ExecutionSlot.run_id.is_(None))
@@ -141,14 +146,19 @@ class ExecutionCoordinator:
             ))
             if acquired.rowcount != 1:  # type: ignore[attr-defined]
                 await session.rollback()
+                # A double click is not a second task: if the winning request has
+                # already created the run for this confirmation, return it.
+                existing_snapshot = await self._wait_for_confirmation(confirmation_id)
+                if existing_snapshot is not None:
+                    return existing_snapshot
                 raise AppError(
                     code=RUN_BUSY,
                     message="another execution already holds the single slot",
                     status=409,
                     details={
                         "rowcount": acquired.rowcount,
-                        "slot_present": slot_before is not None,
-                        "slot_run_id": slot_before.run_id if slot_before else None,
+                        "slot_present": slot_present,
+                        "slot_run_id": slot_run_id,
                     },
                 )
 
@@ -224,3 +234,28 @@ class ExecutionCoordinator:
     @staticmethod
     def fingerprint(*parts: object) -> str:
         return stable_hash({"parts": [str(part) for part in parts]})
+
+    async def _wait_for_confirmation(
+        self, confirmation_id: str, *, timeout_seconds: float = 2.0
+    ) -> dict[str, Any] | None:
+        """Give the competing request a moment to commit the same confirmation."""
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_seconds
+        while True:
+            existing = await self._run_for_confirmation(confirmation_id)
+            if existing is not None:
+                return existing
+            if loop.time() >= deadline:
+                return None
+            await asyncio.sleep(0.02)
+
+    async def _run_for_confirmation(self, confirmation_id: str) -> dict[str, Any] | None:
+        async with self._database.session() as session:
+            run = await session.scalar(
+                select(WorkflowRun).where(WorkflowRun.confirmation_id == confirmation_id)
+            )
+            if run is None:
+                return None
+            return await serialize_run(session, run)
