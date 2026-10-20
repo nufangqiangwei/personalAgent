@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from personal_agent.api.deps import context, require_if_match, revision_etag
+from personal_agent.domain.common import AppError
 
 router = APIRouter(prefix="/api/v1", tags=["assistance"])
 
@@ -44,6 +45,35 @@ async def get_assistance(assistance_id: str, request: Request) -> dict[str, Any]
 
 @router.post("/assistance/{assistance_id}/decisions")
 async def decide(
+    assistance_id: str,
+    payload: DecisionRequest,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    return await _decide(assistance_id, payload, request, response)
+
+
+@router.post("/runs/{run_id}/assistance/{assistance_id}/decisions")
+async def decide_for_run(
+    run_id: str,
+    assistance_id: str,
+    payload: DecisionRequest,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    """Contract path: a decision always belongs to the run that raised the request."""
+    app_context = context(request)
+    existing = await app_context.assistance.get(assistance_id)
+    if existing["run_id"] != run_id:
+        raise AppError(
+            code="ASSISTANCE_NOT_FOUND",
+            message="assistance request not found",
+            status=404,
+        )
+    return await _decide(assistance_id, payload, request, response)
+
+
+async def _decide(
     assistance_id: str,
     payload: DecisionRequest,
     request: Request,

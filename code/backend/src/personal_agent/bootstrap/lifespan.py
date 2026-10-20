@@ -33,6 +33,8 @@ from personal_agent.api.context import AppContext
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.assistance_service import AssistanceService
+from personal_agent.application.branch_analysis import BranchAnalyzer
+from personal_agent.application.branch_service import BranchService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import EngineDeps, WorkflowEngine
@@ -40,6 +42,7 @@ from personal_agent.application.managed_writes import ManagedWriter
 from personal_agent.application.recovery import RecoveryService
 from personal_agent.application.research_evidence import EvidenceService
 from personal_agent.application.stop_control import StopControl
+from personal_agent.application.workflow_registry import WorkflowRegistry
 from personal_agent.bootstrap import config as config_module
 from personal_agent.bootstrap.clock import SystemClock
 from personal_agent.bootstrap.executor import RunExecutor
@@ -240,6 +243,20 @@ async def build_context(
         submit=executor.submit,
     )
     assistance = AssistanceService(database, clock, budget, control, recovery, writer)
+    registry = WorkflowRegistry(database, clock)
+    analyzer = BranchAnalyzer(database, clock, registry)
+    branches = BranchService(
+        database,
+        clock,
+        analyzer,
+        registry,
+        budget,
+        gateway,
+        config_fingerprint=config_fingerprint,
+        runtime_fingerprint=runtime_fingerprint,
+        budget_limits=config.policy.budget.as_dict(),
+        submit=executor.submit,
+    )
     unknown = await gateway.non_terminal_request()
     return AppContext(
         config=config,
@@ -258,6 +275,7 @@ async def build_context(
         control=control,
         recovery=recovery,
         assistance=assistance,
+        branches=branches,
         sessions=sessions or SessionManager(),
         origin_policy=origin_policy
         or OriginPolicy(config.host, config.port, config.dev_origin),

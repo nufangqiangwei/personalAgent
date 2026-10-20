@@ -47,6 +47,28 @@ async def serialize_run(session: AsyncSession, run: WorkflowRun) -> dict[str, An
     last_sequence = await session.scalar(
         select(func.max(ExecutionEvent.sequence)).where(ExecutionEvent.run_id == run.id)
     )
+    in_flight = list(
+        (
+            await session.scalars(
+                select(StepAttempt)
+                .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                .where(StepRun.run_id == run.id, StepAttempt.status == "RUNNING")
+            )
+        ).all()
+    )
+    from personal_agent.domain.execution import RunStatus
+
+    draining = run.status in {RunStatus.PAUSING.value, RunStatus.CANCELLING.value}
+    open_assistance = bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(AssistanceRequest)
+            .where(
+                AssistanceRequest.run_id == run.id,
+                AssistanceRequest.status == "OPEN",
+            )
+        )
+    )
     return {
         "id": run.id,
         "root_run_id": run.root_run_id,
@@ -61,19 +83,30 @@ async def serialize_run(session: AsyncSession, run: WorkflowRun) -> dict[str, An
         "confirmed_input_hash": run.input_hash,
         "last_checkpoint_hash": None,
         "budget": budget,
-        "draining": False,
-        "in_flight_actions": [],
+        "draining": draining,
+        "in_flight_actions": [
+            {
+                "id": attempt.id,
+                "type": "model_request",
+                "status": attempt.status,
+                "step_run_id": attempt.step_run_id,
+                "started_at": iso_z(attempt.started_at),
+            }
+            for attempt in in_flight
+        ],
         "assistance_ids": assistance_ids,
         "completeness": run.completeness,
         "artifact_ids": artifact_ids,
         "last_event_sequence": int(last_sequence or 0),
-        "allowed_actions": await _allowed_actions(session, run),
+        "allowed_actions": await _allowed_actions(session, run, open_assistance),
         "created_at": iso_z(run.created_at),
         "updated_at": iso_z(run.updated_at),
     }
 
 
-async def _allowed_actions(session: AsyncSession, run: WorkflowRun) -> list[dict[str, Any]]:
+async def _allowed_actions(
+    session: AsyncSession, run: WorkflowRun, open_assistance: bool = False
+) -> list[dict[str, Any]]:
     """Server-authoritative controls; the UI enables buttons only from this list."""
     from personal_agent.domain.execution import RunStatus
 
@@ -95,10 +128,10 @@ async def _allowed_actions(session: AsyncSession, run: WorkflowRun) -> list[dict
         add("PAUSE", False, "执行正在取消")
         add("CANCEL", False, "取消已在进行")
     elif status == RunStatus.PAUSED.value:
-        add("RESUME", True)
+        add("RESUME", not open_assistance, "先处理求助，求助未关闭前不能继续")
         add("CANCEL", True)
     elif status == RunStatus.INTERRUPTED.value:
-        add("RESUME", True)
+        add("RESUME", not open_assistance, "先处理求助，求助未关闭前不能继续")
         add("CANCEL", True)
     elif status == RunStatus.WAITING_USER.value:
         add("VIEW_ASSISTANCE", True)

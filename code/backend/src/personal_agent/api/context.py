@@ -9,6 +9,7 @@ from personal_agent.adapters.persistence.database import Database
 from personal_agent.api.security import OriginPolicy, SessionManager
 from personal_agent.application.artifact_service import ArtifactService
 from personal_agent.application.assistance_service import AssistanceService
+from personal_agent.application.branch_service import BranchService
 from personal_agent.application.budget_service import BudgetService
 from personal_agent.application.coordinator import ExecutionCoordinator
 from personal_agent.application.engine import WorkflowEngine
@@ -39,6 +40,7 @@ class AppContext:
     control: StopControl
     recovery: RecoveryService
     assistance: AssistanceService
+    branches: BranchService
     sessions: SessionManager
     origin_policy: OriginPolicy
     execution_available: bool

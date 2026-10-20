@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from personal_agent.api.artifacts import router as artifacts_router
 from personal_agent.api.assistance import router as assistance_router
+from personal_agent.api.branches import router as branches_router
 from personal_agent.api.context import AppContext
 from personal_agent.api.errors import install_error_handlers
 from personal_agent.api.health import router as health_router
@@ -78,6 +79,7 @@ def create_app(config: AppConfig, *, context: AppContext | None = None) -> FastA
     app.include_router(runs_router)
     app.include_router(run_controls_router)
     app.include_router(assistance_router)
+    app.include_router(branches_router)
     app.include_router(artifacts_router)
 
     dist = config.frontend_dist

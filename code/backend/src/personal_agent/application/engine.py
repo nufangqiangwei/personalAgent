@@ -753,6 +753,10 @@ class WorkflowEngine:
                 continue
             if attempt.status == "SUCCEEDED":
                 outputs[row.step_id] = dict(attempt.output_json or {})
+        if run.parent_run_id is not None:
+            # A branch reuses the validated results of its ancestors. They are
+            # evidence carried over, not new attempts of this run.
+            outputs = await self._inherited_outputs(run, outputs)
         current: str | None = definition.entry_step
         steps = {step.id: step for step in definition.steps}
         guard = 0
@@ -769,6 +773,42 @@ class WorkflowEngine:
                 return outputs, None
             current = edge.to
         return outputs, None
+
+    async def _inherited_outputs(
+        self, run: WorkflowRun, outputs: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Fill in outputs of steps reused from the parent chain."""
+        async with self._deps.database.session() as session:
+            parent_id = run.parent_run_id
+            seen: set[str] = set()
+            while parent_id is not None and parent_id not in seen:
+                seen.add(parent_id)
+                parent = await session.get(WorkflowRun, parent_id)
+                if parent is None:
+                    break
+                rows = (
+                    await session.scalars(
+                        select(StepRun).where(StepRun.run_id == parent.id)
+                    )
+                ).all()
+                attempts = (
+                    await session.scalars(
+                        select(StepAttempt)
+                        .join(StepRun, StepAttempt.step_run_id == StepRun.id)
+                        .where(StepRun.run_id == parent.id)
+                        .order_by(StepAttempt.attempt_no)
+                    )
+                ).all()
+                by_id = {row.id: row for row in rows}
+                for attempt in attempts:
+                    row = by_id.get(attempt.step_run_id)
+                    if row is None or row.status != StepStatus.SUCCEEDED.value:
+                        continue
+                    if attempt.status != "SUCCEEDED" or row.step_id in outputs:
+                        continue
+                    outputs[row.step_id] = dict(attempt.output_json or {})
+                parent_id = parent.parent_run_id
+        return outputs
 
     async def _skip_unselected_branch(
         self,
