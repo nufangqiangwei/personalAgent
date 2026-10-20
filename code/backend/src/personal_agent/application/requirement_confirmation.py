@@ -117,6 +117,8 @@ class RequirementService:
                 updated_at=self._clock.now(),
             )
             session.add(draft)
+            # The ledger references the draft; sessions are autoflush=False.
+            await session.flush()
             await self._budget.ensure_draft_ledger(
                 session, draft_id=draft.id, limits=self._draft_limits
             )

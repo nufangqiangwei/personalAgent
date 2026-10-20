@@ -134,35 +134,6 @@ class ExecutionCoordinator:
             # greenlet (a real failure under two concurrent starts).
             slot_present = slot_before is not None
             slot_run_id = slot_before.run_id if slot_before else None
-            acquired = cast(CursorResult[Any], await session.execute(
-                update(ExecutionSlot)
-                .where(ExecutionSlot.singleton_id == 1, ExecutionSlot.run_id.is_(None))
-                .values(
-                    run_id=run_id,
-                    epoch=ExecutionSlot.epoch + 1,
-                    draining=False,
-                    process_instance_id="local",
-                    revision=ExecutionSlot.revision + 1,
-                )
-                .execution_options(synchronize_session=False)
-            ))
-            if acquired.rowcount != 1:  # type: ignore[attr-defined]
-                await session.rollback()
-                # A double click is not a second task: if the winning request has
-                # already created the run for this confirmation, return it.
-                existing_snapshot = await self._wait_for_confirmation(confirmation_id)
-                if existing_snapshot is not None:
-                    return existing_snapshot
-                raise AppError(
-                    code=RUN_BUSY,
-                    message="another execution already holds the single slot",
-                    status=409,
-                    details={
-                        "rowcount": acquired.rowcount,
-                        "slot_present": slot_present,
-                        "slot_run_id": slot_run_id,
-                    },
-                )
 
             now = self._clock.now()
             run = WorkflowRun(
@@ -193,6 +164,46 @@ class ExecutionCoordinator:
                 updated_at=now,
             )
             session.add(run)
+            # The slot references the run, so the run must exist before the
+            # compare-and-swap claims the slot. A concurrent start for the same
+            # confirmation loses here on the unique confirmation reference.
+            try:
+                await session.flush()
+            except IntegrityError:
+                await session.rollback()
+                existing_snapshot = await self._wait_for_confirmation(confirmation_id)
+                if existing_snapshot is not None:
+                    return existing_snapshot
+                raise
+            acquired = cast(CursorResult[Any], await session.execute(
+                update(ExecutionSlot)
+                .where(ExecutionSlot.singleton_id == 1, ExecutionSlot.run_id.is_(None))
+                .values(
+                    run_id=run_id,
+                    epoch=ExecutionSlot.epoch + 1,
+                    draining=False,
+                    process_instance_id="local",
+                    revision=ExecutionSlot.revision + 1,
+                )
+                .execution_options(synchronize_session=False)
+            ))
+            if acquired.rowcount != 1:  # type: ignore[attr-defined]
+                await session.rollback()
+                # A double click is not a second task: if the winning request has
+                # already created the run for this confirmation, return it.
+                existing_snapshot = await self._wait_for_confirmation(confirmation_id)
+                if existing_snapshot is not None:
+                    return existing_snapshot
+                raise AppError(
+                    code=RUN_BUSY,
+                    message="another execution already holds the single slot",
+                    status=409,
+                    details={
+                        "rowcount": acquired.rowcount,
+                        "slot_present": slot_present,
+                        "slot_run_id": slot_run_id,
+                    },
+                )
             await self._budget.ensure_run_ledger(
                 session, root_run_id=run_id,
                 limits=effective_run_limits(

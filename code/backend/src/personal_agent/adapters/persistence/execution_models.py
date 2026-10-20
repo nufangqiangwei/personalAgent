@@ -36,8 +36,18 @@ class WorkflowRun(Base):
     __tablename__ = "workflow_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    root_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    parent_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    root_run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    parent_run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
     fork_step_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     workflow_version_id: Mapped[str] = mapped_column(
         String(36),
@@ -140,7 +150,9 @@ class ExecutionSlot(Base):
     __tablename__ = "execution_slot"
 
     singleton_id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("workflow_runs.id", ondelete="RESTRICT"), nullable=True
+    )
     epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     process_instance_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     draining: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -439,3 +439,10 @@ flowchart TD
 - 接线：确认时构造并校验快照；协调器创建 run 时校验；分支读取父快照时校验；恢复检查把形状非法视为 INPUT 失败。
 - 新增单测覆盖旧快照、当前版本、未知版本、损坏形状与非法来源。
 - 剩余：RESTRICT 外键与根父一致性迁移、其余可变聚合 CAS 审计、损坏 JSON/孤立引用/双写/旧版本恢复集成测试。T112 尚未勾选。
+
+### 2026-10-21 Phase 11 业务外键与创建顺序（T112 继续）
+
+- 迁移 0017：为 `workflow_runs.root_run_id`/`parent_run_id` 与 `execution_slot.run_id` 增加 RESTRICT 外键；迁移前检查孤立引用，存在即拒绝迁移（不删除证据），回退为批处理删除约束。
+- 修正创建顺序：协调器与分支确认先插入 run 并 flush，再 CAS 占用执行槽；同一确认的并发 start 在唯一确认引用处失败并回到既有 run。草稿创建先 flush 再建预算 ledger（会话 autoflush 关闭）。
+- 测试适配：managed writes 的测试父 run 指向真实 root。
+- 验证：后端 383、前端 47、策略 22；ruff/mypy 与 check.ps1 七组通过。T112 仍未勾选：预算 ledger 外键与其余聚合 CAS 审计待做。

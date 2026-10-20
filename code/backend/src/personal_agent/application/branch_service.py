@@ -392,6 +392,37 @@ class BranchService:
                 )
 
             run_id = new_id()
+            now = self._clock.now()
+            new_run = WorkflowRun(
+                id=run_id,
+                root_run_id=parent.root_run_id,
+                parent_run_id=parent.id,
+                fork_step_id=effective_step_id,
+                workflow_version_id=version.id,
+                confirmation_id=confirmation.id,
+                input_snapshot_json=validate_input_snapshot(
+                    dict(confirmation.field_snapshot_json)
+                ),
+                input_hash=confirmation.input_hash,
+                config_fingerprint=self._config_fingerprint,
+                runtime_fingerprint=self._runtime_fingerprint,
+                budget_policy_hash=confirmation.budget_policy_hash,
+                data_policy_version=confirmation.data_policy_version,
+                status=RunStatus.RUNNING.value,
+                reason_code=None,
+                current_step_id=None,
+                epoch=1,
+                revision=1,
+                mode="FIXED",
+                completeness=None,
+                active_elapsed_ms=0,
+                cancel_requested=False,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(new_run)
+            # The slot references the run; claim it only after the child row exists.
+            await session.flush()
             acquired = await session.execute(
                 update(ExecutionSlot)
                 .where(ExecutionSlot.singleton_id == 1, ExecutionSlot.run_id.is_(None))
@@ -411,35 +442,6 @@ class BranchService:
                     message="another execution already holds the single slot",
                     status=409,
                 )
-
-            now = self._clock.now()
-            new_run = WorkflowRun(
-                id=run_id,
-                root_run_id=parent.root_run_id,
-                parent_run_id=parent.id,
-                fork_step_id=effective_step_id,
-                workflow_version_id=version.id,
-                confirmation_id=confirmation.id,
-                input_snapshot_json=dict(confirmation.field_snapshot_json),
-                input_hash=confirmation.input_hash,
-                config_fingerprint=self._config_fingerprint,
-                runtime_fingerprint=self._runtime_fingerprint,
-                budget_policy_hash=confirmation.budget_policy_hash,
-                data_policy_version=confirmation.data_policy_version,
-                status=RunStatus.RUNNING.value,
-                reason_code=None,
-                current_step_id=None,
-                epoch=1,
-                revision=1,
-                mode="FIXED",
-                completeness=None,
-                active_elapsed_ms=0,
-                cancel_requested=False,
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(new_run)
-            await session.flush()
             # The root owns one ledger; a branch never gets its own budget.
             await self._budget.ensure_run_ledger(
                 session, root_run_id=parent.root_run_id, limits=self._budget_limits

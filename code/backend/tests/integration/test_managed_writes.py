@@ -106,7 +106,7 @@ async def make_run(
             WorkflowRun(
                 id=run_id,
                 root_run_id=root_run_id or run_id,
-                parent_run_id=None if root_run_id is None else "parent",
+                parent_run_id=None if root_run_id is None else root_run_id,
                 fork_step_id=None,
                 workflow_version_id="version-1",
                 confirmation_id=f"confirmation-{run_id}",
