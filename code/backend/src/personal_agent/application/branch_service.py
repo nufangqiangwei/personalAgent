@@ -53,6 +53,7 @@ from personal_agent.domain.common import (
     stable_hash,
 )
 from personal_agent.domain.execution import EventKind, RunStatus
+from personal_agent.domain.persisted_json import validate_input_snapshot
 from personal_agent.ports.contracts import Clock
 
 UNRESOLVED_SIDE_EFFECTS = {"INTENT", "UNKNOWN", "PARTIAL", "CONFLICT"}
@@ -194,7 +195,7 @@ class BranchService:
             parent = await session.get(WorkflowRun, proposal.parent_run_id)
             if parent is None:
                 raise AppError(code="RUN_NOT_FOUND", message="run not found", status=404)
-            original = dict(parent.input_snapshot_json)
+            original = validate_input_snapshot(dict(parent.input_snapshot_json))
             changed = BranchAnalyzer.changed_paths(original, {
                 "fields": draft.field_values_json,
                 "preference_order": draft.preference_order_json,
@@ -317,7 +318,7 @@ class BranchService:
                     ),
                     status=409,
                 )
-            original = dict(parent.input_snapshot_json)
+            original = validate_input_snapshot(dict(parent.input_snapshot_json))
             changed = BranchAnalyzer.changed_paths(original, {
                 "fields": draft.field_values_json,
                 "preference_order": draft.preference_order_json,

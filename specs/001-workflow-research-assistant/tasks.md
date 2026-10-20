@@ -432,3 +432,10 @@ flowchart TD
 - 补齐成果校验：复用前检查 `access_state`、删除、**过期时间**与**存储字节 hash**（通过 BlobStore 读取并比对 sha256），任一不符即列入 invalidated artifacts。
 - `changed_paths` 覆盖 `preference_order`/`output_spec`；创建原因随 proposal 保存。
 - 验证：后端 378、前端 47、策略 22；ruff/mypy/vue-tsc/tsc 与 check.ps1 七组通过。T111 勾选，合计 105/138。
+
+### 2026-10-20 Phase 11 持久化 JSON 校验（T112 进行中）
+
+- 新增 `domain/persisted_json.py`：输入快照带 `schema_version=1`，写入/读取均校验对象形状、字段来源枚举、未知键与未知版本；旧快照（无版本）兼容读取。
+- 接线：确认时构造并校验快照；协调器创建 run 时校验；分支读取父快照时校验；恢复检查把形状非法视为 INPUT 失败。
+- 新增单测覆盖旧快照、当前版本、未知版本、损坏形状与非法来源。
+- 剩余：RESTRICT 外键与根父一致性迁移、其余可变聚合 CAS 审计、损坏 JSON/孤立引用/双写/旧版本恢复集成测试。T112 尚未勾选。

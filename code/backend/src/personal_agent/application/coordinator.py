@@ -38,6 +38,7 @@ from personal_agent.domain.common import (
     stable_hash,
 )
 from personal_agent.domain.execution import EventKind, RunStatus
+from personal_agent.domain.persisted_json import validate_input_snapshot
 from personal_agent.ports.contracts import Clock
 
 
@@ -171,7 +172,9 @@ class ExecutionCoordinator:
                 fork_step_id=None,
                 workflow_version_id=version.id,
                 confirmation_id=confirmation.id,
-                input_snapshot_json=dict(confirmation.field_snapshot_json),
+                input_snapshot_json=validate_input_snapshot(
+                    dict(confirmation.field_snapshot_json)
+                ),
                 input_hash=confirmation.input_hash,
                 config_fingerprint=self._config_fingerprint,
                 runtime_fingerprint=self._runtime_fingerprint,

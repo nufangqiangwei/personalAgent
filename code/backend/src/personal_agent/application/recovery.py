@@ -46,6 +46,7 @@ from personal_agent.domain.common import (
     stable_hash,
 )
 from personal_agent.domain.execution import EventKind, RunStatus
+from personal_agent.domain.persisted_json import validate_input_snapshot
 from personal_agent.ports.contracts import Clock
 
 UNRESOLVED_SIDE_EFFECTS = {"INTENT", "UNKNOWN", "PARTIAL", "CONFLICT"}
@@ -241,7 +242,12 @@ class RecoveryService:
                 "policy fingerprint matches" if policy_ok else "policy changed since the run froze",
             )
         )
-        input_ok = stable_hash(run.input_snapshot_json) == run.input_hash
+        try:
+            validate_input_snapshot(dict(run.input_snapshot_json))
+            shape_ok = True
+        except AppError:
+            shape_ok = False
+        input_ok = shape_ok and stable_hash(run.input_snapshot_json) == run.input_hash
         checks.append(
             _check(
                 "INPUT",

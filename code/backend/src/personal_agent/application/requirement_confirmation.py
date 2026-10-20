@@ -37,6 +37,7 @@ from personal_agent.domain.common import (
     new_id,
     stable_hash,
 )
+from personal_agent.domain.persisted_json import validate_input_snapshot
 from personal_agent.domain.requirements import (
     ConfirmationAction,
     DraftStatus,
@@ -425,11 +426,12 @@ class RequirementService:
                     message="BRANCH confirmation must come from a branch proposal draft",
                     status=409,
                 )
-            input_snapshot = {
+            input_snapshot = validate_input_snapshot({
+                "schema_version": 1,
                 "fields": dict(draft.field_values_json),
                 "preference_order": list(draft.preference_order_json),
                 "output_spec": dict(draft.output_spec_json),
-            }
+            })
             confirmation = Confirmation(
                 id=new_id(),
                 draft_id=draft.id,
