@@ -1,14 +1,22 @@
 # Quickstart / 一期验证指南
 
-**当前状态**：仓库目前仅有规格、设计与任务文档（[tasks.md](tasks.md) 已生成，T001–T103 均未开始），代码尚未创建；依赖锁文件将在 T006 生成。以下安装、启动和测试命令是实施阶段必须提供的目标入口，现阶段不能运行出产品，也未报告任何业务测试通过。数据结构见 data-model.md，接口见 contracts/。
+**当前状态（2026-10-20，T101 记录）**：一期实现代码已位于 `code/`（后端、前端、策略插件、脚本）。本文件中的安装、启动、构建与验证命令已改为**实际存在的脚本入口**，并记录本机验证结果。`code/scripts/start.ps1`、`code/scripts/package.ps1` 为 T101 交付；`code/scripts/check.ps1`、`e2e.ps1`、`e2e-backend.ps1` 保持可用。
+
+仍存在以下限制，不能据此宣称一期发布完成：
+
+- `--mode live` 在 T021 运行时接入门禁通过前会被拒绝；`start.ps1` 在预检阶段直接报错并给出 `docs/runtime-adoption.md` / `docs/live-acceptance.md` 指引。
+- 与锁定的 Playwright 1.64.0 匹配的 Chromium revision **1248 尚未安装**。Mock 研究不需要浏览器；`browser.read` 工具与基于浏览器的 E2E 需要先执行 `start.ps1 -InstallBrowsers`（联网下载）或 `uv run --project code/backend python -m playwright install chromium`。
+- 本机仅安装了 Windows PowerShell 5.1（`powershell`），`pwsh` 7 不在 PATH；脚本按两者兼容编写，**实测使用 `powershell -NoProfile -ExecutionPolicy Bypass -File`**。
+- T086–T103 中除已勾选任务外仍有验收项未完成（如 E2E 收口、安全/稳定性/性能、真实接入与发布证据）。T101 只负责启动与打包入口，T102/T103 才能给出发布结论。
+- 备份/恢复入口由 T090–T096 覆盖，其中 T096 的备份/恢复演练仍未完成；T101 未运行该链路，本文件仅保留一期目标描述，不表示已验证。
 
 ## 环境与初始配置
 
-Windows x64、Python3.12、Node24/npm11、uv（版本要求见plan）。SQLite数据库放本机磁盘，不用网络共享。2026-10-19 实测：uv 已升级至 0.13.1，CPython 3.12.9 已通过 `uv python install 3.12` 安装；系统 PATH 上的 python 仍为 3.11.3，实施时须用 `uv run --python 3.12` 或 `uv python pin 3.12`，不得直接使用系统 python。生产一个应用实例、一个worker，不开reload。浏览器使用与Playwright锁定版本匹配的Chromium。
+Windows x64、CPython 3.12.9（经 uv）、Node.js 24.x / npm 11.x、uv `>=0.8,<1`。2026-10-20 T101 复验：uv 0.13.1、CPython 3.12.9、Node.js 24.21.0、npm 11.19.0。系统 PATH 上的 `python` 仍可能是 3.11.3，**禁止**直接使用；一切经 `uv run --project code/backend --python 3.12` 执行。SQLite 数据库放本机磁盘，不用网络共享；生产一个应用实例、一个 worker，不开 reload。浏览器使用与 Playwright 锁定版本匹配的 Chromium（revision 1248）。
 
-真实模式需要用户自行配置模型与Brave Search凭据和获授权范围；密钥经环境/系统凭据存储，不写进源文件或测试夹具。固定资料Mock模式不需要网络或付费模型。依赖采用前先在隔离验证目录验证SDK0.2.1rc2和匹配runtime的Windows启动、工具拒绝、事件、模型门、无内部推理落盘；任何失败阻止真实模式。
+真实模式需要用户自行配置模型与 Brave Search 凭据和获授权范围；密钥经环境/系统凭据存储，不写进源文件或测试夹具。固定资料 Mock 模式不需要网络或付费模型。依赖采用前先在隔离验证目录验证 SDK 0.2.1rc2 和匹配 runtime 的 Windows 启动、工具拒绝、事件、模型门、无内部推理落盘；任何失败阻止真实模式。
 
-实施后首次开发环境准备（在仓库根PowerShell，锁文件应已提交）：
+开发环境准备（仓库根 PowerShell，锁文件已提交）：
 
 ```powershell
 uv sync --project code/backend --python 3.12 --frozen --all-extras
@@ -22,16 +30,122 @@ uv run --project code/backend python -m personal_agent.bootstrap.seed
 
 种子加载幂等，提供“技术选型对比”和“公开主题资料研究”两个固定流程；空库验收通过单独临时工作区，不删除日常数据。首次设置界面显示数据目录、保留政策、外部传输范围、模型/搜索配置健康状态及上限；用户无需注册。初始配置完成的判据（同 spec.md 假设 14）：迁移已至 head、数据目录可写、`/health` 的 `execution_available` 为真、保留与上限政策已展示并保存。
 
-目标启动入口：
+开发态启动入口（两个进程，前端 Vite 代理 `/api` 与 `/health` 到后端）：
 
 ```powershell
 uv run --project code/backend python -m personal_agent.bootstrap.run --mode mock
 npm run dev --prefix code/frontend -- --host 127.0.0.1
 ```
 
-后端默认127.0.0.1:8000，前端开发127.0.0.1:5173且代理/api到后端；生产构建 `npm run build --prefix code/frontend` 后由后端同源提供静态资源，`bootstrap.run --mode live` 启用已验证runtime。入口必须设置并自检Windows Proactor、单实例锁、迁移版本、受限profile与模型网关。运行中禁止reload；第二启动应明确拒绝。
+后端默认 127.0.0.1:8000，前端开发 127.0.0.1:5173。生产形态使用下一节的 `start.ps1`，由后端同源提供 `code/frontend/dist` 静态资源。
 
-## 自动化验证入口（实施时建立）
+## 实际入口（T101）
+
+所有脚本从仓库根运行，兼容 Windows PowerShell 5.1（`powershell -File`）与 PowerShell 7（`pwsh -File`，本机未安装，未实测）。脚本只读取环境变量/凭据存储，不内嵌任何密钥。
+
+### 生产风格单实例启动：`code/scripts/start.ps1`
+
+```powershell
+# 默认：mock 模式、127.0.0.1:8000、%LOCALAPPDATA%\Personal-Agent 数据目录
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1
+
+# 隔离实例：不触碰日常数据，先只做自检再启动
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1 -CheckOnly -Port 8123 -DataDir .cache\start-data
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1 -Port 8123 -DataDir .cache\start-data
+
+# 安装锁定 revision 的 Chromium（联网），然后启动
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1 -InstallBrowsers
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `-Port` | `PERSONAL_AGENT_PORT` 或 8000 | 校验 1–65535，并在启动前探测端口占用 |
+| `-Host` | `PERSONAL_AGENT_HOST` 或 127.0.0.1 | PowerShell 自动变量 `$Host` 只读，脚本以内置别名提供 `-Host`（如 `-Host 0.0.0.0`） |
+| `-Mode` | `PERSONAL_AGENT_MODE` 或 mock | 仅 `mock`/`live`；live 在接入门禁通过前被拒绝 |
+| `-DataDir` | `PERSONAL_AGENT_DATA_DIR` 或 `%LOCALAPPDATA%\Personal-Agent` | 相对路径按仓库根解析；目录必须可写 |
+| `-CheckOnly` | 关 | 完成全部预检与离线自检后退出，不启动服务 |
+| `-InstallBrowsers` | 关 | 仅当锁定 Chromium 缺失时联网安装；默认只检查、不下载 |
+| `-NoSync` | 关 | 跳过 `uv sync`，使用现有后端环境（应急/离线） |
+
+启动前按顺序执行并 fail-fast：
+
+1. `uv` 存在且版本在 `>=0.8,<1`；`uv python find 3.12` 得到 **CPython 3.12.9**。
+2. `uv lock --check`，然后 `uv sync --frozen --inexact --project code/backend --python 3.12`。`--frozen` 不重写 `uv.lock`；`--inexact` 保留已安装的 dev 工具链，避免破坏 `check.ps1`。同步后再次确认后端环境为 CPython 3.12.9。
+3. `code/backend/uv.lock`、`code/frontend/package-lock.json`、`code/runtime-policy/package-lock.json` 存在；Node 24.x / npm 11.x（不匹配只告警）；`code/frontend/node_modules` 与 `code/runtime-policy/node_modules` 已安装（缺失时给出 `npm ci` 命令）。
+4. 后端 import 冒烟：导入 `personal_agent.api.app`，并打印 CPython/Playwright 版本。
+5. Playwright 浏览器检查：用 `playwright install --dry-run chromium` 读取**锁定的 Chromium revision（1248）**及安装路径，不下载；与 `docs/dependency-baseline.md` 记录的 revision 交叉核对。缺失时仅告警（mock），live 模式则失败；只有 `-InstallBrowsers` 才下载。
+6. 运行时配置：模式/主机/端口/数据目录校验；数据目录写探测；live 接入门禁检查；单实例 OS 锁预检（锁被持有则退出码 2）；TCP 端口占用探测。
+7. 环境变量 `PERSONAL_AGENT_MODE/HOST/PORT/DATA_DIR/DB_URL` 按 `bootstrap/run.py` 与 `config.py` 的读取方式设置，随后执行 `alembic upgrade head` 与幂等 `bootstrap.seed`。
+8. 离线启动诊断：`python -m personal_agent.bootstrap.run --mode <mode> --data-dir <dir> --check`，要求 `migrations_up_to_date=true` 且 `execution_available=true`；失败即退出。
+9. 以 `python -m personal_agent.bootstrap.run` 前台启动：单实例、单 worker、无 reload；存在 `code/frontend/dist` 时同源提供 UI，否则只提供 API。
+
+退出码：`0` 正常停止；`1` 预检/自检失败；`2` 同一数据目录已有实例持有 OS 单实例锁（`<data>\runtime\instance.lock`），第二个进程不会启动 worker。停止用 Ctrl+C。
+
+健康检查与单实例复验：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8123/health | ConvertTo-Json -Depth 5
+
+# 同一 -DataDir 的第二个启动应被拒绝（退出码 2）
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1 -CheckOnly -Port 8124 -DataDir .cache\start-data
+```
+
+### 可复现构建产物：`code/scripts/package.ps1`
+
+```powershell
+# 默认输出 dist/personal-agent-<version>/
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/package.ps1
+
+# 自定义输出目录；跳过单元测试（仍执行类型检查与构建）
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/package.ps1 -Output .cache\package -SkipTests
+```
+
+执行内容：`uv lock --check` + `uv sync --frozen --extra dev`；后端 mypy、前端 `vue-tsc`、策略插件 `tsc` 类型检查；后端 `tests/unit`、前端 Vitest、策略插件 Vitest（`-SkipTests` 时跳过并在 manifest 标记 `unit_tests=skipped`）；前端 `npm run build`；策略插件 `npm run build`；后端 `uv build --project code/backend`（wheel + sdist）。构建前固定 `SOURCE_DATE_EPOCH=946684800`，使同一 checkout 的后端 wheel/sdist 字节可复现。
+
+输出目录结构（默认 `dist/personal-agent-0.1.0/`）：
+
+```text
+personal-agent-0.1.0/
+├── backend/
+│   ├── personal_agent-0.1.0-py3-none-any.whl
+│   └── personal_agent-0.1.0.tar.gz
+├── frontend/              # code/frontend/dist 的内容（index.html、assets/）
+├── runtime-policy/dist/   # tsc 产物（index.js 等）
+├── manifest.json
+└── SHA256SUMS.txt
+```
+
+`manifest.json` 不含时间戳，记录：产品版本（后端/前端/策略插件必须一致）、`schema`、`source.git_commit/git_dirty`、工具链版本（uv/CPython/Node/npm/Playwright）、三个锁文件 SHA-256 与字节数、固定 Chromium revision 及是否安装、类型检查/单元测试状态、全部产物文件的相对路径 + SHA-256 + 字节数。`SHA256SUMS.txt` 额外包含 `manifest.json` 自身的 SHA-256。脚本拒绝写入 `specs/`，重复运行会替换同名版本目录，失败时删除不完整目录。
+
+## 实际入口与验证状态
+
+以下为 2026-10-20 本机实测结果。数据目录均为 `.cache/` 下的临时目录，未触碰日常数据。
+
+| 入口/检查 | 命令（仓库根） | 状态 | 证据与限制 |
+|---|---|---|---|
+| start 自检（当前工作区） | `powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/start.ps1 -CheckOnly -Port 8138 -DataDir .cache\t101-final-check` | 通过 | CPython 3.12.9、`uv.lock` 一致、node_modules 就绪、后端 import 通过、迁移至 head、种子 2 条、离线诊断 `execution_available=true`；Chromium 1248 缺失仅告警 |
+| start 自检（干净快照） | `... -CheckOnly -Port 8134 -DataDir .cache\t101-clean-start` | 通过 | 在 `git archive HEAD` 的干净快照中新建 `.venv`（CPython 3.12.9）、迁移至该快照 head、种子 2 条、离线诊断通过 |
+| start 实际服务 | `start.ps1 -Port 8132 -DataDir .cache\t101-serve-data` | 通过 | `/health`：`status=ok`、`mode=mock`、database `ok`、migrations `0014/0014`、runtime `compatible=true`、`execution_available=true`；`/` 返回 200 `text/html`（同源 UI） |
+| 单实例拒绝 | 同一 `-DataDir` 再次启动 | 通过 | 第二个进程在预检阶段被 OS 锁拒绝，退出码 2，输出明确错误，未启动第二 worker；停止后健康端口关闭，进程树无残留 |
+| package 构建（当前工作区） | `powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/package.ps1` | 通过 | 类型检查通过（mypy 102 文件、vue-tsc、tsc）；后端单测 76、前端 43、策略 16 全通过；wheel+sdist、前端 dist、策略 dist、manifest 与 SHA256SUMS 生成（33 个产物文件、660869 字节）；三个锁文件哈希与基线一致 |
+| package 构建（干净快照） | 在 `git archive HEAD` 快照执行同一脚本 | 通过 | 同一流程通过（当时前端单测 38 个、30 个产物文件），证明脚本不依赖本机残留构建产物 |
+| package 可复现性 | 干净快照连续两次构建到不同 `-Output` | 通过 | 两次共 32 个文件（含 manifest/SHA256SUMS）逐文件 SHA-256 比较，差异 0；manifest 字节一致 |
+| 锁文件指纹 | `package.ps1` manifest | 已记录 | 当前工作区三个锁文件哈希与 `docs/dependency-baseline.md` 一致并写入 manifest；`git archive` 的 LF checkout 哈希不同，脚本会提示基线不一致，跨 checkout 比对需先统一行尾 |
+| 真实模式 | `start.ps1 -Mode live` | 未启用 | 无 T021/T100 证据，预检拒绝；`run.py` 同样拒绝 |
+| 浏览器工具/E2E | `-InstallBrowsers`、`e2e.ps1` | 未运行 | Chromium 1248 未安装；E2E 需要它或 `PERSONAL_AGENT_CHROMIUM_PATH` |
+| 全量检查 | `code/scripts/check.ps1` | T102 负责 | T101 未改该脚本；完整检查与发布证据见 T102 |
+
+## 自动化验证入口
+
+```powershell
+# 汇总入口：ruff、mypy、离线 pytest、前端/策略插件类型检查与单测
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/check.ps1
+
+# 构建同源前端后运行 Playwright E2E（需要 Chromium 1248）
+powershell -NoProfile -ExecutionPolicy Bypass -File code/scripts/e2e.ps1
+```
+
+等价的直接命令：
 
 ```powershell
 uv run --project code/backend ruff check code/backend
@@ -43,7 +157,7 @@ npm run test:e2e --prefix code/frontend
 npm run test --prefix code/runtime-policy -- --run
 ```
 
-默认测试使用固定clock/random/HTTP/model fixtures和临时数据目录，禁止访问真实供应商。真实接入测试另运行 `uv run --project code/backend pytest code/backend/tests/live -m live`，只在用户明确启用live、已配置凭据且确认费用范围时执行；其结果不能从Mock推断。所有模型调用仍受同一单请求门。
+默认测试使用固定 clock/random/HTTP/model fixtures 和临时数据目录，禁止访问真实供应商。真实接入测试另运行 `uv run --project code/backend pytest code/backend/tests/live -m live`，只在用户明确启用 live、已配置凭据且确认费用范围时执行；其结果不能从 Mock 推断。所有模型调用仍受同一单请求门。
 
 ## UI端到端场景与预期
 
@@ -78,10 +192,10 @@ npm run test --prefix code/runtime-policy -- --run
 
 ## 迁移、备份与恢复
 
-目标运维入口 `python -m personal_agent.bootstrap.backup` / `restore --manifest <path>` 均由UI维护操作可调用，日常用户不必用命令。维护模式先阻止新增动作并收敛已在途，SQLite backup API生成DB副本并保存blob/hash清单、schema版本与删除清单，验证恢复到临时目录后才能声明备份可用。
+目标运维入口 `python -m personal_agent.bootstrap.backup` / `restore --manifest <path>` 均由UI维护操作可调用，日常用户不必用命令（对应 T090–T096；T096 的恢复演练尚未完成，本节不表示已验证）。维护模式先阻止新增动作并收敛已在途，SQLite backup API生成DB副本并保存blob/hash清单、schema版本与删除清单，验证恢复到临时目录后才能声明备份可用。
 
 验收一次成功升级、一次迁移中失败后恢复、一次版本不兼容恢复拒绝；恢复后检查外键/hash/引用/删除政策，旧RUNNING记录标INTERRUPTED，确认不会自动续跑。SDK/profile升级同时回归权限、单模型门、事件、取消与检查点，不允许换版本后直接信任旧session。
 
 ## 发布证据
 
-保留静态检查/默认测试/真实接入测试结果及锁文件指纹；记录未运行项目和限制。一期发布须全部一期标准通过且真实UI连接实际runtime与文档，两期边界不混用。当前仅完成设计文档检查，尚无上述运行验证证据。
+保留静态检查/默认测试/真实接入测试结果及锁文件指纹；记录未运行项目和限制。一期发布须全部一期标准通过且真实UI连接实际runtime与文档，两期边界不混用。2026-10-20 T101 已提供启动/打包入口及其自检、健康检查、单实例与可复现构建证据；完整发布结论仍由 T102（全量检查与 `docs/release-evidence.md`）和 T103（计划/证据收口）给出，真实模式仍受 T021/T100 门禁阻塞。

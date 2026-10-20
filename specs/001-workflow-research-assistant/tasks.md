@@ -203,7 +203,7 @@ description: "一期工作流研究助理的依赖有序实施任务"
 - [ ] T098 [P] 在 code/backend/tests/integration/test_phase1_stability.py 完成两流程×三组输入×两次共12次离线完整研究，核对文档、来源/缺口、版本和控制决策重放；用 docs/acceptance-matrix.md 汇总SC-001/003/005—009/012—017与A1—A5证据。
 - [ ] T099 [P] 在 code/backend/tests/integration/test_performance.py 和 code/frontend/tests/e2e/progress-latency.spec.ts 建立10000执行记录基线，测列表/详情不含模型p95<500ms、提交事件到UI p95<1s、停止接收反馈<1s，在 docs/performance.md 记录环境、口径、结果和优化后的复验。
 - [ ] T100 在 code/backend/tests/live/test_phase1_delivery.py 通过真实UI/服务链路分别运行两个流程，检查官方Loop、所有模型请求纳管、真实来源和可获取文档；仅在用户明确启用live、配置凭据并确认费用范围后执行，结果写 docs/live-acceptance.md，未运行/失败不以Mock替代。
-- [ ] T101 在 code/scripts/start.ps1 和 code/scripts/package.ps1 提供安装检查、固定依赖与浏览器版本、自检、单实例生产启动和构建产物；更新 specs/001-workflow-research-assistant/quickstart.md 中目标命令为实际可用入口及状态，使用干净临时工作区验证。
+- [x] T101 在 code/scripts/start.ps1 和 code/scripts/package.ps1 提供安装检查、固定依赖与浏览器版本、自检、单实例生产启动和构建产物；更新 specs/001-workflow-research-assistant/quickstart.md 中目标命令为实际可用入口及状态，使用干净临时工作区验证。
 - [ ] T102 运行 code/scripts/check.ps1 的全部适用检查和相关UI/策略测试，修正失败并在 docs/release-evidence.md 记录命令、结果、锁文件指纹、宪章符合性、迁移/恢复证据及未运行限制；缺陷先补失败用例，任何强制门禁未满足不得标一期完成。
 - [ ] T103 在 specs/001-workflow-research-assistant/plan.md 和 docs/release-evidence.md 更新实施结果、已验证依赖与残余限制，复核所有一期故事/契约覆盖和二期排除；尊重 checklists/workflow.md 的评审者勾选权，不以实现完成自动勾选需求清单。
 
